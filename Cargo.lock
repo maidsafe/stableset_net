@@ -944,7 +944,7 @@ dependencies = [
 
 [[package]]
 name = "ant-node"
-version = "0.3.2"
+version = "0.3.1"
 dependencies = [
  "ant-bootstrap",
  "ant-build-info",
@@ -1074,7 +1074,6 @@ dependencies = [
  "ant-build-info",
  "ant-evm",
  "ant-registers",
- "bincode",
  "blsttc",
  "bytes",
  "color-eyre",

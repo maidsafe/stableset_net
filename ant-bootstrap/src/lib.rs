@@ -189,6 +189,13 @@ impl BootstrapAddr {
 ///
 /// ignore_peer_id is only used for nat-detection contact list
 pub fn craft_valid_multiaddr(addr: &Multiaddr, ignore_peer_id: bool) -> Option<Multiaddr> {
+    if addr
+        .iter()
+        .any(|protocol| matches!(&protocol, Protocol::P2pCircuit))
+    {
+        return None;
+    }
+
     let peer_id = addr
         .iter()
         .find(|protocol| matches!(protocol, Protocol::P2p(_)));

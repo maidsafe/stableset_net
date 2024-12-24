@@ -87,7 +87,7 @@ async fn main() -> Result<()> {
 
 fn init_logging_and_metrics(opt: &Opt) -> Result<(ReloadHandle, Option<WorkerGuard>)> {
     let logging_targets = vec![
-        ("ant_bootstrap".to_string(), Level::DEBUG),
+        ("ant_bootstrap".to_string(), Level::INFO),
         ("ant_build_info".to_string(), Level::TRACE),
         ("ant_evm".to_string(), Level::TRACE),
         ("ant_networking".to_string(), Level::INFO),

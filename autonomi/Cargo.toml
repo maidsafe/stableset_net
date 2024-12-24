@@ -47,21 +47,26 @@ const-hex = "1.12.0"
 futures = "0.3.30"
 hex = "~0.4.3"
 libp2p = "0.54.1"
-pyo3 = { version = "0.20", optional = true, features = ["extension-module", "abi3-py38"] }
+pyo3 = { version = "0.20", optional = true, features = [
+    "extension-module",
+    "abi3-py38",
+] }
 rand = "0.8.5"
 rayon = "1.8.0"
 rmp-serde = "1.1.1"
-self_encryption = "~0.30.0"
+self_encryption = "0.31"
 serde = { version = "1.0.133", features = ["derive", "rc"] }
 serde-wasm-bindgen = "0.6.5"
 sha2 = "0.10.6"
-thiserror = "1.0.23"
-tokio = { version = "1.35.0", features = ["sync"] }
+tempfile = "3.8"
+thiserror = "1.0"
+tokio = { version = "1.0", features = ["full"] }
 tracing = { version = "~0.1.26" }
 walkdir = "2.5.0"
 wasm-bindgen = "0.2.93"
 wasm-bindgen-futures = "0.4.43"
 xor_name = "5.0.0"
+anyhow = "1.0"
 
 [dev-dependencies]
 alloy = { version = "0.7.3", default-features = false, features = ["contract", "json-rpc", "network", "node-bindings", "provider-http", "reqwest-rustls-tls", "rpc-client", "rpc-types", "signer-local", "std"] }
@@ -73,6 +78,9 @@ sha2 = "0.10.6"
 test-utils = { path = "../test-utils" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wasm-bindgen-test = "0.3.43"
+anyhow = "1.0"
+portpicker = "0.1"
+tokio = { version = "1.0", features = ["full", "test-util"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"

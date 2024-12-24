@@ -56,15 +56,12 @@ rayon = "1.8.0"
 rmp-serde = "1.1.1"
 self_encryption = "0.31"
 serde = { version = "1.0.133", features = ["derive", "rc"] }
-serde-wasm-bindgen = "0.6.5"
 sha2 = "0.10.6"
 tempfile = "3.8"
 thiserror = "1.0"
 tokio = { version = "1.0", features = ["full"] }
 tracing = { version = "~0.1.26" }
 walkdir = "2.5.0"
-wasm-bindgen = "0.2.93"
-wasm-bindgen-futures = "0.4.43"
 xor_name = "5.0.0"
 anyhow = "1.0"
 
@@ -77,8 +74,6 @@ sha2 = "0.10.6"
 # Removing the version field is a workaround.
 test-utils = { path = "../test-utils" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-wasm-bindgen-test = "0.3.43"
-anyhow = "1.0"
 portpicker = "0.1"
 tokio = { version = "1.0", features = ["full", "test-util"] }
 

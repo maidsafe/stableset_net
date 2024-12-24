@@ -43,6 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 In the above example the wallet is setup to use the default EVM network (Arbitrum One). Instead we can use a different network:
+
 ```rust
 use autonomi::{EvmNetwork, Wallet};
 // Arbitrum Sepolia
@@ -60,18 +61,20 @@ Registers are deprecated and planned to be replaced by transactions and pointers
 To run the tests, we can run a local network:
 
 1. Run a local EVM node:
-    > Note: To run the EVM node, Foundry is required to be installed: https://book.getfoundry.sh/getting-started/installation
+    > Note: To run the EVM node, Foundry is required to be installed: <https://book.getfoundry.sh/getting-started/installation>
 
     ```sh
     cargo run --bin evm-testnet
     ```
 
 2. Run a local network with the `local` feature and use the local EVM node.
+
     ```sh
     cargo run --bin antctl --features local -- local run --build --clean --rewards-address <ETHEREUM_ADDRESS> evm-local
     ```
 
 3. Then run the tests with the `local` feature and pass the EVM params again:
+
     ```sh
     EVM_NETWORK=local cargo test --features local --package autonomi
     ```
@@ -134,10 +137,6 @@ Chunk payments address: 0x8464135c8F25Da09e49BC8782676a84730C318bC
 Deployer wallet private key: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 Genesis wallet balance: (tokens: 20000000000000000000000000, gas: 9998998011366954730202)
 ```
-
-# WASM
-
-For documentation on WASM, see [./README_WASM.md].
 
 # Python
 

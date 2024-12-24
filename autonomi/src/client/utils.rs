@@ -17,82 +17,69 @@ use bytes::Bytes;
 use futures::stream::{FuturesUnordered, StreamExt};
 use libp2p::kad::{Quorum, Record};
 use rand::{thread_rng, Rng};
-use self_encryption::{decrypt_full_set, DataMap, EncryptedChunk};
+use self_encryption::{streaming_decrypt_from_storage, DataMap, Error as SelfEncryptionError};
 use std::{future::Future, num::NonZero};
+use tempfile::NamedTempFile;
+use tokio::fs;
 use xor_name::XorName;
 
 use super::{
-    data::{GetError, PayError, PutError, CHUNK_DOWNLOAD_BATCH_SIZE},
+    data::{GetError, PayError, PutError},
     Client,
 };
-use crate::self_encryption::DataMapLevel;
 
 impl Client {
     /// Fetch and decrypt all chunks in the data map.
     pub(crate) async fn fetch_from_data_map(&self, data_map: &DataMap) -> Result<Bytes, GetError> {
         debug!("Fetching encrypted data chunks from data map {data_map:?}");
-        let mut download_tasks = vec![];
-        for info in data_map.infos() {
-            download_tasks.push(async move {
-                match self
-                    .chunk_get(info.dst_hash)
-                    .await
-                    .inspect_err(|err| error!("Error fetching chunk {:?}: {err:?}", info.dst_hash))
-                {
-                    Ok(chunk) => Ok(EncryptedChunk {
-                        index: info.index,
-                        content: chunk.value,
-                    }),
+
+        // Create a temporary file to store the decrypted data
+        let temp_file = NamedTempFile::new().map_err(|e| {
+            GetError::Decryption(crate::self_encryption::Error::SelfEncryption(e.into()))
+        })?;
+        let temp_path = temp_file.path().to_owned();
+
+        // Create a closure to fetch chunks
+        let client = self.clone();
+        let get_chunks = move |xor_names: &[XorName]| -> Result<Vec<Bytes>, SelfEncryptionError> {
+            let mut chunks = Vec::with_capacity(xor_names.len());
+            for xor_name in xor_names {
+                match futures::executor::block_on(client.chunk_get(*xor_name)) {
+                    Ok(chunk) => chunks.push(chunk.value),
                     Err(err) => {
-                        error!("Error fetching chunk {:?}: {err:?}", info.dst_hash);
-                        Err(err)
+                        error!("Error fetching chunk {:?}: {err:?}", xor_name);
+                        return Err(SelfEncryptionError::Generic(format!(
+                            "Failed to fetch chunk: {}",
+                            err
+                        )));
                     }
                 }
-            });
-        }
-        debug!("Successfully fetched all the encrypted chunks");
-        let encrypted_chunks =
-            process_tasks_with_max_concurrency(download_tasks, *CHUNK_DOWNLOAD_BATCH_SIZE)
-                .await
-                .into_iter()
-                .collect::<Result<Vec<EncryptedChunk>, GetError>>()?;
+            }
+            Ok(chunks)
+        };
 
-        let data = decrypt_full_set(data_map, &encrypted_chunks).map_err(|e| {
-            error!("Error decrypting encrypted_chunks: {e:?}");
-            GetError::Decryption(crate::self_encryption::Error::SelfEncryption(e))
+        // Decrypt the data using streaming decryption
+        streaming_decrypt_from_storage(data_map, &temp_path, get_chunks)
+            .map_err(|e| GetError::Decryption(crate::self_encryption::Error::SelfEncryption(e)))?;
+
+        // Read the decrypted data
+        let bytes = fs::read(&temp_path).await.map_err(|e| {
+            GetError::Decryption(crate::self_encryption::Error::SelfEncryption(e.into()))
         })?;
-        debug!("Successfully decrypted all the chunks");
-        Ok(data)
+
+        Ok(Bytes::from(bytes))
     }
 
-    /// Unpack a wrapped data map and fetch all bytes using self-encryption.
+    /// Unpack a data map and fetch all bytes using self-encryption.
     pub(crate) async fn fetch_from_data_map_chunk(
         &self,
         data_map_bytes: &Bytes,
     ) -> Result<Bytes, GetError> {
-        let mut data_map_level: DataMapLevel = rmp_serde::from_slice(data_map_bytes)
+        let data_map: DataMap = rmp_serde::from_slice(data_map_bytes)
             .map_err(GetError::InvalidDataMap)
             .inspect_err(|err| error!("Error deserializing data map: {err:?}"))?;
 
-        loop {
-            let data_map = match &data_map_level {
-                DataMapLevel::First(map) => map,
-                DataMapLevel::Additional(map) => map,
-            };
-
-            let data = self.fetch_from_data_map(data_map).await?;
-
-            match &data_map_level {
-                DataMapLevel::First(_) => break Ok(data),
-                DataMapLevel::Additional(_) => {
-                    data_map_level = rmp_serde::from_slice(&data).map_err(|err| {
-                        error!("Error deserializing data map: {err:?}");
-                        GetError::InvalidDataMap(err)
-                    })?;
-                    continue;
-                }
-            };
-        }
+        self.fetch_from_data_map(&data_map).await
     }
 
     pub(crate) async fn chunk_upload_with_payment(

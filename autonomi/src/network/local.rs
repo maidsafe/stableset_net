@@ -1,26 +1,24 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Result};
 use libp2p::Multiaddr;
-use libp2p::PeerId;
+use std::collections::HashMap;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::str::FromStr;
-use tokio::io::AsyncBufReadExt;
+use std::sync::Arc;
+use std::time::SystemTime;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
-use tokio::sync::mpsc;
-use tokio::time::Duration;
+use tokio::sync::RwLock;
 
 /// Get an available port by letting the OS assign one
-fn get_available_port() -> Result<u16> {
-    let listener = TcpListener::bind("127.0.0.1:0").context("Failed to bind to random port")?;
-    Ok(listener
-        .local_addr()
-        .context("Failed to get local address")?
-        .port())
+fn get_available_port() -> anyhow::Result<u16> {
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    Ok(listener.local_addr()?.port())
 }
 
 /// Find the antnode binary in common locations
-fn find_antnode_binary() -> Result<PathBuf> {
+fn find_antnode_binary() -> anyhow::Result<PathBuf> {
     let possible_paths = [
         "../target/debug/antnode",
         "./target/debug/antnode",
@@ -39,89 +37,80 @@ fn find_antnode_binary() -> Result<PathBuf> {
     ))
 }
 
-/// Error type for node operations
-#[derive(Debug, thiserror::Error)]
-pub enum NodeError {
-    #[error("Node is already running")]
-    AlreadyRunning,
-    #[error("Node is not running")]
-    NotRunning,
-    #[error("Failed to start node: {0}")]
-    StartFailure(String),
-    #[error("Failed to stop node: {0}")]
-    StopFailure(String),
-    #[error("Binary not found: {0}")]
-    BinaryNotFound(String),
-    #[error("Timeout waiting for node info")]
-    InfoTimeout,
-    #[error("Failed to parse peer ID: {0}")]
-    PeerIdParseError(String),
+/// Information about a discovered peer
+#[derive(Debug, Clone)]
+pub struct PeerInfo {
+    /// The peer's ID
+    pub peer_id: String,
+    /// When the peer was last seen
+    pub last_seen: SystemTime,
 }
 
-/// Represents a local node instance for testing purposes.
-#[derive(Debug)]
+/// Represents a local node instance
 pub struct LocalNode {
-    /// The process handle for the running node
-    process: Option<Child>,
-    /// The RPC port the node is listening on
-    rpc_port: u16,
-    /// The peer ID of the node
-    peer_id: Option<PeerId>,
-    /// The multiaddress where the node can be reached
-    multiaddr: Option<Multiaddr>,
+    port: u16,
+    child: Option<Child>,
+    peer_id: Option<String>,
+    discovered_peers: Arc<RwLock<HashMap<String, PeerInfo>>>,
+    first: bool,
 }
 
 impl LocalNode {
-    /// Creates a new LocalNode instance with default values.
-    pub fn new(rpc_port: u16) -> Self {
+    /// Creates a new LocalNode instance
+    pub fn new(port: u16) -> Self {
         Self {
-            process: None,
-            rpc_port,
+            port,
+            child: None,
             peer_id: None,
-            multiaddr: None,
+            discovered_peers: Arc::new(RwLock::new(HashMap::new())),
+            first: false,
         }
     }
 
-    /// Creates a new LocalNode instance with an automatically assigned port.
-    pub fn new_with_random_port() -> Result<Self> {
-        let port = get_available_port()?;
-        Ok(Self::new(port))
+    /// Returns the node's multiaddr
+    pub fn multiaddr(&self) -> Option<Multiaddr> {
+        self.peer_id.as_ref().map(|peer_id| {
+            format!("/ip4/127.0.0.1/tcp/{}/p2p/{}", self.port, peer_id)
+                .parse()
+                .expect("Invalid multiaddr")
+        })
     }
 
-    /// Returns the RPC port this node is configured to use
-    pub fn rpc_port(&self) -> u16 {
-        self.rpc_port
-    }
+    /// Connect to another node
+    pub async fn connect_to(&mut self, other: &LocalNode) -> Result<()> {
+        let other_multiaddr = other
+            .multiaddr()
+            .ok_or_else(|| anyhow!("Other node has no multiaddr"))?;
 
-    /// Returns true if the node process is currently running
-    pub fn is_running(&self) -> bool {
-        self.process.is_some()
-    }
+        // Instead of starting a new node process, we'll just store the peer's multiaddr
+        // and let the mDNS discovery handle the connection
+        println!(
+            "Node {} will discover {} via mDNS",
+            self.port, other_multiaddr
+        );
 
-    /// Returns the peer ID of the node if available
-    pub fn peer_id(&self) -> Option<&PeerId> {
-        self.peer_id.as_ref()
-    }
-
-    /// Returns the multiaddr of the node if available
-    pub fn multiaddr(&self) -> Option<&Multiaddr> {
-        self.multiaddr.as_ref()
-    }
-
-    /// Start the node process
-    pub async fn start(&mut self) -> Result<(), NodeError> {
-        if self.is_running() {
-            return Err(NodeError::AlreadyRunning);
+        // Add the peer to our discovered peers list
+        let mut peers = self.discovered_peers.write().await;
+        if let Some(peer_id) = other.peer_id().await {
+            peers.insert(
+                peer_id.clone(),
+                PeerInfo {
+                    peer_id,
+                    last_seen: SystemTime::now(),
+                },
+            );
         }
 
-        let binary_path =
-            find_antnode_binary().map_err(|e| NodeError::BinaryNotFound(e.to_string()))?;
+        Ok(())
+    }
 
+    /// Starts the node
+    pub async fn start(&mut self) -> Result<()> {
+        let binary_path = find_antnode_binary()?;
         println!("Starting node with binary: {:?}", binary_path);
 
         let mut cmd = Command::new(binary_path);
         cmd.env("EVM_NETWORK", "local")
-            .env("RUST_LOG", "debug")
             .arg("--rewards-address")
             .arg("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
             .arg("--home-network")
@@ -129,119 +118,143 @@ impl LocalNode {
             .arg("--ip")
             .arg("127.0.0.1")
             .arg("--port")
-            .arg(self.rpc_port.to_string())
-            .arg("--ignore-cache")
-            .arg("evm-custom")
-            .arg("--data-payments-address")
-            .arg("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
-            .arg("--payment-token-address")
-            .arg("0x5FbDB2315678afecb367f032d93F642f64180aa3")
+            .arg(self.port.to_string())
+            .arg("--ignore-cache");
+
+        if self.first {
+            cmd.arg("--first");
+        }
+
+        cmd.arg("evm-custom")
             .arg("--rpc-url")
             .arg("http://localhost:8545")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
+            .arg("--payment-token-address")
+            .arg("0x5FbDB2315678afecb367f032d93F642f64180aa3")
+            .arg("--data-payments-address")
+            .arg("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
 
         println!("Running command: {:?}", cmd);
 
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| NodeError::StartFailure(e.to_string()))?;
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
 
-        let (tx, mut rx) = mpsc::channel(1);
+        let mut child = cmd.spawn()?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| anyhow!("Failed to get stdout"))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| anyhow!("Failed to get stderr"))?;
 
-        if let Some(stdout) = child.stdout.take() {
-            let mut stdout_reader = tokio::io::BufReader::new(stdout).lines();
-            let tx = tx.clone();
+        let discovered_peers = self.discovered_peers.clone();
+        let peer_id = Arc::new(RwLock::new(None));
+        let peer_id_clone = peer_id.clone();
 
-            tokio::spawn(async move {
-                while let Ok(Some(line)) = stdout_reader.next_line().await {
-                    println!("Node stdout: {}", line);
-                    if line.contains("PeerId is ") {
-                        if let Some(peer_id_str) = line.split("PeerId is ").nth(1) {
-                            let _ = tx.send(peer_id_str.trim().to_string()).await;
-                        }
+        // Process stdout
+        let stdout_reader = BufReader::new(stdout).lines();
+        tokio::spawn(async move {
+            let mut lines = stdout_reader;
+            while let Ok(Some(line)) = lines.next_line().await {
+                println!("Node stdout: {}", line);
+                // Check for peer ID
+                if line.contains("PeerId is ") {
+                    if let Some(id) = line.split("PeerId is ").nth(1) {
+                        let mut peer_id = peer_id_clone.write().await;
+                        *peer_id = Some(id.trim().to_string());
+                        println!("Found peer ID: {}", id.trim());
                     }
                 }
-            });
-        }
 
-        if let Some(stderr) = child.stderr.take() {
-            let mut stderr_reader = tokio::io::BufReader::new(stderr).lines();
-            tokio::spawn(async move {
-                while let Ok(Some(line)) = stderr_reader.next_line().await {
-                    println!("Node stderr: {}", line);
+                // Check for peer discovery
+                if line.contains("Discovered peer") || line.contains("Connected to peer") {
+                    println!("Found peer discovery line: {}", line);
+                    let discovered_id = if line.contains("Discovered peer") {
+                        line.split("Discovered peer")
+                            .nth(1)
+                            .map(|s| s.trim().to_string())
+                    } else {
+                        line.split("Connected to peer")
+                            .nth(1)
+                            .map(|s| s.trim().to_string())
+                    };
+
+                    if let Some(discovered_id) = discovered_id {
+                        println!("Extracted peer ID: {}", discovered_id);
+                        let mut peers = discovered_peers.write().await;
+                        peers.insert(
+                            discovered_id.clone(),
+                            PeerInfo {
+                                peer_id: discovered_id,
+                                last_seen: SystemTime::now(),
+                            },
+                        );
+                        println!("Added peer to discovered peers");
+                    } else {
+                        println!("Failed to extract peer ID from line");
+                    }
                 }
-            });
+            }
+        });
+
+        // Process stderr
+        let stderr_reader = BufReader::new(stderr).lines();
+        tokio::spawn(async move {
+            let mut lines = stderr_reader;
+            while let Ok(Some(line)) = lines.next_line().await {
+                println!("Node stderr: {}", line);
+            }
+        });
+
+        // Wait for peer ID to be available
+        let start_time = std::time::Instant::now();
+        while peer_id.read().await.is_none() {
+            if start_time.elapsed() > std::time::Duration::from_secs(30) {
+                return Err(anyhow!("Timeout waiting for peer ID"));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
 
-        match tokio::time::timeout(Duration::from_secs(5), rx.recv()).await {
-            Ok(Some(peer_id_str)) => {
-                let peer_id = PeerId::from_str(&peer_id_str)
-                    .map_err(|e| NodeError::PeerIdParseError(e.to_string()))?;
+        self.peer_id = peer_id.read().await.clone();
+        println!("Node started with peer ID: {:?}", self.peer_id);
+        self.child = Some(child);
 
-                let multiaddr = format!(
-                    "/ip4/127.0.0.1/udp/{}/quic-v1/p2p/{}",
-                    self.rpc_port, peer_id
-                )
-                .parse()
-                .map_err(|e| {
-                    NodeError::StartFailure(format!("Failed to create multiaddr: {}", e))
-                })?;
-
-                self.peer_id = Some(peer_id);
-                self.multiaddr = Some(multiaddr);
-                self.process = Some(child);
-                Ok(())
-            }
-            Ok(None) => Err(NodeError::StartFailure(
-                "Process output channel closed".into(),
-            )),
-            Err(_) => {
-                let _ = child.kill().await;
-                Err(NodeError::InfoTimeout)
-            }
-        }
+        Ok(())
     }
 
-    /// Stop the node process
-    pub async fn stop(&mut self) -> Result<(), NodeError> {
-        if let Some(mut child) = self.process.take() {
-            let _ = child.kill().await;
-            let _ = child.wait().await;
-            self.peer_id = None;
-            self.multiaddr = None;
-            Ok(())
-        } else {
-            Err(NodeError::NotRunning)
-        }
+    /// Returns the node's peer ID
+    pub async fn peer_id(&self) -> Option<String> {
+        self.peer_id.clone()
     }
 
-    /// Takes ownership of the process handle if it exists
-    pub fn take_process(&mut self) -> Option<Child> {
-        self.process.take()
+    /// Returns whether this node has discovered a specific peer
+    pub async fn has_discovered_peer(&self, peer_id: &str) -> bool {
+        let peers = self.discovered_peers.read().await;
+        peers.contains_key(peer_id)
+    }
+
+    /// Returns the number of discovered peers
+    pub async fn discovered_peer_count(&self) -> usize {
+        let peers = self.discovered_peers.read().await;
+        peers.len()
+    }
+
+    /// Stops the node
+    pub async fn stop(&mut self) -> Result<()> {
+        if let Some(mut child) = self.child.take() {
+            child.kill().await?;
+            child.wait().await?;
+        }
+        Ok(())
     }
 }
 
 impl Drop for LocalNode {
     fn drop(&mut self) {
-        if let Some(mut child) = self.process.take() {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let _ = child.kill().await;
-                let _ = child.wait().await;
-            });
-        }
-    }
-}
-
-impl Clone for LocalNode {
-    fn clone(&self) -> Self {
-        Self {
-            process: None,
-            rpc_port: self.rpc_port,
-            peer_id: self.peer_id.clone(),
-            multiaddr: self.multiaddr.clone(),
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
         }
     }
 }

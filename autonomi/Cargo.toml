@@ -64,6 +64,10 @@ tracing = { version = "~0.1.26" }
 walkdir = "2.5.0"
 xor_name = "5.0.0"
 anyhow = "1.0"
+ant-service-management = { path = "../ant-service-management" }
+async-trait = "0.1.77"
+dirs-next = "2.0.0"
+regex = "1.10.3"
 
 [dev-dependencies]
 alloy = { version = "0.7.3", default-features = false, features = ["contract", "json-rpc", "network", "node-bindings", "provider-http", "reqwest-rustls-tls", "rpc-client", "rpc-types", "signer-local", "std"] }

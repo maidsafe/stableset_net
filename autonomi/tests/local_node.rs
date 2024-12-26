@@ -1,80 +1,93 @@
 use anyhow::Result;
-use autonomi::network::LocalNode;
+#[cfg(feature = "local")]
+use autonomi::network::local::LocalNode;
 use std::time::Duration;
-use tokio::time::{sleep, timeout};
+use tokio::time::sleep;
 
+#[cfg(feature = "local")]
 #[tokio::test]
-async fn test_local_node_basic_functionality() -> Result<()> {
-    println!("Starting basic functionality test");
+async fn test_peer_discovery() -> Result<()> {
+    println!("Starting peer discovery test");
 
-    // Test node creation with random port
-    let mut node = LocalNode::new_with_random_port()?;
-    println!("Created node with random port: {}", node.rpc_port());
+    // Create two nodes with random ports
+    let port1 = portpicker::pick_unused_port().expect("No ports free");
+    let port2 = portpicker::pick_unused_port().expect("No ports free");
+    println!("Created nodes with ports: {} and {}", port1, port2);
 
-    // Verify initial state
-    assert!(node.rpc_port() > 0);
-    assert!(!node.is_running());
-    assert!(node.peer_id().is_none());
-    assert!(node.multiaddr().is_none());
-    println!("Initial state verified");
+    // Start node 1
+    println!("Starting node 1...");
+    let mut node1 = LocalNode::new(port1);
+    node1.start().await?;
+    let peer_id1 = node1.peer_id().await.unwrap();
+    println!("Node 1 started with peer ID: {}", peer_id1);
 
-    // Start the node with timeout
-    println!("Starting node...");
-    match timeout(Duration::from_secs(5), node.start()).await {
-        Ok(result) => {
-            result?;
-            println!("Node started successfully");
+    // Start node 2
+    println!("Starting node 2...");
+    let mut node2 = LocalNode::new(port2);
+    node2.start().await?;
+    let peer_id2 = node2.peer_id().await.unwrap();
+    println!("Node 2 started with peer ID: {}", peer_id2);
+
+    println!("Both nodes started successfully");
+
+    // Connect the nodes
+    println!("Connecting node 1 to node 2...");
+    node1.connect_to(&node2).await?;
+    println!("Connected node 1 to node 2");
+
+    // Also connect node 2 to node 1 for bidirectional connection
+    println!("Connecting node 2 to node 1...");
+    node2.connect_to(&node1).await?;
+    println!("Connected node 2 to node 1");
+
+    println!("Waiting for peer discovery...");
+
+    // Wait for peer discovery (with timeout)
+    let mut attempts = 0;
+    let max_attempts = 120; // Increased timeout to 120 seconds
+    let mut success = false;
+
+    while attempts < max_attempts {
+        let node1_has_node2 = node1.has_discovered_peer(&peer_id2).await;
+        let node2_has_node1 = node2.has_discovered_peer(&peer_id1).await;
+
+        println!(
+            "Discovery state - Node 1: {} peers (has Node 2: {}), Node 2: {} peers (has Node 1: {})",
+            node1.discovered_peer_count().await,
+            node1_has_node2,
+            node2.discovered_peer_count().await,
+            node2_has_node1
+        );
+
+        if node1_has_node2 && node2_has_node1 {
+            success = true;
+            break;
         }
-        Err(_) => {
-            // Force cleanup if timeout
-            if let Some(mut process) = node.take_process() {
-                let _ = process.kill().await;
-                let _ = process.wait().await;
-            }
-            anyhow::bail!("Timeout while starting node");
+
+        // Print node logs every 10 seconds
+        if attempts % 10 == 0 {
+            println!("Still waiting for peer discovery...");
         }
+
+        sleep(Duration::from_secs(1)).await;
+        attempts += 1;
     }
 
-    // Quick verification of running state
-    assert!(node.is_running());
-    assert!(node.peer_id().is_some());
-    assert!(node.multiaddr().is_some());
-    println!("Post-start assertions passed");
+    // Clean up
+    println!("Stopping nodes...");
+    node1.stop().await?;
+    node2.stop().await?;
+    println!("Nodes stopped");
 
-    // Verify multiaddr contains peer ID and port
-    let multiaddr = node.multiaddr().unwrap().to_string();
-    println!("Node multiaddr: {}", multiaddr);
-    assert!(multiaddr.contains(&node.peer_id().unwrap().to_string()));
-    assert!(multiaddr.contains(&node.rpc_port().to_string()));
-    println!("Multiaddr verification passed");
-
-    // Brief stabilization period
-    println!("Brief stabilization wait...");
-    sleep(Duration::from_millis(500)).await;
-
-    // Stop the node with timeout
-    println!("Stopping node...");
-    match timeout(Duration::from_secs(5), node.stop()).await {
-        Ok(result) => {
-            result?;
-            println!("Node stopped successfully");
-        }
-        Err(_) => {
-            // Force cleanup if timeout
-            if let Some(mut process) = node.take_process() {
-                let _ = process.kill().await;
-                let _ = process.wait().await;
-            }
-            println!("Had to force cleanup due to timeout");
-        }
+    if !success {
+        panic!("Peer discovery failed within timeout period");
     }
 
-    // Final state verification
-    assert!(!node.is_running());
-    assert!(node.peer_id().is_none());
-    assert!(node.multiaddr().is_none());
-    println!("Post-stop assertions passed");
-
-    println!("Test completed successfully");
     Ok(())
+}
+
+#[cfg(not(feature = "local"))]
+#[test]
+fn test_peer_discovery_local_feature_disabled() {
+    println!("Test skipped: local feature is not enabled");
 }

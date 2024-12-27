@@ -908,6 +908,7 @@ dependencies = [
  "ant-evm",
  "ant-protocol",
  "ant-registers",
+ "anyhow",
  "assert_fs",
  "async-trait",
  "blsttc",

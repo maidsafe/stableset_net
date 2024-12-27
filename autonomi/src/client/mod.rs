@@ -127,7 +127,12 @@ impl Client {
     /// Initialize the network with the given config
     pub async fn init_with_config(config: ClientConfig) -> Result<Self> {
         let keypair = Keypair::generate_ed25519();
-        let mut builder = NetworkBuilder::new(keypair, config.local);
+        let mut builder = NetworkBuilder::new(keypair);
+
+        // Configure local mode if enabled
+        if config.local {
+            builder = builder.local(true);
+        }
 
     /// Initialize a client that bootstraps from a list of peers.
     ///
@@ -208,7 +213,12 @@ impl Client {
     /// Initialize the network in local mode
     pub async fn init_local(local: bool) -> Result<Self> {
         let keypair = Keypair::generate_ed25519();
-        let builder = NetworkBuilder::new(keypair, local);
+        let mut builder = NetworkBuilder::new(keypair);
+
+        // Configure local mode if enabled
+        if local {
+            builder = builder.local(true);
+        }
 
         let (network, _event_receiver, driver) = builder
             .build_client()
@@ -261,18 +271,19 @@ impl Client {
             peers: Some(peers.to_vec()),
         };
 
-        let (network, event_receiver) = build_client_and_run_swarm(local);
+        let keypair = Keypair::generate_ed25519();
+        let mut builder = NetworkBuilder::new(keypair);
+        if local {
+            builder = builder.local(true);
+        }
 
-        // Spawn task to dial to the given peers
-        let network_clone = network.clone();
-        let peers = peers.to_vec();
-        let _handle = ant_networking::target_arch::spawn(async move {
-            for addr in peers {
-                if let Err(err) = network_clone.dial(addr.clone()).await {
-                    error!("Failed to dial addr={addr} with err: {err:?}");
-                    eprintln!("addr={addr} Failed to dial: {err:?}");
-                };
-            }
+        let (network, event_receiver, driver) = builder
+            .build_client()
+            .expect("Failed to build network");
+
+        // Spawn the driver to run in the background
+        ant_networking::target_arch::spawn(async move {
+            driver.run().await;
         });
 
         let (sender, receiver) = futures::channel::oneshot::channel();
@@ -369,7 +380,11 @@ impl Client {
 
 fn build_client_and_run_swarm(local: bool) -> (Network, mpsc::Receiver<NetworkEvent>) {
     let keypair = Keypair::generate_ed25519();
-    let mut builder = NetworkBuilder::new(keypair, local);
+    let mut builder = NetworkBuilder::new(keypair);
+
+    if local {
+        builder = builder.local(true);
+    }
 
     // In local mode, we want to disable cache writing
     if local {

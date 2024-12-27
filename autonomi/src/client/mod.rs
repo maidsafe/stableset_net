@@ -35,18 +35,17 @@ pub mod wasm;
 mod rate_limiter;
 mod utils;
 
-use ant_bootstrap::{BootstrapCacheConfig, BootstrapCacheStore, PeersArgs};
+use ant_bootstrap::{BootstrapCacheConfig, BootstrapCacheStore};
 pub use ant_evm::Amount;
 use ant_evm::EvmNetwork;
 use ant_networking::{interval, multiaddr_is_global, Network, NetworkBuilder, NetworkEvent};
 use ant_protocol::version::IDENTIFY_PROTOCOL_STR;
 use ant_service_management::rpc::{NetworkInfo, NodeInfo, RecordAddress};
 use anyhow::Result;
-use libp2p::{identity::Keypair, Multiaddr};
+use libp2p::{identity::Keypair, Multiaddr, PeerId};
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
-use tracing::debug;
-use tracing::error;
+use tracing::{debug, error};
 
 /// Time before considering the connection timed out.
 pub const CONNECT_TIMEOUT_SECS: u64 = 10;
@@ -56,20 +55,41 @@ const CLIENT_EVENT_CHANNEL_SIZE: usize = 100;
 // Amount of peers to confirm into our routing table before we consider the client ready.
 pub use ant_protocol::CLOSE_GROUP_SIZE;
 
+/// Events emitted by the client.
+#[derive(Debug, Clone)]
+pub enum ClientEvent {
+    /// A new peer was discovered.
+    PeerDiscovered(libp2p::PeerId),
+    /// A peer was disconnected.
+    PeerDisconnected(libp2p::PeerId),
+    /// Upload operation completed.
+    UploadComplete(UploadSummary),
+}
+
+/// Summary of an upload operation.
+#[derive(Debug, Clone)]
+pub struct UploadSummary {
+    pub record_count: usize,
+    pub tokens_spent: Amount,
+}
+
+/// Error returned by [`Client::init`].
+#[derive(Debug, thiserror::Error)]
+pub enum ConnectError {
+    /// Did not manage to populate the routing table with enough peers.
+    #[error("Failed to populate our routing table with enough peers in time")]
+    TimedOut,
+
+    /// Same as [`ConnectError::TimedOut`] but with a list of incompatible protocols.
+    #[error("Failed to populate our routing table due to incompatible protocol: {0:?}")]
+    TimedOutWithIncompatibleProtocol(HashSet<String>, String),
+
+    /// An error occurred while bootstrapping the client.
+    #[error("Failed to bootstrap the client")]
+    Bootstrap(#[from] ant_bootstrap::Error),
+}
+
 /// Represents a client for the Autonomi network.
-///
-/// # Example
-///
-/// To start interacting with the network, use [`Client::init`].
-///
-/// ```no_run
-/// # use autonomi::client::Client;
-/// # #[tokio::main]
-/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let client = Client::init().await?;
-/// # Ok(())
-/// # }
-/// ```
 #[derive(Clone)]
 pub struct Client {
     pub(crate) network: Network,
@@ -98,40 +118,16 @@ impl Default for ClientConfig {
     }
 }
 
-/// Error returned by [`Client::init`].
-#[derive(Debug, thiserror::Error)]
-pub enum ConnectError {
-    /// Did not manage to populate the routing table with enough peers.
-    #[error("Failed to populate our routing table with enough peers in time")]
-    TimedOut,
-
-    /// Same as [`ConnectError::TimedOut`] but with a list of incompatible protocols.
-    #[error("Failed to populate our routing table due to incompatible protocol: {0:?}")]
-    TimedOutWithIncompatibleProtocol(HashSet<String>, String),
-
-    /// An error occurred while bootstrapping the client.
-    #[error("Failed to bootstrap the client")]
-    Bootstrap(#[from] ant_bootstrap::Error),
-}
-
 impl Client {
-    /// Initialize the client with default configuration.
-    ///
-    /// See [`Client::init_with_config`].
-    pub async fn init() -> Result<Self, ConnectError> {
-        Self::init_with_config(Default::default()).await
+    /// Initialize a new client with default configuration
+    pub async fn init() -> Result<Self> {
+        Self::init_with_config(ClientConfig::default()).await
     }
 
-    /// Initialize a client that is configured to be local.
-    ///
-    /// See [`Client::init_with_config`].
-    pub async fn init_local() -> Result<Self, ConnectError> {
-        Self::init_with_config(ClientConfig {
-            local: true,
-            ..Default::default()
-        })
-        .await
-    }
+    /// Initialize the network with the given config
+    pub async fn init_with_config(config: ClientConfig) -> Result<Self> {
+        let keypair = Keypair::generate_ed25519();
+        let mut builder = NetworkBuilder::new(keypair, config.local);
 
     /// Initialize a client that bootstraps from a list of peers.
     ///
@@ -191,24 +187,52 @@ impl Client {
                     error!("Failed to dial addr={addr} with err: {err:?}");
                 };
             }
-        });
+        }
 
-        // Wait until we have added a few peers to our routing table.
-        let (sender, receiver) = futures::channel::oneshot::channel();
-        let config_clone = config.clone();
-        ant_networking::target_arch::spawn(handle_event_receiver(
-            event_receiver,
-            sender,
-            config_clone,
-        ));
-        receiver.await.expect("sender should not close")?;
-        debug!("Enough peers were added to our routing table, initialization complete");
+        let (network, _event_receiver, driver) = builder
+            .build_client()
+            .expect("Failed to build network");
+
+        // Spawn the driver to run in the background
+        ant_networking::target_arch::spawn(async move {
+            driver.run().await;
+        });
 
         Ok(Self {
             network,
             client_event_sender: Arc::new(None),
             evm_network: Default::default(),
         })
+    }
+
+    /// Initialize the network in local mode
+    pub async fn init_local(local: bool) -> Result<Self> {
+        let keypair = Keypair::generate_ed25519();
+        let builder = NetworkBuilder::new(keypair, local);
+
+        let (network, _event_receiver, driver) = builder
+            .build_client()
+            .expect("Failed to build network");
+
+        // Spawn the driver to run in the background
+        ant_networking::target_arch::spawn(async move {
+            driver.run().await;
+        });
+
+        Ok(Self {
+            network,
+            client_event_sender: Arc::new(None),
+            evm_network: Default::default(),
+        })
+    }
+
+    /// Initialize a new client with the given peers
+    pub async fn init_with_peers(peers: Vec<Multiaddr>) -> Result<Self> {
+        let config = ClientConfig {
+            peers: Some(peers),
+            ..Default::default()
+        };
+        Self::init_with_config(config).await
     }
 
     /// Connect to the network.
@@ -345,7 +369,7 @@ impl Client {
 
 fn build_client_and_run_swarm(local: bool) -> (Network, mpsc::Receiver<NetworkEvent>) {
     let keypair = Keypair::generate_ed25519();
-    let mut builder = NetworkBuilder::new(keypair);
+    let mut builder = NetworkBuilder::new(keypair, local);
 
     // In local mode, we want to disable cache writing
     if local {
@@ -358,7 +382,6 @@ fn build_client_and_run_swarm(local: bool) -> (Network, mpsc::Receiver<NetworkEv
     }
 
     let (network, event_receiver, driver) = builder
-        .local(local)
         .build_client()
         .expect("Failed to build network");
 
@@ -433,17 +456,4 @@ async fn handle_event_receiver(
             }
         }
     }
-}
-
-/// Events that can be broadcasted by the client.
-#[derive(Debug, Clone)]
-pub enum ClientEvent {
-    UploadComplete(UploadSummary),
-}
-
-/// Summary of an upload operation.
-#[derive(Debug, Clone)]
-pub struct UploadSummary {
-    pub record_count: usize,
-    pub tokens_spent: Amount,
 }

@@ -9,6 +9,8 @@
 #[macro_use]
 extern crate tracing;
 
+use anyhow::anyhow;
+
 mod bootstrap;
 mod circular_vec;
 mod cmd;
@@ -1318,6 +1320,24 @@ pub(crate) fn send_network_swarm_cmd(
     });
 }
 
+/// Find a suitable network interface IP address for mDNS
+/// Returns the first non-loopback IPv4 address found
+pub fn find_local_ip() -> Result<IpAddr> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0")
+        .map_err(NetworkError::Io)?;
+    // This doesn't actually send any packets, just sets up the socket
+    socket.connect("8.8.8.8:80")
+        .map_err(NetworkError::Io)?;
+    let addr = socket.local_addr()
+        .map_err(NetworkError::Io)?;
+
+    if addr.ip().is_loopback() {
+        return Err(NetworkError::BehaviourErr("Could not find non-loopback interface".to_string()));
+    }
+
+    Ok(addr.ip())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1330,5 +1350,27 @@ mod tests {
         let sig = network.sign(msg)?;
         assert!(network.verify(msg, &sig));
         Ok(())
+    }
+
+    #[test]
+    fn test_find_local_ip() {
+        let ip = find_local_ip().expect("Should find a local IP");
+        assert!(!ip.is_loopback(), "IP should not be loopback");
+        assert!(
+            !ip.is_unspecified(),
+            "IP should not be unspecified (0.0.0.0)"
+        );
+        assert!(!ip.is_multicast(), "IP should not be multicast");
+
+        // For IPv4, we expect a private network address
+        if let IpAddr::V4(ipv4) = ip {
+            assert!(
+                ipv4.is_private(),
+                "IPv4 address should be in private range (got {})",
+                ipv4
+            );
+        }
+
+        println!("Found suitable local IP: {}", ip);
     }
 }

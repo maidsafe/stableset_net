@@ -9,14 +9,14 @@
 use ant_logging::LogBuilder;
 use ant_protocol::storage::LinkedList;
 use autonomi::{client::linked_list::TransactionError, Client};
-use eyre::Result;
+use anyhow::Result;
 use test_utils::evm::get_funded_wallet;
 
 #[tokio::test]
-async fn transaction_put() -> Result<()> {
+async fn test_transaction() -> Result<()> {
     let _log_appender_guard = LogBuilder::init_single_threaded_tokio_test("transaction", false);
 
-    let client = Client::init_local().await?;
+    let client = Client::init_local(true).await?;
     let wallet = get_funded_wallet();
 
     let key = bls::SecretKey::random();

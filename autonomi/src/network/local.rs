@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Result};
+use ant_networking::find_local_ip;
 use libp2p::Multiaddr;
 use std::collections::HashMap;
-use std::net::TcpListener;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, UdpSocket};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::str::FromStr;
@@ -13,8 +14,10 @@ use tokio::sync::RwLock;
 
 /// Get an available port by letting the OS assign one
 fn get_available_port() -> anyhow::Result<u16> {
-    let listener = TcpListener::bind("127.0.0.1:0")?;
-    Ok(listener.local_addr()?.port())
+    // Use find_local_ip to get a suitable IP address
+    let ip = find_local_ip()?;
+    let socket = UdpSocket::bind((ip, 0))?;
+    Ok(socket.local_addr()?.port())
 }
 
 /// Find the antnode binary in common locations
@@ -70,7 +73,8 @@ impl LocalNode {
     /// Returns the node's multiaddr
     pub fn multiaddr(&self) -> Option<Multiaddr> {
         self.peer_id.as_ref().map(|peer_id| {
-            format!("/ip4/127.0.0.1/tcp/{}/p2p/{}", self.port, peer_id)
+            let ip = find_local_ip().expect("Should have a valid local IP");
+            format!("/ip4/{}/udp/{}/quic-v1/p2p/{}", ip, self.port, peer_id)
                 .parse()
                 .expect("Invalid multiaddr")
         })
@@ -109,6 +113,10 @@ impl LocalNode {
         let binary_path = find_antnode_binary()?;
         println!("Starting node with binary: {:?}", binary_path);
 
+        // Get a suitable IP address for mDNS
+        let ip = find_local_ip()?;
+        println!("Using network interface IP: {}", ip);
+
         let mut cmd = Command::new(binary_path);
         cmd.env("EVM_NETWORK", "local")
             .arg("--rewards-address")
@@ -116,7 +124,7 @@ impl LocalNode {
             .arg("--home-network")
             .arg("--local")
             .arg("--ip")
-            .arg("127.0.0.1")
+            .arg(ip.to_string())
             .arg("--port")
             .arg(self.port.to_string())
             .arg("--ignore-cache");
@@ -256,5 +264,56 @@ impl Drop for LocalNode {
             let _ = child.kill();
             let _ = child.wait();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_find_local_ip() {
+        let ip = find_local_ip().expect("Should find a local IP");
+        println!("Found local IP: {}", ip);
+
+        // Basic checks
+        assert!(!ip.is_loopback(), "IP should not be loopback");
+        assert!(!ip.is_unspecified(), "IP should not be unspecified (0.0.0.0)");
+        assert!(!ip.is_multicast(), "IP should not be multicast");
+
+        // Additional network property checks
+        match ip {
+            IpAddr::V4(ipv4) => {
+                assert!(
+                    ipv4.is_private(),
+                    "IPv4 address should be in private range (got {})",
+                    ipv4
+                );
+                
+                // Check it's not in special ranges
+                assert!(!ipv4.is_broadcast(), "IP should not be broadcast");
+                assert!(!ipv4.is_documentation(), "IP should not be documentation");
+                assert!(!ipv4.is_link_local(), "IP should not be link local");
+            }
+            IpAddr::V6(_) => {
+                // If we get an IPv6 address, we just ensure it's valid for our use case
+                assert!(!ip.is_loopback(), "IPv6 should not be loopback");
+                assert!(!ip.is_unspecified(), "IPv6 should not be unspecified");
+            }
+        }
+
+        // Test socket binding with UDP for QUIC
+        let socket = UdpSocket::bind((ip, 0))
+            .expect("Should be able to bind to the found IP");
+        assert!(socket.local_addr().is_ok(), "Should get local address from socket");
+
+        // Test multiaddr format
+        let test_peer_id = "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN";
+        let test_port = 12345;
+        let addr = format!("/ip4/{}/udp/{}/quic-v1/p2p/{}", ip, test_port, test_peer_id)
+            .parse::<Multiaddr>()
+            .expect("Should create valid multiaddr");
+        
+        assert!(addr.to_string().contains("quic-v1"), "Multiaddr should use QUIC protocol");
     }
 }

@@ -8,14 +8,14 @@
 
 use ant_logging::LogBuilder;
 use autonomi::Client;
-use eyre::Result;
+use anyhow::Result;
 use test_utils::{evm::get_funded_wallet, gen_random_data};
 
 #[tokio::test]
-async fn put() -> Result<()> {
+async fn test_put() -> Result<()> {
     let _log_appender_guard = LogBuilder::init_single_threaded_tokio_test("put", false);
 
-    let client = Client::init_local().await?;
+    let client = Client::init_local(true).await?;
     let wallet = get_funded_wallet();
     let data = gen_random_data(1024 * 1024 * 10);
 

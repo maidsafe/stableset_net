@@ -17,7 +17,12 @@ path = "src/bin/antnode/main.rs"
 default = ["metrics", "upnp", "open-metrics", "encrypt-records"]
 encrypt-records = ["ant-networking/encrypt-records"]
 extension-module = ["pyo3/extension-module"]
-local = ["ant-networking/local", "ant-evm/local", "ant-bootstrap/local", "ant-logging/process-metrics"]
+local = [
+    "ant-networking/local",
+    "ant-evm/local",
+    "ant-bootstrap/local",
+    "ant-logging/process-metrics",
+]
 loud = ["ant-networking/loud"] # loud mode: print important messages to console
 metrics = []
 nightly = []

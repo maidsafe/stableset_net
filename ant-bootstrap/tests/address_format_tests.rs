@@ -9,11 +9,15 @@
 use ant_bootstrap::{BootstrapCacheConfig, PeersArgs};
 use ant_logging::LogBuilder;
 use libp2p::Multiaddr;
+use std::net::{IpAddr, Ipv4Addr};
 use tempfile::TempDir;
 use wiremock::{
     matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
 };
+
+// Use a private network IP instead of loopback for mDNS to work
+const LOCAL_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 23));
 
 // Setup function to create a new temp directory and config for each test
 async fn setup() -> (TempDir, BootstrapCacheConfig) {
@@ -107,4 +111,26 @@ async fn test_network_contacts_format() -> Result<(), Box<dyn std::error::Error>
     }
 
     Ok(())
+}
+
+#[test]
+fn test_address_formats() {
+    let valid_addresses = vec![
+        format!(
+            "/ip4/{}/udp/8080/quic-v1/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UERE",
+            LOCAL_IP
+        ),
+        format!(
+            "/ip4/{}/tcp/8080/ws/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UERE",
+            LOCAL_IP
+        ),
+    ];
+
+    for addr in valid_addresses {
+        assert!(
+            addr.parse::<libp2p::Multiaddr>().is_ok(),
+            "Failed to parse valid address: {}",
+            addr
+        );
+    }
 }

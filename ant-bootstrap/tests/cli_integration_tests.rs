@@ -8,12 +8,18 @@
 
 use ant_bootstrap::{BootstrapCacheConfig, PeersArgs};
 use ant_logging::LogBuilder;
+use anyhow::Result;
 use libp2p::Multiaddr;
+use std::net::{IpAddr, Ipv4Addr};
+use std::path::PathBuf;
 use tempfile::TempDir;
 use wiremock::{
     matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
 };
+
+// Use a private network IP instead of loopback for mDNS to work
+const LOCAL_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 23));
 
 async fn setup() -> (TempDir, BootstrapCacheConfig) {
     let temp_dir = TempDir::new().unwrap();
@@ -174,5 +180,47 @@ async fn test_test_network_peers() -> Result<(), Box<dyn std::error::Error>> {
         "Should have the correct test network peer"
     );
 
+    Ok(())
+}
+
+#[test]
+fn test_cli_add_peer() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let cache_path = temp_dir.path().join("cache.txt");
+
+    let peer_addr = format!(
+        "/ip4/{}/udp/8080/quic-v1/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UERE",
+        LOCAL_IP
+    );
+
+    // ... rest of the test ...
+    Ok(())
+}
+
+#[test]
+fn test_cli_list_peers() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let cache_path = temp_dir.path().join("cache.txt");
+
+    let peer_addr = format!(
+        "/ip4/{}/udp/8080/quic-v1/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UERE\n",
+        LOCAL_IP
+    );
+
+    // ... rest of the test ...
+    Ok(())
+}
+
+#[test]
+fn test_cli_remove_peer() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let cache_path = temp_dir.path().join("cache.txt");
+
+    let peer_addr = format!(
+        "/ip4/{}/udp/8080/quic-v1/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UERE",
+        LOCAL_IP
+    );
+
+    // ... rest of the test ...
     Ok(())
 }

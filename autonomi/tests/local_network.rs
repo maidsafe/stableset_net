@@ -1,13 +1,16 @@
 use anyhow::{Context, Result};
 use autonomi::{Client, ClientConfig};
 use dirs_next;
-use std::net::TcpListener;
+use std::net::{IpAddr, Ipv4Addr, TcpListener};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tokio::time::sleep;
+
+// Use a private network IP instead of loopback for mDNS to work
+const LOCAL_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 23));
 
 #[derive(Debug)]
 struct NodeOutput {
@@ -49,7 +52,7 @@ async fn process_output(
 }
 
 fn get_available_port() -> Result<u16> {
-    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let listener = TcpListener::bind((LOCAL_IP, 0))?;
     Ok(listener.local_addr()?.port())
 }
 
@@ -82,7 +85,7 @@ async fn start_local_node(
     port: Option<u16>,
 ) -> Result<(Child, u16, Arc<Mutex<NodeOutput>>)> {
     let port = port.unwrap_or_else(|| get_available_port().unwrap());
-    println!("Setting up node to listen on 127.0.0.1:{}", port);
+    println!("Setting up node to listen on {}:{}", LOCAL_IP, port);
 
     let mut cmd = Command::new("../target/debug/antnode");
     cmd.arg("--rewards-address")
@@ -90,7 +93,7 @@ async fn start_local_node(
         .arg("--home-network")
         .arg("--local")
         .arg("--ip")
-        .arg("127.0.0.1")
+        .arg(LOCAL_IP.to_string())
         .arg("--port")
         .arg(port.to_string())
         .arg("--ignore-cache");
@@ -170,7 +173,7 @@ async fn wait_for_node_ready(port: u16, node_output: Arc<Mutex<NodeOutput>>) -> 
 }
 
 async fn get_node_multiaddr(port: u16, peer_id: &str) -> String {
-    format!("/ip4/127.0.0.1/udp/{}/quic-v1/p2p/{}", port, peer_id)
+    format!("/ip4/{}/udp/{}/quic-v1/p2p/{}", LOCAL_IP, port, peer_id)
 }
 
 #[tokio::test]

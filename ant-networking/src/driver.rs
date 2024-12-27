@@ -282,14 +282,14 @@ pub struct NetworkBuilder {
 }
 
 impl NetworkBuilder {
-    pub fn new(keypair: Keypair, local: bool) -> Self {
+    pub fn new(keypair: Keypair) -> Self {
         Self {
             bootstrap_cache: None,
             concurrency_limit: None,
             is_behind_home_network: false,
             keypair,
             listen_addr: None,
-            local,
+            local: false,
             #[cfg(feature = "open-metrics")]
             metrics_registries: None,
             #[cfg(feature = "open-metrics")]
@@ -298,6 +298,11 @@ impl NetworkBuilder {
             #[cfg(feature = "upnp")]
             upnp: false,
         }
+    }
+
+    pub fn local(mut self, local: bool) -> Self {
+        self.local = local;
+        self
     }
 
     pub fn bootstrap_cache(&mut self, bootstrap_cache: BootstrapCacheStore) {

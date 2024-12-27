@@ -23,14 +23,18 @@ autonomi/
 
 1. **Client Module (`src/client/mod.rs`)**
    - Remove direct network handling from public API
-   - Add local network support with mdns
+   - Add local network support with automatic MDNS discovery
    - Simplify client initialization
    - Add streaming file operations
+   - Ensure proper integration with local ant-node
+   - Enable MDNS automatically when local mode is selected
 
 2. **Network Layer**
    - Move network complexity behind abstraction
-   - Add mdns support for local testing
+   - Enable MDNS automatically for local testing
    - Implement bootstrap cache properly
+   - Use local ant-node with --local flag for testing
+   - Configure MDNS with faster discovery for local mode
 
 3. **Data Operations**
    - Implement streaming file operations
@@ -50,6 +54,7 @@ autonomi/
    self_encryption = "0.31"
    ant-bootstrap = { path = "../ant-bootstrap" }
    ant-networking = { path = "../ant-networking" }
+   ant-node = { path = "../ant-node" }  # Local ant-node crate
    ```
 
 2. **Initial Test Setup**
@@ -57,7 +62,8 @@ autonomi/
    ```rust
    // tests/common/mod.rs
    pub async fn setup_local_network(node_count: usize) -> Result<(Client, LocalNetwork)> {
-       let network = LocalNetwork::new(node_count).await?;
+       // Ensure we're using the local ant-node crate
+       let network = LocalNetwork::new_with_local_nodes(node_count).await?;
        let client = Client::new_local().await?;
        Ok((client, network))
    }
@@ -75,17 +81,17 @@ autonomi/
    }
 
    impl LocalNetwork {
-       pub async fn new(node_count: usize) -> Result<Self> {
+       pub async fn new_with_local_nodes(node_count: usize) -> Result<Self> {
            let temp_dir = tempfile::tempdir()?;
            let mut nodes = Vec::with_capacity(node_count);
            
-           // Start first node
-           let first = LocalNode::start(temp_dir.path(), None).await?;
+           // Start first node with --local flag
+           let first = LocalNode::start_local(temp_dir.path(), None).await?;
            nodes.push(first);
            
-           // Start additional nodes
+           // Start additional nodes, all with --local flag
            for i in 1..node_count {
-               let node = LocalNode::start(
+               let node = LocalNode::start_local(
                    temp_dir.path(),
                    Some(nodes[0].multiaddr())
                ).await?;
@@ -105,29 +111,39 @@ autonomi/
        process: Child,
        rpc_port: u16,
        peer_id: PeerId,
+       multiaddr: Multiaddr,
    }
 
    impl LocalNode {
-       pub async fn start(
+       pub async fn start_local(
            data_dir: &Path,
            bootstrap: Option<Multiaddr>
-       ) -> Result<Self> {
+       ) -> Result<Self, NodeError> {
+           // Find available port
            let rpc_port = get_available_port()?;
            
-           let mut cmd = Command::new("ant-node");
-           cmd.arg("--local")
-              .arg("--rpc-port")
-              .arg(rpc_port.to_string())
-              .arg("--data-dir")
-              .arg(data_dir);
-              
-           if let Some(addr) = bootstrap {
-               cmd.arg("--bootstrap").arg(addr.to_string());
-           }
+           // Start ant-node with local flag which enables MDNS discovery
+           let process = Command::new("ant-node")
+               .arg("--local")  // This enables MDNS for local discovery
+               .arg("--rpc-port")
+               .arg(rpc_port.to_string())
+               .arg("--log-level")
+               .arg("debug")  // Helpful for seeing MDNS activity
+               .spawn()?;
            
-           let process = cmd.spawn()?;
-           // Wait for node startup...
-           Ok(Self { process, rpc_port, peer_id })
+           // Wait for node to start and get peer info
+           let peer_info = wait_for_node_ready(rpc_port).await?;
+           
+           Ok(Self {
+               process,
+               rpc_port,
+               peer_id: peer_info.peer_id,
+               multiaddr: peer_info.multiaddr,
+           })
+       }
+
+       pub fn is_local(&self) -> bool {
+           true  // All nodes started with --local flag
        }
    }
    ```
@@ -138,8 +154,9 @@ autonomi/
    #[tokio::test]
    async fn test_local_node_startup() {
        let temp_dir = tempfile::tempdir().unwrap();
-       let node = LocalNode::start(temp_dir.path(), None).await.unwrap();
+       let node = LocalNode::start_local(temp_dir.path(), None).await.unwrap();
        assert!(node.is_running());
+       assert!(node.is_local());
    }
    ```
 
@@ -152,7 +169,7 @@ autonomi/
    impl Client {
        pub async fn new_local() -> Result<Self> {
            let config = ClientConfig {
-               network_type: NetworkType::Local,
+               network_type: NetworkType::Local,  // This enables MDNS in client
                ..Default::default()
            };
            Self::new(config).await
@@ -357,15 +374,21 @@ autonomi/
 
 ## Required Documentation
 
-1. **libp2p MDNS**
+1. **ant-node Local Testing**
+   - Using the --local flag for testing
+   - Local network setup with ant-node
+   - MDNS discovery in local mode
+   - Proper shutdown and cleanup
+
+2. **libp2p MDNS**
    - Implementation details for local discovery
    - Best practices for testing setups
 
-2. **self_encryption**
+3. **self_encryption**
    - Streaming API usage
    - Chunk handling and verification
 
-3. **ant-node**
+4. **ant-node**
    - Command line arguments
    - Local network setup
 
@@ -373,13 +396,15 @@ autonomi/
 
 1. **Unit Tests**
    - Test each component in isolation
-   - Mock network operations
+   - Mock network operations where appropriate
    - Test error conditions
+   - Verify local mode functionality
 
 2. **Integration Tests**
-   - Test complete workflows
-   - Test multiple clients
+   - Test complete workflows with local nodes
+   - Test multiple clients in local mode
    - Test network failures
+   - Verify MDNS discovery
 
 3. **Python Tests**
    - Test Python API
@@ -390,9 +415,10 @@ autonomi/
 
 ### Day 1 Morning
 
-- [ ] Local node starts with --local flag
-- [ ] Basic client operations work
+- [ ] Local ant-node builds and starts with --local flag
+- [ ] Basic client operations work in local mode
 - [ ] File streaming works
+- [ ] MDNS discovery working between local nodes
 
 ### Day 1 Afternoon
 
@@ -411,3 +437,93 @@ autonomi/
 - [ ] Performance is acceptable
 - [ ] Error handling is robust
 - [ ] Examples work
+
+### Local Network Setup
+
+1. **Node Configuration with MDNS**
+
+   ```rust
+   pub struct LocalNode {
+       process: Child,
+       rpc_port: u16,
+       peer_id: PeerId,
+       multiaddr: Multiaddr,
+   }
+
+   impl LocalNode {
+       pub async fn start_local() -> Result<Self, NodeError> {
+           // Find available port
+           let rpc_port = get_available_port()?;
+           
+           // Start ant-node with local flag which enables MDNS discovery
+           let process = Command::new("ant-node")
+               .arg("--local")  // This enables MDNS for local discovery
+               .arg("--rpc-port")
+               .arg(rpc_port.to_string())
+               .arg("--log-level")
+               .arg("debug")  // Helpful for seeing MDNS activity
+               .spawn()?;
+           
+           // Wait for node to start and get peer info
+           let peer_info = wait_for_node_ready(rpc_port).await?;
+           
+           Ok(Self {
+               process,
+               rpc_port,
+               peer_id: peer_info.peer_id,
+               multiaddr: peer_info.multiaddr,
+           })
+       }
+   }
+   ```
+
+2. **Client Integration with Local Network**
+
+   ```rust
+   impl Client {
+       // Create client connected to local network using MDNS
+       pub async fn new_local() -> Result<Self> {
+           let config = ClientConfig {
+               network_type: NetworkType::Local,  // This enables MDNS in client
+               ..Default::default()
+           };
+           Self::new(config).await
+       }
+   }
+   ```
+
+3. **Network Configuration**
+
+   ```rust
+   // In networking layer
+   let mdns_config = if config.local {
+       Some(mdns::Config {
+           // Lower query interval to speed up peer discovery
+           query_interval: Duration::from_secs(5),
+           ..Default::default()
+       })
+   } else {
+       None
+   };
+   ```
+
+### Best Practices for Local Testing
+
+1. **MDNS Configuration**
+   - MDNS is automatically enabled when:
+     - Client is initialized with `new_local()` or `local: true` in config
+     - Node is started with `--local` flag
+   - MDNS discovery is configured for faster peer discovery in local mode
+   - Network stabilization wait times are adjusted for local testing
+
+2. **Network Verification**
+   - Verify MDNS discovery is working through debug logs
+   - Check peer connections before testing
+   - Monitor network stability
+   - Handle node disconnections gracefully
+
+3. **Development Workflow**
+   - Always use `--local` flag for local development
+   - Allow sufficient time for MDNS discovery (typically 5 seconds)
+   - Monitor MDNS logs for connectivity issues
+   - Test with different network sizes

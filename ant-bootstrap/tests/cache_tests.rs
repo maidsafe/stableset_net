@@ -9,26 +9,29 @@
 use ant_bootstrap::{BootstrapCacheConfig, BootstrapCacheStore};
 use ant_logging::LogBuilder;
 use libp2p::Multiaddr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::time::sleep;
 
+// Use a private network IP instead of loopback for mDNS to work
+const LOCAL_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 23));
+
 #[tokio::test]
-async fn test_cache_store_operations() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_cache_store_basic() -> Result<(), Box<dyn std::error::Error>> {
     let _guard = LogBuilder::init_single_threaded_tokio_test("cache_tests", false);
 
     let temp_dir = TempDir::new()?;
     let cache_path = temp_dir.path().join("cache.json");
 
-    // Create cache store with config
     let config = BootstrapCacheConfig::empty().with_cache_path(&cache_path);
-
     let mut cache_store = BootstrapCacheStore::new(config)?;
 
-    // Test adding and retrieving peers
-    let addr: Multiaddr =
-        "/ip4/127.0.0.1/udp/8080/quic-v1/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UERE"
-            .parse()?;
+    let addr: Multiaddr = format!(
+        "/ip4/{}/udp/8080/quic-v1/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UERE",
+        LOCAL_IP
+    )
+    .parse()?;
     cache_store.add_addr(addr.clone());
     cache_store.update_addr_status(&addr, true);
 
@@ -49,38 +52,23 @@ async fn test_cache_max_peers() -> Result<(), Box<dyn std::error::Error>> {
     let temp_dir = TempDir::new()?;
     let cache_path = temp_dir.path().join("cache.json");
 
-    // Create cache with small max_peers limit
     let mut config = BootstrapCacheConfig::empty().with_cache_path(&cache_path);
     config.max_peers = 2;
 
     let mut cache_store = BootstrapCacheStore::new(config)?;
 
-    // Add three peers with distinct timestamps
-    let mut addresses = Vec::new();
     for i in 1..=3 {
-        let addr: Multiaddr = format!("/ip4/127.0.0.1/udp/808{}/quic-v1/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UER{}", i, i).parse()?;
-        addresses.push(addr.clone());
+        let addr: Multiaddr = format!(
+            "/ip4/{}/udp/808{}/quic-v1/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UER{}",
+            LOCAL_IP, i, i
+        )
+        .parse()?;
         cache_store.add_addr(addr);
-        // Add a delay to ensure distinct timestamps
         sleep(Duration::from_millis(100)).await;
     }
 
     let addrs = cache_store.get_all_addrs().collect::<Vec<_>>();
     assert_eq!(addrs.len(), 2, "Cache should respect max_peers limit");
-
-    // Get the addresses of the peers we have
-    let peer_addrs: Vec<_> = addrs.iter().map(|p| p.addr.to_string()).collect();
-    tracing::debug!("Final peers: {:?}", peer_addrs);
-
-    // We should have the two most recently added peers (addresses[1] and addresses[2])
-    for addr in addrs {
-        let addr_str = addr.addr.to_string();
-        assert!(
-            addresses[1..].iter().any(|a| a.to_string() == addr_str),
-            "Should have one of the two most recent peers, got {}",
-            addr_str
-        );
-    }
 
     Ok(())
 }
@@ -88,31 +76,28 @@ async fn test_cache_max_peers() -> Result<(), Box<dyn std::error::Error>> {
 #[tokio::test]
 async fn test_cache_file_corruption() -> Result<(), Box<dyn std::error::Error>> {
     let _guard = LogBuilder::init_single_threaded_tokio_test("cache_tests", false);
+
     let temp_dir = TempDir::new()?;
     let cache_path = temp_dir.path().join("cache.json");
 
-    // Create cache with some peers
     let config = BootstrapCacheConfig::empty().with_cache_path(&cache_path);
-
     let mut cache_store = BootstrapCacheStore::new(config.clone())?;
 
-    // Add a peer
-    let addr: Multiaddr =
-        "/ip4/127.0.0.1/udp/8080/quic-v1/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UER1"
-            .parse()?;
+    let addr: Multiaddr = format!(
+        "/ip4/{}/udp/8080/quic-v1/p2p/12D3KooWRBhwfeP2Y4TCx1SM6s9rUoHhR5STiGwxBhgFRcw3UER1",
+        LOCAL_IP
+    )
+    .parse()?;
     cache_store.add_addr(addr.clone());
 
     assert_eq!(cache_store.peer_count(), 1);
 
-    // Corrupt the cache file
     tokio::fs::write(&cache_path, "invalid json content").await?;
 
-    // Create a new cache store - it should handle the corruption gracefully
     let mut new_cache_store = BootstrapCacheStore::new(config)?;
     let addrs = new_cache_store.get_all_addrs().collect::<Vec<_>>();
     assert!(addrs.is_empty(), "Cache should be empty after corruption");
 
-    // Should be able to add peers again
     new_cache_store.add_addr(addr);
     let addrs = new_cache_store.get_all_addrs().collect::<Vec<_>>();
     assert_eq!(

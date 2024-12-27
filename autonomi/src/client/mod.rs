@@ -45,6 +45,8 @@ use anyhow::Result;
 use libp2p::{identity::Keypair, Multiaddr};
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
+use tracing::debug;
+use tracing::error;
 
 /// Time before considering the connection timed out.
 pub const CONNECT_TIMEOUT_SECS: u64 = 10;
@@ -79,8 +81,6 @@ pub struct Client {
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
     /// Whether we're expected to connect to a local network.
-    ///
-    /// If `local` feature is enabled, [`ClientConfig::default()`] will set this to `true`.
     pub local: bool,
 
     /// List of peers to connect to.
@@ -92,9 +92,6 @@ pub struct ClientConfig {
 impl Default for ClientConfig {
     fn default() -> Self {
         Self {
-            #[cfg(feature = "local")]
-            local: true,
-            #[cfg(not(feature = "local"))]
             local: false,
             peers: None,
         }
@@ -177,7 +174,7 @@ impl Client {
 
         let peers_args = PeersArgs {
             disable_mainnet_contacts: config.local,
-            addrs: config.peers.unwrap_or_default(),
+            addrs: config.peers.clone().unwrap_or_default(),
             ..Default::default()
         };
 
@@ -198,7 +195,12 @@ impl Client {
 
         // Wait until we have added a few peers to our routing table.
         let (sender, receiver) = futures::channel::oneshot::channel();
-        ant_networking::target_arch::spawn(handle_event_receiver(event_receiver, sender));
+        let config_clone = config.clone();
+        ant_networking::target_arch::spawn(handle_event_receiver(
+            event_receiver,
+            sender,
+            config_clone,
+        ));
         receiver.await.expect("sender should not close")?;
         debug!("Enough peers were added to our routing table, initialization complete");
 
@@ -230,6 +232,10 @@ impl Client {
     pub async fn connect(peers: &[Multiaddr]) -> Result<Self, ConnectError> {
         // Any global address makes the client non-local
         let local = !peers.iter().any(multiaddr_is_global);
+        let config = ClientConfig {
+            local,
+            peers: Some(peers.to_vec()),
+        };
 
         let (network, event_receiver) = build_client_and_run_swarm(local);
 
@@ -246,7 +252,7 @@ impl Client {
         });
 
         let (sender, receiver) = futures::channel::oneshot::channel();
-        ant_networking::target_arch::spawn(handle_event_receiver(event_receiver, sender));
+        ant_networking::target_arch::spawn(handle_event_receiver(event_receiver, sender, config));
 
         receiver.await.expect("sender should not close")?;
         debug!("Client is connected to the network");
@@ -338,24 +344,28 @@ impl Client {
 }
 
 fn build_client_and_run_swarm(local: bool) -> (Network, mpsc::Receiver<NetworkEvent>) {
-    let mut network_builder = NetworkBuilder::new(Keypair::generate_ed25519(), local);
+    let keypair = Keypair::generate_ed25519();
+    let mut builder = NetworkBuilder::new(keypair);
 
-    if let Ok(mut config) = BootstrapCacheConfig::default_config() {
-        if local {
+    // In local mode, we want to disable cache writing
+    if local {
+        if let Ok(mut config) = BootstrapCacheConfig::default_config() {
             config.disable_cache_writing = true;
-        }
-        if let Ok(cache) = BootstrapCacheStore::new(config) {
-            network_builder.bootstrap_cache(cache);
+            if let Ok(cache) = BootstrapCacheStore::new(config) {
+                builder.bootstrap_cache(cache);
+            }
         }
     }
 
-    // TODO: Re-export `Receiver<T>` from `ant-networking`. Else users need to keep their `tokio` dependency in sync.
-    // TODO: Think about handling the mDNS error here.
-    let (network, event_receiver, swarm_driver) =
-        network_builder.build_client().expect("mdns to succeed");
+    let (network, event_receiver, driver) = builder
+        .local(local)
+        .build_client()
+        .expect("Failed to build network");
 
-    let _swarm_driver = ant_networking::target_arch::spawn(swarm_driver.run());
-    debug!("Client swarm driver is running");
+    // Spawn the driver to run in the background
+    ant_networking::target_arch::spawn(async move {
+        driver.run().await;
+    });
 
     (network, event_receiver)
 }
@@ -363,6 +373,7 @@ fn build_client_and_run_swarm(local: bool) -> (Network, mpsc::Receiver<NetworkEv
 async fn handle_event_receiver(
     mut event_receiver: mpsc::Receiver<NetworkEvent>,
     sender: futures::channel::oneshot::Sender<Result<(), ConnectError>>,
+    config: ClientConfig,
 ) {
     // We switch this to `None` when we've sent the oneshot 'connect' result.
     let mut sender = Some(sender);
@@ -392,6 +403,7 @@ async fn handle_event_receiver(
                             .expect("receiver should not close");
                     }
                 }
+                break;
             }
             event = event_receiver.recv() => {
                 let event = event.expect("receiver should not close");
@@ -401,10 +413,11 @@ async fn handle_event_receiver(
 
                         // For local testing, we only need one peer
                         // For non-local, we need CLOSE_GROUP_SIZE peers
-                        let required_peers = if cfg!(feature = "local") { 1 } else { CLOSE_GROUP_SIZE };
+                        let required_peers = if config.local { 1 } else { CLOSE_GROUP_SIZE };
                         if peers_len >= required_peers {
                             if let Some(sender) = sender.take() {
                                 sender.send(Ok(())).expect("receiver should not close");
+                                break;
                             }
                         }
                     }
@@ -420,8 +433,6 @@ async fn handle_event_receiver(
             }
         }
     }
-
-    // TODO: Handle closing of network events sender
 }
 
 /// Events that can be broadcasted by the client.

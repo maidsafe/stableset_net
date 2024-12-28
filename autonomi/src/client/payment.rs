@@ -1,4 +1,4 @@
-use crate::client::data::PayError;
+use crate::client::error::PayError;
 use crate::client::quote::StoreQuote;
 use crate::Client;
 use ant_evm::{AttoTokens, EncodedPeerId, EvmWallet, ProofOfPayment};

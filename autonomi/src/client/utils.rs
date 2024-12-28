@@ -6,7 +6,9 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use crate::client::error::{GetError, PayError, PutError};
 use crate::client::payment::{receipt_from_store_quotes, Receipt};
+use crate::client::Client;
 use ant_evm::{EvmWallet, ProofOfPayment};
 use ant_networking::{GetRecordCfg, PutRecordCfg, VerificationKind};
 use ant_protocol::{
@@ -21,12 +23,8 @@ use self_encryption::{streaming_decrypt_from_storage, DataMap, Error as SelfEncr
 use std::{future::Future, num::NonZero};
 use tempfile::NamedTempFile;
 use tokio::fs;
+use tracing::{debug, error, trace};
 use xor_name::XorName;
-
-use super::{
-    data::{GetError, PayError, PutError},
-    Client,
-};
 
 impl Client {
     /// Fetch and decrypt all chunks in the data map.
@@ -77,7 +75,7 @@ impl Client {
     ) -> Result<Bytes, GetError> {
         let data_map_level: crate::self_encryption::DataMapLevel =
             rmp_serde::from_slice(data_map_bytes)
-                .map_err(GetError::InvalidDataMap)
+                .map_err(|e| GetError::InvalidDataMap(e.to_string()))
                 .inspect_err(|err| error!("Error deserializing data map level: {err:?}"))?;
 
         let data_map = match data_map_level {
@@ -172,7 +170,7 @@ impl Client {
         let _payments = wallet
             .pay_for_quotes(quotes.payments())
             .await
-            .map_err(|err| PayError::from(err.0))?;
+            .map_err(|err| PayError::Wallet(err.0))?;
 
         // payment is done, unlock the wallet for other threads
         drop(lock_guard);

@@ -1,17 +1,21 @@
-use crate::client::Client;
-use crate::client::data::PayError;
-use tracing::{debug, error, trace};
-
+use super::Client;
+use crate::client::error::{CostError, GetError, PayError, PutError};
+use crate::client::payment::{PaymentOption, Receipt};
+use crate::client::utils::process_tasks_with_max_concurrency;
+use crate::client::{ClientEvent, UploadSummary};
+use crate::self_encryption::{self, encrypt};
 use ant_evm::{Amount, AttoTokens, EvmWallet, EvmWalletError};
 use ant_networking::{GetRecordCfg, NetworkError, PutRecordCfg, VerificationKind};
-use ant_protocol::{
-    storage::{Pointer, PointerAddress, RecordKind, RetryStrategy, try_serialize_record},
-    NetworkAddress,
+use ant_protocol::storage::{
+    try_serialize_record, Chunk, ChunkAddress, Pointer, PointerAddress, RecordKind, RetryStrategy,
 };
+use ant_protocol::NetworkAddress;
 use bls::SecretKey;
+use bytes::Bytes;
 use libp2p::kad::{Quorum, Record};
-
-use super::data::CostError;
+use serde::{Deserialize, Serialize};
+use tracing::{debug, error, info, trace};
+use xor_name::XorName;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PointerError {
@@ -22,7 +26,7 @@ pub enum PointerError {
     #[error("Serialization error")]
     Serialization,
     #[error("Pointer could not be verified (corrupt)")]
-    Corrupt,
+    FailedVerification,
     #[error("Payment failure occurred during pointer creation.")]
     Pay(#[from] PayError),
     #[error("Failed to retrieve wallet payment")]
@@ -35,20 +39,17 @@ pub enum PointerError {
 
 impl Client {
     /// Get a pointer from the network
-    pub async fn pointer_get(
-        &self,
-        address: PointerAddress,
-    ) -> Result<Pointer, PointerError> {
+    pub async fn pointer_get(&self, address: PointerAddress) -> Result<Pointer, PointerError> {
         let key = NetworkAddress::from_pointer_address(address).to_record_key();
         let record = self.network.get_local_record(&key).await?;
-        
+
         match record {
             Some(record) => {
                 let (_, pointer): (Vec<u8>, Pointer) = rmp_serde::from_slice(&record.value)
                     .map_err(|_| PointerError::Serialization)?;
                 Ok(pointer)
             }
-            None => Err(PointerError::Corrupt),
+            None => Err(PointerError::FailedVerification),
         }
     }
 

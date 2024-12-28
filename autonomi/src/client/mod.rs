@@ -14,6 +14,8 @@ pub mod payment;
 pub mod quote;
 
 pub mod data;
+pub mod error;
+pub use error::{CostError, GetError, PayError, PutError};
 pub mod files;
 pub mod linked_list;
 pub mod pointer;
@@ -37,9 +39,12 @@ mod utils;
 
 use ant_bootstrap::{BootstrapCacheConfig, BootstrapCacheStore};
 pub use ant_evm::Amount;
-use ant_evm::EvmNetwork;
-use ant_networking::{interval, multiaddr_is_global, Network, NetworkBuilder, NetworkEvent};
+use ant_evm::{EvmNetwork, EvmWallet, EvmWalletError};
+use ant_networking::{
+    interval, multiaddr_is_global, Network, NetworkBuilder, NetworkError, NetworkEvent,
+};
 use ant_protocol::version::IDENTIFY_PROTOCOL_STR;
+use ant_protocol::NetworkAddress;
 use ant_service_management::rpc::{NetworkInfo, NodeInfo, RecordAddress};
 use anyhow::Result;
 use libp2p::{identity::Keypair, Multiaddr, PeerId};
@@ -89,12 +94,30 @@ pub enum ConnectError {
     Bootstrap(#[from] ant_bootstrap::Error),
 }
 
+/// Client mode indicating read-only or read-write capabilities
+pub enum ClientMode {
+    /// Read-only mode without a wallet
+    ReadOnly,
+    /// Read-write mode with an attached wallet
+    ReadWrite(EvmWallet),
+}
+
+impl Clone for ClientMode {
+    fn clone(&self) -> Self {
+        match self {
+            Self::ReadOnly => Self::ReadOnly,
+            Self::ReadWrite(wallet) => Self::ReadWrite(wallet.clone()),
+        }
+    }
+}
+
 /// Represents a client for the Autonomi network.
 #[derive(Clone)]
 pub struct Client {
     pub(crate) network: Network,
     pub(crate) client_event_sender: Arc<Option<mpsc::Sender<ClientEvent>>>,
     pub(crate) evm_network: EvmNetwork,
+    pub(crate) mode: ClientMode,
 }
 
 /// Configuration for [`Client::init_with_config`].
@@ -206,6 +229,7 @@ impl Client {
             network,
             client_event_sender: Arc::new(None),
             evm_network: Default::default(),
+            mode: ClientMode::ReadOnly,
         })
     }
 
@@ -231,6 +255,7 @@ impl Client {
             network,
             client_event_sender: Arc::new(None),
             evm_network: Default::default(),
+            mode: ClientMode::ReadOnly,
         })
     }
 
@@ -299,6 +324,7 @@ impl Client {
             network,
             client_event_sender: Arc::new(None),
             evm_network: Default::default(),
+            mode: ClientMode::ReadOnly,
         })
     }
 
@@ -372,6 +398,125 @@ impl Client {
     /// Update log level
     pub async fn update_log_level(&self, _log_levels: String) -> Result<()> {
         Ok(())
+    }
+
+    /// Initialize a new read-only client with default configuration
+    pub async fn init_read_only() -> Result<Self> {
+        Self::init_read_only_with_config(ClientConfig::default()).await
+    }
+
+    /// Initialize a read-only client with the given config
+    pub async fn init_read_only_with_config(config: ClientConfig) -> Result<Self> {
+        let keypair = Keypair::generate_ed25519();
+        let mut builder = NetworkBuilder::new(keypair);
+
+        // Configure local mode if enabled
+        if config.local {
+            builder = builder.local(true);
+        }
+
+        // If we're not in local mode, try to set up the bootstrap cache
+        if !config.local {
+            if let Ok(mut config) = BootstrapCacheConfig::default_config() {
+                config.disable_cache_writing = true;
+                if let Ok(cache) = BootstrapCacheStore::new(config) {
+                    builder.bootstrap_cache(cache);
+                }
+            }
+        }
+
+        let (network, _event_receiver, driver) =
+            builder.build_client().expect("Failed to build network");
+
+        // Spawn the driver to run in the background
+        ant_networking::target_arch::spawn(async move {
+            driver.run().await;
+        });
+
+        Ok(Self {
+            network,
+            client_event_sender: Arc::new(None),
+            evm_network: Default::default(),
+            mode: ClientMode::ReadOnly,
+        })
+    }
+
+    /// Initialize a new client with a wallet for read-write access
+    pub async fn init_with_wallet(wallet: EvmWallet) -> Result<Self> {
+        Self::init_with_wallet_and_config(wallet, ClientConfig::default()).await
+    }
+
+    /// Initialize a client with a wallet and config for read-write access
+    pub async fn init_with_wallet_and_config(
+        wallet: EvmWallet,
+        config: ClientConfig,
+    ) -> Result<Self> {
+        let keypair = Keypair::generate_ed25519();
+        let mut builder = NetworkBuilder::new(keypair);
+
+        // Configure local mode if enabled
+        if config.local {
+            builder = builder.local(true);
+        }
+
+        // If we're not in local mode, try to set up the bootstrap cache
+        if !config.local {
+            if let Ok(mut config) = BootstrapCacheConfig::default_config() {
+                config.disable_cache_writing = true;
+                if let Ok(cache) = BootstrapCacheStore::new(config) {
+                    builder.bootstrap_cache(cache);
+                }
+            }
+        }
+
+        let (network, _event_receiver, driver) =
+            builder.build_client().expect("Failed to build network");
+
+        // Spawn the driver to run in the background
+        ant_networking::target_arch::spawn(async move {
+            driver.run().await;
+        });
+
+        Ok(Self {
+            network,
+            client_event_sender: Arc::new(None),
+            evm_network: Default::default(),
+            mode: ClientMode::ReadWrite(wallet),
+        })
+    }
+
+    /// Check if the client has write access (i.e. has a wallet)
+    pub fn check_write_access(&self) -> Result<(), PutError> {
+        if self.wallet().is_none() {
+            return Err(PutError::NoWallet);
+        }
+        Ok(())
+    }
+
+    /// Get the wallet if in read-write mode
+    pub fn wallet(&self) -> Option<&EvmWallet> {
+        match &self.mode {
+            ClientMode::ReadWrite(wallet) => Some(wallet),
+            ClientMode::ReadOnly => None,
+        }
+    }
+
+    /// Check if the client has write capabilities
+    pub fn can_write(&self) -> bool {
+        matches!(self.mode, ClientMode::ReadWrite(_))
+    }
+
+    /// Upgrade a read-only client to read-write by providing a wallet
+    pub fn upgrade_to_read_write(&mut self, wallet: EvmWallet) -> Result<()> {
+        match self.mode {
+            ClientMode::ReadOnly => {
+                self.mode = ClientMode::ReadWrite(wallet);
+                Ok(())
+            }
+            ClientMode::ReadWrite(_) => {
+                Err(anyhow::anyhow!("Client is already in read-write mode"))
+            }
+        }
     }
 }
 

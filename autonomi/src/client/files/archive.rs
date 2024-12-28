@@ -15,7 +15,8 @@ use ant_networking::target_arch::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::{
     client::{
-        data::{DataMapChunk, GetError, PutError},
+        data::DataMapChunk,
+        error::{GetError, PutError},
         payment::PaymentOption,
     },
     Client,

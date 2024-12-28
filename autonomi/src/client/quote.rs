@@ -6,7 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::{data::CostError, Client};
+use super::error::CostError;
+use super::Client;
 use crate::client::rate_limiter::RateLimiter;
 use ant_evm::payment_vault::get_market_price;
 use ant_evm::{Amount, EvmNetwork, PaymentQuote, QuotePayment, QuotingMetrics};
@@ -123,11 +124,11 @@ impl Client {
                     );
                 }
                 _ => {
-                    return Err(CostError::NotEnoughNodeQuotes(
-                        content_addr,
-                        prices.len(),
-                        MINIMUM_QUOTES_TO_PAY,
-                    ));
+                    return Err(CostError::NotEnoughNodeQuotes {
+                        addr: content_addr,
+                        got: prices.len(),
+                        need: MINIMUM_QUOTES_TO_PAY,
+                    });
                 }
             }
         }
@@ -164,7 +165,9 @@ async fn fetch_store_quote_with_retries(
                     error!("Error while fetching store quote: not enough quotes ({}/{CLOSE_GROUP_SIZE}), retry #{retries}, quotes {quote:?}",
                         quote.len());
                     if retries > 2 {
-                        break Err(CostError::CouldNotGetStoreQuote(content_addr));
+                        break Err(CostError::CouldNotGetStoreQuote(
+                            NetworkAddress::from_chunk_address(ChunkAddress::new(content_addr)),
+                        ));
                     }
                 }
                 break Ok((content_addr, quote));
@@ -177,7 +180,9 @@ async fn fetch_store_quote_with_retries(
                 error!(
                     "Error while fetching store quote: {err:?}, stopping after {retries} retries"
                 );
-                break Err(CostError::CouldNotGetStoreQuote(content_addr));
+                break Err(CostError::CouldNotGetStoreQuote(
+                    NetworkAddress::from_chunk_address(ChunkAddress::new(content_addr)),
+                ));
             }
         }
         // Shall have a sleep between retries to avoid choking the network.

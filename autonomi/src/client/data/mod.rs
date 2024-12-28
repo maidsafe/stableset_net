@@ -9,17 +9,23 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::LazyLock;
 
-use ant_evm::{Amount, EvmWalletError};
-use ant_networking::NetworkError;
-use ant_protocol::storage::Chunk;
+use crate::client::{
+    error::{GetError, PutError},
+    payment::{PaymentOption, Receipt},
+    utils::process_tasks_with_max_concurrency,
+    ClientEvent, UploadSummary,
+};
+use crate::self_encryption::encrypt;
+use crate::Client;
+use ant_evm::Amount;
+use ant_networking::GetRecordCfg;
+use ant_protocol::storage::{Chunk, ChunkAddress};
 use ant_protocol::NetworkAddress;
 use bytes::Bytes;
+use libp2p::kad::Quorum;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, error, info};
 use xor_name::XorName;
-
-use crate::client::payment::PaymentOption;
-use crate::client::{ClientEvent, UploadSummary};
-use crate::{self_encryption::encrypt, Client};
 
 pub mod public;
 pub mod streaming;
@@ -66,77 +72,15 @@ pub type DataAddr = XorName;
 /// Raw Chunk Address (points to a [`Chunk`])
 pub type ChunkAddr = XorName;
 
-/// Errors that can occur during the put operation.
-#[derive(Debug, thiserror::Error)]
-pub enum PutError {
-    #[error("Failed to self-encrypt data.")]
-    SelfEncryption(#[from] crate::self_encryption::Error),
-    #[error("A network error occurred.")]
-    Network(#[from] NetworkError),
-    #[error("Error occurred during cost estimation.")]
-    CostError(#[from] CostError),
-    #[error("Error occurred during payment.")]
-    PayError(#[from] PayError),
-    #[error("Serialization error: {0}")]
-    Serialization(String),
-    #[error("A wallet error occurred.")]
-    Wallet(#[from] ant_evm::EvmError),
-    #[error("The vault owner key does not match the client's public key")]
-    VaultBadOwner,
-    #[error("Payment unexpectedly invalid for {0:?}")]
-    PaymentUnexpectedlyInvalid(NetworkAddress),
-    #[error("The payment proof contains no payees.")]
-    PayeesMissing,
-}
-
-/// Errors that can occur during the pay operation.
-#[derive(Debug, thiserror::Error)]
-pub enum PayError {
-    #[error("Wallet error: {0:?}")]
-    EvmWalletError(#[from] EvmWalletError),
-    #[error("Failed to self-encrypt data.")]
-    SelfEncryption(#[from] crate::self_encryption::Error),
-    #[error("Cost error: {0:?}")]
-    Cost(#[from] CostError),
-}
-
-/// Errors that can occur during the get operation.
-#[derive(Debug, thiserror::Error)]
-pub enum GetError {
-    #[error("Could not deserialize data map.")]
-    InvalidDataMap(rmp_serde::decode::Error),
-    #[error("Failed to decrypt data.")]
-    Decryption(crate::self_encryption::Error),
-    #[error("Failed to deserialize")]
-    Deserialization(#[from] rmp_serde::decode::Error),
-    #[error("General networking error: {0:?}")]
-    Network(#[from] NetworkError),
-    #[error("General protocol error: {0:?}")]
-    Protocol(#[from] ant_protocol::Error),
-}
-
-/// Errors that can occur during the cost calculation.
-#[derive(Debug, thiserror::Error)]
-pub enum CostError {
-    #[error("Failed to self-encrypt data.")]
-    SelfEncryption(#[from] crate::self_encryption::Error),
-    #[error("Could not get store quote for: {0:?} after several retries")]
-    CouldNotGetStoreQuote(XorName),
-    #[error("Could not get store costs: {0:?}")]
-    CouldNotGetStoreCosts(NetworkError),
-    #[error("Not enough node quotes for {0:?}, got: {1:?} and need at least {2:?}")]
-    NotEnoughNodeQuotes(XorName, usize, usize),
-    #[error("Failed to serialize {0}")]
-    Serialization(String),
-    #[error("Market price error: {0:?}")]
-    MarketPriceError(#[from] ant_evm::payment_vault::error::Error),
-}
-
 /// Private data on the network can be accessed with this
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct DataMapChunk(Chunk);
+pub struct DataMapChunk(pub(crate) Chunk);
 
 impl DataMapChunk {
+    pub fn value(&self) -> &[u8] {
+        self.0.value()
+    }
+
     pub fn to_hex(&self) -> String {
         hex::encode(self.0.value())
     }
@@ -264,6 +208,85 @@ impl Client {
         }
 
         Ok(DataMapChunk(data_map_chunk))
+    }
+
+    // Upload chunks and retry failed uploads up to `RETRY_ATTEMPTS` times.
+    pub(crate) async fn upload_chunks_with_retries<'a>(
+        &self,
+        mut chunks: Vec<&'a Chunk>,
+        receipt: &Receipt,
+    ) -> Vec<(&'a Chunk, PutError)> {
+        let mut current_attempt: usize = 1;
+
+        loop {
+            let mut upload_tasks = vec![];
+            for chunk in chunks {
+                let self_clone = self.clone();
+                let address = *chunk.address();
+
+                let Some((proof, _)) = receipt.get(chunk.name()) else {
+                    debug!("Chunk at {address:?} was already paid for so skipping");
+                    continue;
+                };
+
+                upload_tasks.push(async move {
+                    self_clone
+                        .chunk_upload_with_payment(chunk, proof.clone())
+                        .await
+                        .inspect_err(|err| error!("Error uploading chunk {address:?} :{err:?}"))
+                        // Return chunk reference too, to re-use it next attempt/iteration
+                        .map_err(|err| (chunk, err))
+                });
+            }
+            let uploads =
+                process_tasks_with_max_concurrency(upload_tasks, *CHUNK_UPLOAD_BATCH_SIZE).await;
+
+            // Check for errors.
+            let total_uploads = uploads.len();
+            let uploads_failed: Vec<_> = uploads.into_iter().filter_map(|up| up.err()).collect();
+            info!(
+                "Uploaded {} chunks out of {total_uploads}",
+                total_uploads - uploads_failed.len()
+            );
+
+            // All uploads succeeded.
+            if uploads_failed.is_empty() {
+                return vec![];
+            }
+
+            // Max retries reached.
+            if current_attempt > RETRY_ATTEMPTS {
+                return uploads_failed;
+            }
+
+            tracing::info!(
+                "Retrying putting {} failed chunks (attempt {current_attempt}/3)",
+                uploads_failed.len()
+            );
+
+            // Re-iterate over the failed chunks
+            chunks = uploads_failed.into_iter().map(|(chunk, _)| chunk).collect();
+            current_attempt += 1;
+        }
+    }
+
+    /// Get a chunk from the network by its XorName
+    pub(crate) async fn chunk_get(&self, xor_name: XorName) -> Result<Chunk, GetError> {
+        let chunk_address = ChunkAddress::new(xor_name);
+        let network_address = NetworkAddress::from_chunk_address(chunk_address);
+        let get_cfg = GetRecordCfg {
+            get_quorum: Quorum::One,
+            retry_strategy: None,
+            target_record: None,
+            expected_holders: Default::default(),
+            is_register: false,
+        };
+        let record = self
+            .network
+            .get_record_from_network(network_address.to_record_key(), &get_cfg)
+            .await?;
+        let chunk = Chunk::new(record.value.to_vec().into());
+        Ok(chunk)
     }
 }
 

@@ -6,8 +6,13 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::client::data::{DataMapChunk, GetError, PutError, CHUNK_UPLOAD_BATCH_SIZE};
-use crate::client::payment::PaymentOption;
+use crate::client::data::{DataMapChunk, CHUNK_UPLOAD_BATCH_SIZE};
+use crate::client::{
+    error::{CostError, GetError, PutError},
+    payment::{PaymentOption, Receipt},
+    utils::process_tasks_with_max_concurrency,
+    ClientEvent, UploadSummary,
+};
 use crate::Client;
 use crate::ClientConfig;
 use ant_protocol::storage::Chunk;

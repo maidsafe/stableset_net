@@ -21,7 +21,8 @@ use xor_name::XorName;
 use super::archive::Metadata;
 use crate::{
     client::{
-        data::{CostError, DataAddr, GetError, PutError},
+        data::DataAddr,
+        error::{CostError, GetError, PutError},
         files::archive::RenameError,
     },
     Client,

@@ -12,8 +12,7 @@ pub mod user_data;
 pub use key::{derive_vault_key, VaultSecretKey};
 pub use user_data::UserData;
 
-use super::data::CostError;
-use crate::client::data::PutError;
+use crate::client::error::{CostError, PutError};
 use crate::client::payment::PaymentOption;
 use crate::client::Client;
 use ant_evm::{Amount, AttoTokens};

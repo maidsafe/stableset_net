@@ -87,3 +87,5 @@ pub use client::{
 
 #[cfg(feature = "extension-module")]
 mod python;
+
+pub use client::error::PutError;

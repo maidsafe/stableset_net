@@ -12,16 +12,42 @@ use color_eyre::{
 };
 use evmlib::{utils::get_evm_network_from_env, wallet::Wallet, Network};
 use std::env;
+use std::fs;
+use tempfile::TempDir;
+
+const DEFAULT_WALLET_PRIVATE_KEY: &str =
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+
+/// Sets up a temporary test environment for EVM testing
+pub fn setup_test_environment() -> Result<TempDir> {
+    // Create a temporary directory
+    let temp_dir = tempfile::tempdir()?;
+
+    // Create the autonomi directory in the temp dir
+    let autonomi_dir = temp_dir.path().join("autonomi");
+    fs::create_dir_all(&autonomi_dir)?;
+
+    // Create the EVM testnet CSV file
+    let csv_content = "http://localhost:8545,0x0000000000000000000000000000000000000000,0x0000000000000000000000000000000000000000,0";
+    let csv_path = autonomi_dir.join("evm_testnet_data.csv");
+    fs::write(&csv_path, csv_content)?;
+
+    // Set environment variables
+    env::set_var("EVM_NETWORK", "local");
+    env::set_var("XDG_DATA_HOME", temp_dir.path());
+
+    Ok(temp_dir)
+}
 
 pub fn get_funded_wallet() -> evmlib::wallet::Wallet {
+    // Set up test environment
+    setup_test_environment().expect("Failed to set up test environment");
+
     let network =
         get_evm_network_from_env().expect("Failed to get EVM network from environment variables");
     if matches!(network, Network::ArbitrumOne) {
         panic!("You're trying to use ArbitrumOne network. Use a custom network for testing.");
     }
-    // Default deployer wallet of the testnet.
-    const DEFAULT_WALLET_PRIVATE_KEY: &str =
-        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
     let private_key = env::var("SECRET_KEY").unwrap_or(DEFAULT_WALLET_PRIVATE_KEY.to_string());
 
@@ -29,6 +55,9 @@ pub fn get_funded_wallet() -> evmlib::wallet::Wallet {
 }
 
 pub fn get_new_wallet() -> Result<Wallet> {
+    // Set up test environment
+    setup_test_environment().expect("Failed to set up test environment");
+
     let network = get_evm_network_from_env()
         .wrap_err("Failed to get EVM network from environment variables")?;
     if matches!(network, Network::ArbitrumOne) {

@@ -26,6 +26,7 @@ pub mod config;
 pub mod contacts;
 pub mod error;
 mod initial_peers;
+pub mod utils;
 
 use ant_protocol::version::{get_network_id, get_truncate_version_str};
 use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};

@@ -22,6 +22,7 @@ use crate::client::{ClientEvent, UploadSummary};
 use crate::{self_encryption::encrypt, Client};
 
 pub mod public;
+pub mod streaming;
 
 /// Number of chunks to upload in parallel.
 ///

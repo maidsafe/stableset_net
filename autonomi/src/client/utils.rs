@@ -75,9 +75,15 @@ impl Client {
         &self,
         data_map_bytes: &Bytes,
     ) -> Result<Bytes, GetError> {
-        let data_map: DataMap = rmp_serde::from_slice(data_map_bytes)
-            .map_err(GetError::InvalidDataMap)
-            .inspect_err(|err| error!("Error deserializing data map: {err:?}"))?;
+        let data_map_level: crate::self_encryption::DataMapLevel =
+            rmp_serde::from_slice(data_map_bytes)
+                .map_err(GetError::InvalidDataMap)
+                .inspect_err(|err| error!("Error deserializing data map level: {err:?}"))?;
+
+        let data_map = match data_map_level {
+            crate::self_encryption::DataMapLevel::First(data_map) => data_map,
+            crate::self_encryption::DataMapLevel::Additional(data_map) => data_map,
+        };
 
         self.fetch_from_data_map(&data_map).await
     }

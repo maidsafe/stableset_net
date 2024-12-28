@@ -194,9 +194,8 @@ impl Client {
             }
         }
 
-        let (network, _event_receiver, driver) = builder
-            .build_client()
-            .expect("Failed to build network");
+        let (network, _event_receiver, driver) =
+            builder.build_client().expect("Failed to build network");
 
         // Spawn the driver to run in the background
         ant_networking::target_arch::spawn(async move {
@@ -220,9 +219,8 @@ impl Client {
             builder = builder.local(true);
         }
 
-        let (network, _event_receiver, driver) = builder
-            .build_client()
-            .expect("Failed to build network");
+        let (network, _event_receiver, driver) =
+            builder.build_client().expect("Failed to build network");
 
         // Spawn the driver to run in the background
         ant_networking::target_arch::spawn(async move {
@@ -277,9 +275,8 @@ impl Client {
             builder = builder.local(true);
         }
 
-        let (network, event_receiver, driver) = builder
-            .build_client()
-            .expect("Failed to build network");
+        let (network, event_receiver, driver) =
+            builder.build_client().expect("Failed to build network");
 
         // Spawn the driver to run in the background
         ant_networking::target_arch::spawn(async move {
@@ -396,9 +393,8 @@ fn build_client_and_run_swarm(local: bool) -> (Network, mpsc::Receiver<NetworkEv
         }
     }
 
-    let (network, event_receiver, driver) = builder
-        .build_client()
-        .expect("Failed to build network");
+    let (network, event_receiver, driver) =
+        builder.build_client().expect("Failed to build network");
 
     // Spawn the driver to run in the background
     ant_networking::target_arch::spawn(async move {

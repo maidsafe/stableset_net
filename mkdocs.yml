@@ -1,4 +1,5 @@
 site_name: Autonomi Documentation
+docs_dir: docs/online-documentation
 theme:
   name: material
   features:

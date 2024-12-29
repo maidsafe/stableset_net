@@ -29,12 +29,19 @@ theme:
 
 nav:
   - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
   - Core Concepts:
     - Data Types: guides/data_types.md
     - Client Modes: guides/client_modes.md
+    - Data Storage: guides/data_storage.md
   - Developer Guides:
     - Local Network Setup: guides/local_network.md
-    - Data Storage: guides/data_storage.md
+    - Local Development: guides/local_development.md
+    - EVM Integration: guides/evm_integration.md
+    - Testing Guide: guides/testing_guide.md
+    - Payments: guides/payments.md
   - API Reference: api/README.md
 
 plugins:

@@ -42,3 +42,5 @@ uv.lock
 /vendor/
 node_modules/
 site/
+.cache/
+

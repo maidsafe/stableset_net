@@ -137,4 +137,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 - [Quick Start Guide](quickstart.md)
 - [Local Network Setup](../guides/local_network.md)
-- [API Reference](../api/nodejs/README.md)
+- [API Reference](../api/README.md)

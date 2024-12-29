@@ -15,7 +15,7 @@ Autonomi is a decentralized network client that provides:
 
 - [Installation Guide](getting-started/installation.md)
 - [Quick Start Guide](getting-started/quickstart.md)
-- [API Reference](api/nodejs/README.md)
+- [API Reference](api/README.md)
 - [Local Network Setup](guides/local_network.md)
 
 ## Language Support
@@ -59,5 +59,5 @@ For more details, see our [Contributing Guide](https://github.com/dirvine/autono
 ## Getting Help
 
 - [GitHub Issues](https://github.com/dirvine/autonomi/issues)
-- [API Reference](api/nodejs/README.md)
+- [API Reference](api/README.md)
 - [Testing Guide](guides/testing_guide.md)

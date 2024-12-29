@@ -159,4 +159,4 @@ Pointers allow you to create references to data in the network:
 - [Local Network Setup](../guides/local_network.md)
 - [EVM Integration](../guides/evm_integration.md)
 - [Testing Guide](../guides/testing_guide.md)
-- [API Reference](../api/nodejs/README.md)
+- [API Reference](../api/README.md)

@@ -1,604 +1,482 @@
-# Autonomi API Documentation
+# Autonomi API Reference
 
-Autonomi is a new layer of the internet built from a multitude of everyday devices, providing autonomous, secure, and perpetual data storage. The API enables you to interact with this decentralized network, leveraging quantum-secure protocols and distributed storage to ensure your data remains safe and accessible.
+The Autonomi API provides a consistent interface across multiple programming languages, making it easy to build applications in your preferred language while maintaining the same powerful capabilities.
 
-## Core Features
+## Installation
 
-- **Quantum Secure**: Built with cutting-edge quantum security protocols, ensuring unmatched safety for your data
-- **Autonomous & Distributed**: Control remains in the hands of users rather than centralized entities
-- **Perpetual Data**: Permanent storage that provides true self-sovereignty over your digital life
-- **Flexible Access**: Start with read-only access and upgrade to write capabilities as needed
+### Rust
 
-## Getting Started
+```toml
+[dependencies]
+autonomi = "0.1.0"
+```
 
-The Autonomi API provides a flexible interface for interacting with the network. You can start with a read-only client for browsing and reading data, then optionally upgrade to write capabilities when needed. See the [Client Modes Guide](../guides/client_modes.md) for details.
+### Python
 
-## Language Support
+```bash
+pip install autonomi
+```
 
-Autonomi provides native support for multiple programming languages:
+### TypeScript/Node.js
 
-- [Rust API](rust/README.md) - For systems programming and maximum performance
-- [TypeScript/Node.js API](nodejs/README.md) - For web and server applications
-- [Python API](python/README.md) - For data science and general-purpose development
+```bash
+npm install autonomi
+```
+
+## Client Initialization
+
+Initialize a client with flexible options for security and performance:
+
+### Rust
+
+```rust
+use autonomi::Client;
+
+// Initialize a read-only client
+let client = Client::init_read_only().await?;
+
+// Initialize with write capabilities and config
+let config = ClientConfig::builder()
+    .with_quantum_security(true)
+    .with_compression(true)
+    .build();
+let client = Client::init_with_wallet_and_config(wallet, config).await?;
+```
+
+### Python
+
+```python
+from autonomi import Client
+
+# Initialize a read-only client
+client = Client.init_read_only()
+
+# Initialize with write capabilities and config
+config = {
+    'quantum_security': True,
+    'compression': True,
+    'cache_size': '1GB'
+}
+client = Client.init_with_wallet_and_config(wallet, config)
+```
+
+### TypeScript/Node.js
+
+```typescript
+import { Client, ClientConfig } from 'autonomi';
+
+// Initialize a read-only client
+const client = await Client.initReadOnly();
+
+// Initialize with write capabilities and config
+const config: ClientConfig = {
+    quantumSecurity: true,
+    compression: true,
+    cacheSize: '1GB'
+};
+const client = await Client.initWithWalletAndConfig(wallet, config);
+```
 
 ## Core Data Types
 
-Autonomi provides four fundamental data types that serve as building blocks for all network operations. These types enable quantum-secure storage, mutable references, transaction chains, and temporary workspaces. For detailed information about each type, see the [Data Types Guide](../guides/data_types.md).
+### Chunk - Quantum-Secure Storage
 
-### 1. Chunk - Quantum-Secure Storage
+Store and retrieve immutable, quantum-secure encrypted data:
 
-Immutable, quantum-secure encrypted data blocks that form the foundation of permanent storage:
+### Rust
 
 ```rust
-// Rust
+use autonomi::Chunk;
+
+// Store raw data
+let data = b"Hello, World!";
 let chunk = client.store_chunk(data).await?;
+
+// Retrieve data
+let retrieved = client.get_chunk(chunk.address()).await?;
+assert_eq!(data, &retrieved[..]);
+
+// Get metadata
+let metadata = client.get_chunk_metadata(chunk.address()).await?;
+println!("Size: {}, Replicas: {}", metadata.size, metadata.replicas);
 ```
 
-```typescript
-// TypeScript
-const chunk = await client.storeChunk(data);
-```
+### Python
 
 ```python
-# Python
+from autonomi import Chunk
+import numpy as np
+
+# Store raw data
+data = b"Hello, World!"
 chunk = client.store_chunk(data)
+
+# Store numpy array
+array_data = np.random.randn(1000, 1000)
+chunk = client.store_chunk_compressed(array_data.tobytes())
+
+# Retrieve data
+retrieved = client.get_chunk(chunk.address)
+assert data == retrieved
+
+# Get metadata
+metadata = client.get_chunk_metadata(chunk.address)
+print(f"Size: {metadata.size}, Replicas: {metadata.replicas}")
 ```
 
-### 2. Pointer - Mutable References
-
-Version-tracked references that enable updating data while maintaining stable addresses:
-
-```rust
-// Rust
-let pointer = client.create_pointer(target).await?;
-client.update_pointer(pointer.address(), new_target).await?;
-```
+### TypeScript/Node.js
 
 ```typescript
-// TypeScript
-const pointer = await client.createPointer(target);
-await client.updatePointer(pointer.address, newTarget);
+import { Chunk } from 'autonomi';
+
+// Store raw data
+const data = Buffer.from('Hello, World!');
+const chunk = await client.storeChunk(data);
+
+// Store with streaming
+const stream = createReadStream('large-file.dat');
+const chunk = await client.storeChunkStream(stream);
+
+// Retrieve data
+const retrieved = await client.getChunk(chunk.address);
+assert(Buffer.compare(data, retrieved) === 0);
+
+// Get metadata
+const metadata = await client.getChunkMetadata(chunk.address);
+console.log(`Size: ${metadata.size}, Replicas: ${metadata.replicas}`);
 ```
 
-```python
-# Python
-pointer = client.create_pointer(target)
-client.update_pointer(pointer.address(), new_target)
-```
+### Pointer - Mutable References
 
-### 3. LinkedList - Transaction Chains
+Create and manage version-tracked references:
 
-Decentralized DAG structures for maintaining ordered history and enabling value transfers:
+### Rust
 
 ```rust
-// Rust
-let list = client.create_linked_list().await?;
-client.append_to_list(list.address(), item).await?;
+use autonomi::Pointer;
+
+// Create a pointer with metadata
+let pointer = client.create_pointer_with_metadata(
+    target_address,
+    metadata,
+).await?;
+
+// Update with version checking
+client.update_pointer(pointer.address(), new_target_address).await?;
+
+// Resolve with caching
+let target = client.resolve_pointer_cached(pointer.address()).await?;
+
+// Get metadata
+let metadata = client.get_pointer_metadata(pointer.address()).await?;
+println!("Version: {}, Updates: {}", metadata.version, metadata.update_count);
 ```
 
-```typescript
-// TypeScript
-const list = await client.createLinkedList();
-await client.appendToList(list.address, item);
-```
+### Python
 
 ```python
-# Python
-list = client.create_linked_list()
-client.append_to_list(list.address(), item)
+from autonomi import Pointer
+from datetime import datetime
+
+# Create a pointer with metadata
+metadata = {
+    'created_at': datetime.utcnow(),
+    'description': 'Latest model weights'
+}
+pointer = client.create_pointer_with_metadata(
+    target_address,
+    metadata
+)
+
+# Update with version checking
+client.update_pointer(pointer.address, new_target_address)
+
+# Resolve with caching
+target = client.resolve_pointer_cached(pointer.address)
+
+# Get metadata
+metadata = client.get_pointer_metadata(pointer.address)
+print(f"Version: {metadata.version}, Updates: {metadata.update_count}")
 ```
 
-### 4. ScratchPad - Temporary Workspace
+### TypeScript/Node.js
 
-Unstructured data storage with CRDT properties for configuration and temporary data:
+```typescript
+import { Pointer } from 'autonomi';
+
+// Create a pointer with metadata
+const metadata = {
+    createdAt: new Date(),
+    description: 'Latest application state'
+};
+const pointer = await client.createPointerWithMetadata(
+    targetAddress,
+    metadata
+);
+
+// Update with version checking
+await client.updatePointer(pointer.address, newTargetAddress);
+
+// Subscribe to updates
+client.subscribeToPointer(pointer.address, (update) => {
+    console.log(`New target: ${update.target}`);
+});
+
+// Get metadata
+const metadata = await client.getPointerMetadata(pointer.address);
+console.log(`Version: ${metadata.version}, Updates: ${metadata.updateCount}`);
+```
+
+### LinkedList - Transaction Chains
+
+Build decentralized DAG structures:
+
+### Rust
 
 ```rust
-// Rust
-let pad = client.create_scratchpad(content_type).await?;
-client.update_scratchpad(pad.address(), data).await?;
+use autonomi::LinkedList;
+
+// Create with configuration
+let config = LinkedListConfig::new()
+    .with_fork_detection(true)
+    .with_history_compression(true);
+let list = client.create_linked_list_with_config(config).await?;
+
+// Batch appends
+client.append_to_list_batch(list.address(), items).await?;
+
+// Stream contents
+let mut items = client.stream_list(list.address());
+while let Some(item) = items.next().await {
+    process_item(item?);
+}
+
+// Fork detection
+match client.detect_forks_detailed(list.address()).await? {
+    Fork::None => println!("No forks detected"),
+    Fork::Detected(branches) => {
+        let resolved = client.resolve_fork_automatically(branches).await?;
+        println!("Fork resolved: {:?}", resolved);
+    }
+}
 ```
 
-```typescript
-// TypeScript
-const pad = await client.createScratchpad(contentType);
-await client.updateScratchpad(pad.address, data);
-```
+### Python
 
 ```python
-# Python
-pad = client.create_scratchpad(content_type)
-client.update_scratchpad(pad.address(), data)
+from autonomi import LinkedList
+import pandas as pd
+
+# Create with configuration
+config = {
+    'fork_detection': True,
+    'history_compression': True
+}
+list = client.create_linked_list_with_config(config)
+
+# Batch appends
+client.append_to_list_batch(list.address, items)
+
+# Stream contents
+for item in client.stream_list(list.address):
+    process_item(item)
+
+# Stream as DataFrame
+for chunk in client.stream_list_as_dataframe(list.address):
+    process_dataframe(chunk)
+
+# Fork detection
+forks = client.detect_forks_detailed(list.address)
+if not forks:
+    print("No forks detected")
+else:
+    resolved = client.resolve_fork_automatically(forks.branches)
+    print(f"Fork resolved: {resolved}")
 ```
 
-## Higher-Level Operations
+### TypeScript/Node.js
 
-### File System Operations
+```typescript
+import { LinkedList } from 'autonomi';
 
-Built on top of the fundamental types, providing familiar file and directory operations:
+// Create with configuration
+const config = {
+    forkDetection: true,
+    historyCompression: true,
+    realtime: true
+};
+const list = await client.createLinkedListWithConfig(config);
+
+// Batch appends
+await client.appendToListBatch(list.address, items);
+
+// Subscribe to updates
+client.subscribeToList(list.address, (update) => {
+    console.log(`New item: ${update.data}`);
+});
+
+// Fork detection
+const forks = await client.detectForksDetailed(list.address);
+if (!forks) {
+    console.log('No forks detected');
+} else {
+    const resolved = await client.resolveForkAutomatically(forks.branches);
+    console.log(`Fork resolved: ${resolved}`);
+}
+```
+
+### ScratchPad - Temporary Workspace
+
+Efficient unstructured data storage with CRDT properties:
+
+### Rust
 
 ```rust
-// Rust
-let file = client.store_file("example.txt", content).await?;
-let dir = client.create_directory("docs").await?;
+use autonomi::{ScratchPad, ContentType};
+
+// Create with configuration
+let config = ScratchpadConfig::new()
+    .with_compression(true)
+    .with_encryption(true);
+let pad = client.create_scratchpad_with_config(
+    ContentType::UserSettings,
+    config,
+).await?;
+
+// Batch updates
+let updates = vec![Update::new(key1, value1), Update::new(key2, value2)];
+client.update_scratchpad_batch(pad.address(), updates).await?;
+
+// Stream updates
+let mut updates = client.stream_scratchpad_updates(pad.address());
+while let Some(update) = updates.next().await {
+    process_update(update?);
+}
 ```
 
-```typescript
-// TypeScript
-const file = await client.storeFile("example.txt", content);
-const dir = await client.createDirectory("docs");
-```
+### Python
 
 ```python
-# Python
-file = client.store_file("example.txt", content)
-dir = client.create_directory("docs")
+from autonomi import ScratchPad, ContentType
+
+# Create with configuration
+config = {
+    'compression': True,
+    'encryption': True
+}
+pad = client.create_scratchpad_with_config(
+    ContentType.USER_SETTINGS,
+    config
+)
+
+# Batch updates
+updates = [
+    ('key1', value1),
+    ('key2', value2)
+]
+client.update_scratchpad_batch(pad.address, updates)
+
+# Store DataFrame
+df = pd.DataFrame({'A': range(1000), 'B': range(1000)})
+client.update_scratchpad_dataframe(pad.address, df)
+
+# Stream updates
+for update in client.stream_scratchpad_updates(pad.address):
+    process_update(update)
 ```
 
-### Common Use Cases
+### TypeScript/Node.js
 
-1. **Permanent Content Storage**
+```typescript
+import { ScratchPad, ContentType } from 'autonomi';
 
-   ```rust
-   // Store and retrieve quantum-secure data
-   let address = client.store_chunk(data).await?;
-   let retrieved = client.get_chunk(address).await?;
-   ```
+// Create with configuration
+const config = {
+    compression: true,
+    encryption: true,
+    realtime: true
+};
+const pad = await client.createScratchpadWithConfig(
+    ContentType.UserSettings,
+    config
+);
 
-2. **Mutable Data Management**
+// Update with JSON
+const settings = { theme: 'dark', fontSize: 14 };
+await client.updateScratchpadJson(pad.address, settings);
 
-   ```rust
-   // Update data while maintaining stable addresses
-   let pointer = client.create_pointer(initial_data).await?;
-   client.update_pointer(pointer.address(), new_data).await?;
-   ```
-
-3. **Transaction History**
-
-   ```rust
-   // Create and verify autonomous transaction chains
-   let list = client.create_linked_list().await?;
-   client.append_to_list(list.address(), transaction).await?;
-   let history = client.get_list_history(list.address()).await?;
-   ```
-
-4. **User Settings & Configuration**
-
-   ```rust
-   // Store encrypted user preferences
-   let pad = client.create_scratchpad(ContentType::UserSettings).await?;
-   client.update_scratchpad(pad.address(), encrypted_settings).await?;
-   ```
+// Subscribe to updates
+client.subscribeToScratchpad(pad.address, (update) => {
+    console.log(`New data: ${update.data}`);
+});
+```
 
 ## Error Handling
 
-Each language provides appropriate error handling mechanisms aligned with its idioms:
+Each language provides comprehensive error handling:
+
+### Rust
 
 ```rust
-// Rust
+use autonomi::error::{ChunkError, PointerError};
+
 match client.get_chunk(address).await {
     Ok(data) => process_data(data),
-    Err(ChunkError::NotFound) => handle_missing(),
+    Err(ChunkError::NotFound { address }) => {
+        println!("Chunk not found: {}", address);
+        handle_missing()
+    },
+    Err(ChunkError::NetworkError(e)) => {
+        println!("Network error: {}", e);
+        handle_network_error(e)
+    },
     Err(e) => handle_other_error(e),
 }
 ```
 
+### Python
+
+```python
+from autonomi.errors import ChunkError, PointerError
+
+try:
+    data = client.get_chunk(address)
+    process_data(data)
+except ChunkError.NotFound as e:
+    print(f"Chunk not found: {e.address}")
+    handle_missing()
+except ChunkError.NetworkError as e:
+    print(f"Network error: {e}")
+    handle_network_error(e)
+except Exception as e:
+    handle_other_error(e)
+```
+
+### TypeScript/Node.js
+
 ```typescript
-// TypeScript
+import { ChunkError, PointerError } from 'autonomi/errors';
+
 try {
     const data = await client.getChunk(address);
     processData(data);
 } catch (error) {
-    if (error instanceof ChunkNotFoundError) {
+    if (error instanceof ChunkError.NotFound) {
+        console.log(`Chunk not found: ${error.address}`);
         handleMissing();
+    } else if (error instanceof ChunkError.NetworkError) {
+        console.log(`Network error: ${error.message}`);
+        handleNetworkError(error);
     } else {
         handleOtherError(error);
     }
 }
 ```
 
-```python
-# Python
-try:
-    data = client.get_chunk(address)
-    process_data(data)
-except ChunkNotFoundError:
-    handle_missing()
-except Exception as e:
-    handle_other_error(e)
-```
-
-## Best Practices
-
-1. **Data Type Selection**
-   - Use Chunks for permanent, immutable data
-   - Use Pointers for mutable references
-   - Use LinkedLists for ordered history
-   - Use ScratchPads for temporary storage
-
-2. **Security First**
-   - Leverage quantum-secure storage
-   - Encrypt sensitive data
-   - Validate data integrity
-   - Use access control features
-
-3. **Performance Optimization**
-   - Choose appropriate data types
-   - Batch operations when possible
-   - Consider data size limitations
-   - Cache frequently accessed data
-
-4. **Error Resilience**
-   - Handle network errors gracefully
-   - Implement retry logic
-   - Validate data before storage
-   - Check for version conflicts
-
-## Join the Network
-
-Autonomi is built by its community. Consider [running a node](https://autonomi.com/start) to:
-
-- Contribute to the decentralized infrastructure
-- Help secure the network
-- Earn rewards for participation
-- Shape the future of the internet
-
-## Supporting Libraries
-
-Autonomi provides several specialized libraries that can be used independently or as part of the main API:
-
-### Self-Encryption
-
-A quantum-secure data encryption library that provides self-encrypting files and data chunks:
-
-```rust
-// Rust
-use self_encryption::{DataMap, SelfEncryptor};
-
-let encryptor = SelfEncryptor::new(data)?;
-let (data_map, chunks) = encryptor.encrypt()?;
-```
-
-```python
-# Python
-from self_encryption import SelfEncryptor
-
-encryptor = SelfEncryptor(data)
-data_map, chunks = encryptor.encrypt()
-```
-
-Key features:
-
-- Quantum-secure encryption
-- Content-based chunking
-- Deduplication support
-- Parallel processing
-- Streaming support
-
-### Node Implementation (antnode)
-
-The core node implementation for participating in the Autonomi network:
-
-```rust
-// Rust
-use antnode::{Node, NodeConfig};
-
-let config = NodeConfig::builder()
-    .rewards_address("0x1234...")
-    .evm_network("arbitrum_sepolia")
-    .build()?;
-let node = Node::new(config)?;
-node.run().await?;
-```
-
-```python
-# Python
-from antnode import AntNode
-
-node = AntNode()
-node.run(
-    rewards_address="0x1234...",
-    evm_network="arbitrum_sepolia",
-    ip="0.0.0.0",
-    port=12000,
-    initial_peers=[
-        "/ip4/142.93.37.4/udp/40184/quic-v1/p2p/12D3KooWPC8q7QGZsmuTtCYxZ2s3FPXPZcS8LVKkayXkVFkqDEQB",
-    ]
-)
-```
-
-Key features:
-
-- Network participation
-- Storage management
-- Reward collection
-- Peer discovery
-- Data validation
-
-### BLS Threshold Cryptography (blsttc)
-
-A high-performance BLS threshold cryptography implementation:
-
-```rust
-// Rust
-use blsttc::{SecretKey, PublicKey, Signature};
-
-let sk = SecretKey::random();
-let pk = sk.public_key();
-let msg = b"Hello, World!";
-let sig = sk.sign(msg);
-assert!(pk.verify(&sig, msg));
-```
-
-```python
-# Python
-from blsttc import SecretKey, PublicKey, Signature
-
-sk = SecretKey.random()
-pk = sk.public_key()
-msg = b"Hello, World!"
-sig = sk.sign(msg)
-assert pk.verify(sig, msg)
-```
-
-Key features:
-
-- BLS12-381 curve support
-- Threshold signatures
-- Key aggregation
-- Batch verification
-- Secure serialization
-
-## Library Details
-
-### Self-Encryption
-
-The self-encryption library provides a secure way to encrypt and chunk data:
-
-```rust
-// Rust - Detailed Usage
-use self_encryption::{
-    DataMap, SelfEncryptor, EncryptionConfig,
-    ChunkStore, InMemoryChunkStore,
-};
-
-// Configure encryption
-let config = EncryptionConfig::new()
-    .with_chunk_size(1024 * 1024)  // 1MB chunks
-    .with_compression(true);
-
-// Create encryptor with custom chunk store
-let chunk_store = InMemoryChunkStore::new();
-let encryptor = SelfEncryptor::with_config(
-    data,
-    chunk_store,
-    config,
-)?;
-
-// Encrypt data
-let (data_map, chunks) = encryptor.encrypt()?;
-
-// Decrypt data
-let decryptor = SelfEncryptor::from_data_map(
-    data_map,
-    chunk_store,
-)?;
-let decrypted = decryptor.decrypt()?;
-```
-
-```python
-# Python - Detailed Usage
-from self_encryption import (
-    SelfEncryptor, EncryptionConfig,
-    ChunkStore, InMemoryChunkStore
-)
-
-# Configure encryption
-config = EncryptionConfig(
-    chunk_size=1024 * 1024,  # 1MB chunks
-    compression=True
-)
-
-# Create encryptor with custom chunk store
-chunk_store = InMemoryChunkStore()
-encryptor = SelfEncryptor(
-    data,
-    chunk_store=chunk_store,
-    config=config
-)
-
-# Encrypt data
-data_map, chunks = encryptor.encrypt()
-
-# Decrypt data
-decryptor = SelfEncryptor.from_data_map(
-    data_map,
-    chunk_store=chunk_store
-)
-decrypted = decryptor.decrypt()
-```
-
-### Node Implementation (antnode)
-
-The node implementation provides comprehensive network participation:
-
-```rust
-// Rust - Detailed Usage
-use antnode::{
-    Node, NodeConfig, StorageConfig,
-    RewardsConfig, NetworkConfig,
-};
-
-// Configure node
-let config = NodeConfig::builder()
-    .rewards_address("0x1234...")
-    .evm_network("arbitrum_sepolia")
-    .storage(StorageConfig {
-        max_capacity: 1024 * 1024 * 1024,  // 1GB
-        min_free_space: 1024 * 1024 * 100,  // 100MB
-    })
-    .network(NetworkConfig {
-        ip: "0.0.0.0".parse()?,
-        port: 12000,
-        initial_peers: vec![
-            "/ip4/142.93.37.4/udp/40184/quic-v1/p2p/12D3KooWPC8q7QGZsmuTtCYxZ2s3FPXPZcS8LVKkayXkVFkqDEQB".parse()?,
-        ],
-    })
-    .build()?;
-
-// Create and run node
-let node = Node::new(config)?;
-
-// Get node information
-println!("Peer ID: {}", node.peer_id());
-println!("Rewards Address: {}", node.get_rewards_address());
-
-// Storage operations
-node.store_record(key, value, "chunk")?;
-let data = node.get_record(key)?;
-println!("Storage Size: {}", node.get_stored_records_size());
-
-// Directory management
-println!("Root Dir: {}", node.get_root_dir());
-println!("Logs Dir: {}", node.get_logs_dir());
-println!("Data Dir: {}", node.get_data_dir());
-
-// Run node
-node.run().await?;
-```
-
-```python
-# Python - Detailed Usage
-from antnode import AntNode, StorageConfig, NetworkConfig
-
-# Create node
-node = AntNode()
-
-# Configure and run node
-node.run(
-    rewards_address="0x1234...",
-    evm_network="arbitrum_sepolia",
-    ip="0.0.0.0",
-    port=12000,
-    initial_peers=[
-        "/ip4/142.93.37.4/udp/40184/quic-v1/p2p/12D3KooWPC8q7QGZsmuTtCYxZ2s3FPXPZcS8LVKkayXkVFkqDEQB",
-    ],
-    storage_config=StorageConfig(
-        max_capacity=1024 * 1024 * 1024,  # 1GB
-        min_free_space=1024 * 1024 * 100,  # 100MB
-    )
-)
-
-# Node information
-print(f"Peer ID: {node.peer_id()}")
-print(f"Rewards Address: {node.get_rewards_address()}")
-
-# Storage operations
-node.store_record(key, value, "chunk")
-data = node.get_record(key)
-print(f"Storage Size: {node.get_stored_records_size()}")
-
-# Directory management
-print(f"Root Dir: {node.get_root_dir()}")
-print(f"Logs Dir: {node.get_logs_dir()}")
-print(f"Data Dir: {node.get_data_dir()}")
-```
-
-### BLS Threshold Cryptography (blsttc)
-
-The BLS threshold cryptography library provides advanced cryptographic operations:
-
-```rust
-// Rust - Detailed Usage
-use blsttc::{
-    SecretKey, PublicKey, Signature,
-    SecretKeySet, PublicKeySet,
-};
-
-// Basic signing
-let sk = SecretKey::random();
-let pk = sk.public_key();
-let msg = b"Hello, World!";
-let sig = sk.sign(msg);
-assert!(pk.verify(&sig, msg));
-
-// Threshold signatures
-let threshold = 3;
-let total = 5;
-let sk_set = SecretKeySet::random(threshold, total);
-let pk_set = sk_set.public_keys();
-
-// Generate shares
-let shares: Vec<_> = (0..total)
-    .map(|i| sk_set.secret_key_share(i))
-    .collect();
-
-// Sign with shares
-let sigs: Vec<_> = shares.iter()
-    .map(|sk| sk.sign(msg))
-    .collect();
-
-// Combine signatures
-let combined_sig = pk_set.combine_signatures(&sigs[..threshold + 1])?;
-assert!(pk_set.public_key().verify(&combined_sig, msg));
-```
-
-```python
-# Python - Detailed Usage
-from blsttc import (
-    SecretKey, PublicKey, Signature,
-    SecretKeySet, PublicKeySet
-)
-
-# Basic signing
-sk = SecretKey.random()
-pk = sk.public_key()
-msg = b"Hello, World!"
-sig = sk.sign(msg)
-assert pk.verify(sig, msg)
-
-# Threshold signatures
-threshold = 3
-total = 5
-sk_set = SecretKeySet.random(threshold, total)
-pk_set = sk_set.public_keys()
-
-# Generate shares
-shares = [sk_set.secret_key_share(i) for i in range(total)]
-
-# Sign with shares
-sigs = [sk.sign(msg) for sk in shares]
-
-# Combine signatures
-combined_sig = pk_set.combine_signatures(sigs[:threshold + 1])
-assert pk_set.public_key().verify(combined_sig, msg)
-```
-
-## Installation
-
-### Rust
-
-Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-autonomi = "0.1.0"
-self-encryption = "0.1.0"
-antnode = "0.3.2"
-blsttc = "0.1.0"
-```
-
-### Python
-
-Install via pip:
-
-```bash
-pip install autonomi self-encryption antnode blsttc
-```
-
 ## Further Reading
 
-- [Data Types Guide](../guides/data_types.md) - Detailed information about fundamental data types
-- [Client Modes Guide](../guides/client_modes.md) - Understanding read-only and read-write modes
-- [Local Network Setup](../guides/local_network.md) - Setting up your local development environment
-- [White Paper](https://autonomi.com/whitepaper) - Technical details about Autonomi's architecture
-- [Documentation](https://autonomi.com/docs) - Complete platform documentation
+- [Web Development Guide](../guides/web_development.md)
+- [Data Science Guide](../guides/data_science.md)
+- [Quantum Security Guide](../guides/quantum_security.md)
+- [Error Handling Guide](../guides/error_handling.md)
+- [Rust Performance Guide](../guides/rust_performance.md)

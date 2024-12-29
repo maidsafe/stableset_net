@@ -1,274 +1,267 @@
 # Self Encryption API Reference
 
-Self Encryption is a novel encryption design that encrypts data using its own content as the encryption key. This provides both encryption and content-based deduplication.
+A file content self-encryptor that provides convergent encryption on file-based data. It produces a `DataMap` type and several chunks of encrypted data. Each chunk is up to 1MB in size and has an index and a name (SHA3-256 hash of the content), allowing chunks to be self-validating.
 
 ## Installation
 
 === "Python"
     ```bash
-    # Install using uv (recommended)
-    curl -LsSf <https://astral.sh/uv/install.sh> | sh
-    uv pip install self-encryption
-
-    # Or using pip
     pip install self-encryption
     ```
 
 === "Rust"
     ```toml
-    # Add to Cargo.toml
     [dependencies]
-    self_encryption = "0.28.0"
+    self_encryption = "0.31.0"
     ```
 
-## Basic Usage
+## Core Concepts
+
+### DataMap
+
+Holds the information required to recover the content of the encrypted file, stored as a vector of `ChunkInfo` (list of file's chunk hashes). Only files larger than 3072 bytes (3 * MIN_CHUNK_SIZE) can be self-encrypted.
+
+### Chunk Sizes
+
+- `MIN_CHUNK_SIZE`: 1 byte
+- `MAX_CHUNK_SIZE`: 1 MiB (before compression)
+- `MIN_ENCRYPTABLE_BYTES`: 3 bytes
+
+## Streaming Operations (Recommended)
+
+### Streaming File Encryption
 
 === "Python"
     ```python
-    from self_encryption import SelfEncryptor, Storage
-
-    # Create a storage backend
-    class MemoryStorage(Storage):
-        def __init__(self):
-            self.data = {}
-
-        def get(self, name):
-            return self.data.get(name)
-
-        def put(self, name, data):
-            self.data[name] = data
-            return name
-
-        def delete(self, name):
-            del self.data[name]
-
-    # Create a self encryptor
-    storage = MemoryStorage()
-    encryptor = SelfEncryptor(storage)
-
-    # Encrypt data
-    data = b"Hello, World!"
-    data_map = encryptor.write(data)
-
-    # Decrypt data
-    decryptor = SelfEncryptor(storage, data_map)
-    decrypted = decryptor.read()
-    assert data == decrypted
-    ```
-
-=== "Rust"
-    ```rust
-    use self_encryption::{SelfEncryptor, Storage};
-    use std::collections::HashMap;
-
-    // Create a storage backend
-    #[derive(Default)]
-    struct MemoryStorage {
-        data: HashMap<Vec<u8>, Vec<u8>>,
-    }
-
-    impl Storage for MemoryStorage {
-        fn get(&self, name: &[u8]) -> Result<Vec<u8>> {
-            self.data.get(name).cloned()
-                .ok_or_else(|| Error::NoSuchChunk)
-        }
-
-        fn put(&mut self, name: Vec<u8>, data: Vec<u8>) -> Result<Vec<u8>> {
-            self.data.insert(name.clone(), data);
-            Ok(name)
-        }
-
-        fn delete(&mut self, name: &[u8]) -> Result<()> {
-            self.data.remove(name);
-            Ok(())
-        }
-    }
-
-    // Create a self encryptor
-    let storage = MemoryStorage::default();
-    let encryptor = SelfEncryptor::new(storage, DataMap::None)?;
-
-    // Encrypt data
-    let data = b"Hello, World!";
-    encryptor.write(data)?;
-    let data_map = encryptor.close()?;
-
-    // Decrypt data
-    let decryptor = SelfEncryptor::new(storage, data_map)?;
-    let decrypted = decryptor.read(0, data.len() as u64)?;
-    assert_eq!(data[..], decrypted[..]);
-    ```
-
-## Advanced Features
-
-### Parallel Processing
-
-=== "Python"
-    ```python
-    from self_encryption import parallel_encrypt, parallel_decrypt
-
-    # Encrypt data in parallel
-    data = b"Large data to encrypt..."
-    data_map = parallel_encrypt(storage, data, num_threads=4)
-
-    # Decrypt data in parallel
-    decrypted = parallel_decrypt(storage, data_map, num_threads=4)
-    ```
-
-=== "Rust"
-    ```rust
-    use self_encryption::parallel::{encrypt, decrypt};
-    use rayon::prelude::*;
-
-    // Encrypt data in parallel
-    let data = b"Large data to encrypt...";
-    let data_map = encrypt(storage, data)?;
-
-    // Decrypt data in parallel
-    let decrypted = decrypt(storage, &data_map)?;
-    ```
-
-### Streaming Interface
-
-=== "Python"
-    ```python
-    # Write data in chunks
-    encryptor = SelfEncryptor(storage)
-    for chunk in chunks:
-        encryptor.write_chunk(chunk)
-    data_map = encryptor.close()
-
-    # Read data in chunks
-    decryptor = SelfEncryptor(storage, data_map)
-    while chunk := decryptor.read_chunk():
-        process_chunk(chunk)
-    ```
-
-=== "Rust"
-    ```rust
-    // Write data in chunks
-    let mut encryptor = SelfEncryptor::new(storage, DataMap::None)?;
-    for chunk in chunks {
-        encryptor.write_chunk(chunk)?;
-    }
-    let data_map = encryptor.close()?;
-
-    // Read data in chunks
-    let mut decryptor = SelfEncryptor::new(storage, data_map)?;
-    while let Some(chunk) = decryptor.read_chunk()? {
-        process_chunk(chunk);
-    }
-    ```
-
-### Custom Storage Backends
-
-=== "Python"
-    ```python
-    from self_encryption import Storage
+    from self_encryption import streaming_encrypt_from_file, ChunkStore
+    from pathlib import Path
     from typing import Optional
 
-    class CustomStorage(Storage):
+    # Implement your chunk store
+    class MyChunkStore(ChunkStore):
+        def put(self, name: bytes, data: bytes) -> None:
+            # Store the chunk
+            pass
+            
         def get(self, name: bytes) -> Optional[bytes]:
-            # Implement retrieval logic
+            # Retrieve the chunk
             pass
 
-        def put(self, name: bytes, data: bytes) -> bytes:
-            # Implement storage logic
-            return name
-
-        def delete(self, name: bytes) -> None:
-            # Implement deletion logic
-            pass
+    # Create chunk store instance
+    store = MyChunkStore()
+    
+    # Encrypt file using streaming
+    file_path = Path("my_file.txt")
+    data_map = streaming_encrypt_from_file(file_path, store)
     ```
 
 === "Rust"
     ```rust
-    use self_encryption::{Storage, Error, Result};
+    use self_encryption::{streaming_encrypt_from_file, ChunkStore};
+    use std::path::Path;
 
-    struct CustomStorage;
+    // Implement your chunk store
+    struct MyChunkStore {
+        // Your storage implementation
+    }
 
-    impl Storage for CustomStorage {
-        fn get(&self, name: &[u8]) -> Result<Vec<u8>> {
-            // Implement retrieval logic
-            unimplemented!()
+    impl ChunkStore for MyChunkStore {
+        fn put(&mut self, name: &[u8], data: &[u8]) -> Result<(), Error> {
+            // Store the chunk
         }
-
-        fn put(&mut self, name: Vec<u8>, data: Vec<u8>) -> Result<Vec<u8>> {
-            // Implement storage logic
-            unimplemented!()
+        
+        fn get(&self, name: &[u8]) -> Result<Vec<u8>, Error> {
+            // Retrieve the chunk
         }
+    }
 
-        fn delete(&mut self, name: &[u8]) -> Result<()> {
-            // Implement deletion logic
-            unimplemented!()
+    // Create chunk store instance
+    let store = MyChunkStore::new();
+    
+    // Encrypt file using streaming
+    let file_path = Path::new("my_file.txt");
+    let data_map = streaming_encrypt_from_file(file_path, store).await?;
+    ```
+
+### Streaming File Decryption
+
+=== "Python"
+    ```python
+    from self_encryption import streaming_decrypt_from_storage
+    from pathlib import Path
+
+    # Decrypt to file using streaming
+    output_path = Path("decrypted_file.txt")
+    streaming_decrypt_from_storage(data_map, store, output_path)
+    ```
+
+=== "Rust"
+    ```rust
+    use self_encryption::streaming_decrypt_from_storage;
+    use std::path::Path;
+
+    // Decrypt to file using streaming
+    let output_path = Path::new("decrypted_file.txt");
+    streaming_decrypt_from_storage(&data_map, store, output_path).await?;
+    ```
+
+## In-Memory Operations (Small Files)
+
+### Basic Encryption/Decryption
+
+=== "Python"
+    ```python
+    from self_encryption import encrypt, decrypt
+
+    # Encrypt bytes in memory
+    data = b"Small data to encrypt"
+    data_map, encrypted_chunks = encrypt(data)
+
+    # Decrypt using retrieval function
+    def get_chunk(name: bytes) -> bytes:
+        # Retrieve chunk by name from your storage
+        return chunk_data
+
+    decrypted = decrypt(data_map, get_chunk)
+    ```
+
+=== "Rust"
+    ```rust
+    use self_encryption::{encrypt, decrypt};
+
+    // Encrypt bytes in memory
+    let data = b"Small data to encrypt";
+    let (data_map, encrypted_chunks) = encrypt(data)?;
+
+    // Decrypt using retrieval function
+    let decrypted = decrypt(
+        &data_map,
+        |name| {
+            // Retrieve chunk by name from your storage
+            Ok(chunk_data)
+        }
+    )?;
+    ```
+
+## Chunk Store Implementations
+
+### In-Memory Store
+
+=== "Python"
+    ```python
+    from self_encryption import ChunkStore
+    from typing import Dict, Optional
+
+    class MemoryStore(ChunkStore):
+        def __init__(self):
+            self.chunks: Dict[bytes, bytes] = {}
+
+        def put(self, name: bytes, data: bytes) -> None:
+            self.chunks[name] = data
+            
+        def get(self, name: bytes) -> Optional[bytes]:
+            return self.chunks.get(name)
+    ```
+
+=== "Rust"
+    ```rust
+    use std::collections::HashMap;
+
+    struct MemoryStore {
+        chunks: HashMap<Vec<u8>, Vec<u8>>,
+    }
+
+    impl ChunkStore for MemoryStore {
+        fn put(&mut self, name: &[u8], data: &[u8]) -> Result<(), Error> {
+            self.chunks.insert(name.to_vec(), data.to_vec());
+            Ok(())
+        }
+        
+        fn get(&self, name: &[u8]) -> Result<Vec<u8>, Error> {
+            self.chunks.get(name)
+                .cloned()
+                .ok_or(Error::NoSuchChunk)
+        }
+    }
+    ```
+
+### Disk-Based Store
+
+=== "Python"
+    ```python
+    from pathlib import Path
+    from typing import Optional
+    import os
+
+    class DiskStore(ChunkStore):
+        def __init__(self, root_dir: Path):
+            self.root_dir = root_dir
+            self.root_dir.mkdir(parents=True, exist_ok=True)
+
+        def put(self, name: bytes, data: bytes) -> None:
+            path = self.root_dir / name.hex()
+            path.write_bytes(data)
+            
+        def get(self, name: bytes) -> Optional[bytes]:
+            path = self.root_dir / name.hex()
+            try:
+                return path.read_bytes()
+            except FileNotFoundError:
+                return None
+    ```
+
+=== "Rust"
+    ```rust
+    use std::path::PathBuf;
+    use std::fs;
+
+    struct DiskStore {
+        root_dir: PathBuf,
+    }
+
+    impl ChunkStore for DiskStore {
+        fn put(&mut self, name: &[u8], data: &[u8]) -> Result<(), Error> {
+            let path = self.root_dir.join(hex::encode(name));
+            fs::write(path, data)?;
+            Ok(())
+        }
+        
+        fn get(&self, name: &[u8]) -> Result<Vec<u8>, Error> {
+            let path = self.root_dir.join(hex::encode(name));
+            fs::read(path).map_err(|_| Error::NoSuchChunk)
+        }
+    }
+
+    impl DiskStore {
+        fn new<P: Into<PathBuf>>(root: P) -> Self {
+            let root_dir = root.into();
+            fs::create_dir_all(&root_dir).expect("Failed to create store directory");
+            Self { root_dir }
         }
     }
     ```
 
 ## Error Handling
 
-=== "Python"
-    ```python
-    from self_encryption import SelfEncryptionError
+The library provides an `Error` enum for handling various error cases:
 
-    try:
-        data = encryptor.read()
-    except SelfEncryptionError as e:
-        if isinstance(e, ChunkNotFound):
-            print("Missing data chunk")
-        elif isinstance(e, InvalidDataMap):
-            print("Invalid data map")
-        else:
-            print(f"Other error: {e}")
-    ```
-
-=== "Rust"
-    ```rust
-    use self_encryption::Error;
-
-    match encryptor.read(0, size) {
-        Ok(data) => process_data(data),
-        Err(Error::ChunkNotFound) => println!("Missing data chunk"),
-        Err(Error::InvalidDataMap) => println!("Invalid data map"),
-        Err(e) => println!("Other error: {}", e),
-    }
-    ```
+```rust
+pub enum Error {
+    NoSuchChunk,
+    ChunkTooSmall,
+    ChunkTooLarge,
+    InvalidChunkSize,
+    Io(std::io::Error),
+    Serialisation(Box<bincode::ErrorKind>),
+    Compression(std::io::Error),
+    // ... other variants
+}
+```
 
 ## Best Practices
 
-1. **Data Handling**
-   - Use appropriate chunk sizes
-   - Handle large files efficiently
-   - Implement proper cleanup
-
-2. **Storage Management**
-   - Implement robust storage backends
-   - Handle storage errors gracefully
-   - Clean up unused chunks
-
-3. **Performance**
-   - Use parallel processing for large files
-   - Implement efficient storage backends
-   - Cache frequently accessed data
-
-4. **Security**
-   - Secure storage of data maps
-   - Implement proper access control
-   - Regular backup of critical data
-
-## Common Use Cases
-
-1. **File Storage**
-   - Secure file storage
-   - Content-based deduplication
-   - Efficient large file handling
-
-2. **Backup Systems**
-   - Incremental backups
-   - Deduplication
-   - Secure storage
-
-3. **Content Distribution**
-   - Distributed content delivery
-   - Content verification
-   - Bandwidth optimization
+1. Use streaming operations (`streaming_encrypt_from_file` and `streaming_decrypt_from_storage`) for large files
+2. Use basic `encrypt`/`decrypt` functions for small in-memory data
+3. Implement proper error handling for chunk store operations
+4. Verify chunks using their content hash when retrieving
+5. Use parallel operations when available for better performance

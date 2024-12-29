@@ -62,6 +62,7 @@ nav:
     - Rust: api/rust/README.md
   - Guides:
     - Local Network: guides/local_network.md
+    - Local Development: guides/local_development.md
     - EVM Integration: guides/evm_integration.md
     - Testing: guides/testing_guide.md
     - Data Storage: guides/data_storage.md

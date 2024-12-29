@@ -1,10 +1,8 @@
 use anyhow::Result;
-#[cfg(feature = "local")]
 use autonomi::network::LocalNode;
 use std::time::Duration;
 use tokio::time::sleep;
 
-#[cfg(feature = "local")]
 #[tokio::test]
 async fn test_peer_discovery() -> Result<()> {
     println!("Starting peer discovery test");
@@ -42,10 +40,4 @@ async fn test_peer_discovery() -> Result<()> {
     }
 
     Ok(())
-}
-
-#[cfg(not(feature = "local"))]
-#[test]
-fn test_peer_discovery_local_feature_disabled() {
-    println!("Test skipped: local feature is not enabled");
 }

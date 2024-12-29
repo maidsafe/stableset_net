@@ -85,20 +85,14 @@ async fn test_upgrade_already_read_write() -> anyhow::Result<()> {
 async fn test_client_with_config() -> anyhow::Result<()> {
     let _log_appender_guard = LogBuilder::init_single_threaded_tokio_test("client_mode", false);
 
-    // Create a config for local testing
-    let config = ClientConfig {
-        local: true,
-        peers: None,
-    };
-
-    // Test read-only client with config
-    let client = Client::init_read_only_with_config(config.clone()).await?;
+    // Test read-only client with default config
+    let client = Client::init_read_only_with_config(Default::default()).await?;
     assert!(!client.can_write());
     assert!(client.wallet().is_none());
 
-    // Test read-write client with config
+    // Test read-write client with default config
     let wallet = get_funded_wallet();
-    let client = Client::init_with_wallet_and_config(wallet, config).await?;
+    let client = Client::init_with_wallet_and_config(wallet, Default::default()).await?;
     assert!(client.can_write());
     assert!(client.wallet().is_some());
 

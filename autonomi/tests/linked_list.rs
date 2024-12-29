@@ -10,7 +10,8 @@ use anyhow::{Context, Result};
 use ant_logging::LogBuilder;
 use ant_networking::find_local_ip;
 use ant_protocol::storage::LinkedList;
-use autonomi::{client::linked_list::TransactionError, Client, ClientConfig};
+use autonomi::{Client, ClientConfig};
+use autonomi::client::linked_list::LinkedListError;
 use test_utils::evm::get_funded_wallet;
 use bls::SecretKey;
 use libp2p::Multiaddr;
@@ -202,8 +203,7 @@ async fn test_linked_list() -> Result<()> {
     let res = client.linked_list_put(linked_list2.clone(), &wallet).await;
     assert!(matches!(
         res,
-        Err(TransactionError::TransactionAlreadyExists(address))
-        if address == linked_list2.address()
+        Err(LinkedListError::LinkedListAlreadyExists(_))
     ));
 
     Ok(())
@@ -263,7 +263,7 @@ async fn test_linked_list_with_cost() -> Result<()> {
 
     assert!(matches!(
         res,
-        Err(TransactionError::TransactionAlreadyExists(address))
+        Err(LinkedListError::LinkedListAlreadyExists(address))
         if address == linked_list2.address()
     ));
     Ok(())

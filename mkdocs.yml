@@ -44,10 +44,18 @@ nav:
     - Testing Guide: guides/testing_guide.md
     - Payments: guides/payments.md
   - API Reference:
-    - Autonomi Client: api/autonomi-client/README.md
-    - Ant Node: api/ant-node/README.md
-    - BLS Threshold Crypto: api/blsttc/README.md
-    - Self Encryption: api/self-encryption/README.md
+    - Overview: api/index.md
+    - Client API:
+      - Overview: api/autonomi-client/README.md
+      - Data Types: api/autonomi-client/data_types.md
+      - Error Handling: api/autonomi-client/errors.md
+    - Node API:
+      - Overview: api/ant-node/README.md
+      - Node Configuration: api/ant-node/configuration.md
+      - Network Operations: api/ant-node/network.md
+    - Cryptography:
+      - BLS Threshold Crypto: api/blsttc/README.md
+      - Self Encryption: api/self-encryption/README.md
 
 plugins:
   - search

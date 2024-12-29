@@ -15,7 +15,11 @@ Autonomi is a decentralized network client that provides:
 
 - [Installation Guide](getting-started/installation.md)
 - [Quick Start Guide](getting-started/quickstart.md)
-- [API Reference](api/autonomi-client/README.md)
+- API References:
+  - [Autonomi Client](api/autonomi-client/README.md) - Core client library for network operations
+  - [Ant Node](api/ant-node/README.md) - Node implementation for network participation
+  - [BLS Threshold Crypto](api/blsttc/README.md) - Threshold cryptography implementation
+  - [Self Encryption](api/self-encryption/README.md) - Content-based encryption library
 - [Local Network Setup](guides/local_network.md)
 
 ## Language Support
@@ -119,5 +123,9 @@ For more details, see our [Contributing Guide](https://github.com/dirvine/autono
 ## Getting Help
 
 - [GitHub Issues](https://github.com/dirvine/autonomi/issues)
-- [API Reference](api/autonomi-client/README.md)
+- API References:
+  - [Autonomi Client](api/autonomi-client/README.md)
+  - [Ant Node](api/ant-node/README.md)
+  - [BLS Threshold Crypto](api/blsttc/README.md)
+  - [Self Encryption](api/self-encryption/README.md)
 - [Testing Guide](guides/testing_guide.md)

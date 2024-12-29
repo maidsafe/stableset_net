@@ -1,123 +1,62 @@
 site_name: Autonomi Documentation
-site_url: https://docs.autonomi.com
-site_description: Documentation for Autonomi - The Alternative Future of the Cloud
-site_author: Autonomi Team
-
 theme:
   name: material
-  palette:
-    scheme: default
-    primary: green
-    accent: green
-  font:
-    text: Roboto
-    code: Roboto Mono
   features:
-    - navigation.instant
-    - navigation.tracking
     - navigation.tabs
     - navigation.sections
     - navigation.expand
-    - navigation.top
+    - navigation.indexes
+    - toc.integrate
     - search.suggest
     - search.highlight
+    - content.tabs.link
+    - content.code.annotation
     - content.code.copy
-  icon:
-    repo: fontawesome/brands/github
-
-repo_name: dirvine/autonomi
-repo_url: https://github.com/dirvine/autonomi
-
-extra_css:
-  - stylesheets/extra.css
-
-markdown_extensions:
-  - admonition
-  - attr_list
-  - def_list
-  - footnotes
-  - meta
-  - toc:
-      permalink: true
-  - pymdownx.arithmatex
-  - pymdownx.betterem:
-      smart_enable: all
-  - pymdownx.caret
-  - pymdownx.critic
-  - pymdownx.details
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.highlight
-  - pymdownx.inlinehilite
-  - pymdownx.keys
-  - pymdownx.mark
-  - pymdownx.smartsymbols
-  - pymdownx.superfences
-  - pymdownx.tabbed:
-      alternate_style: true
-  - pymdownx.tasklist:
-      custom_checkbox: true
-  - pymdownx.tilde
-
-plugins:
-  - search
-  - minify:
-      minify_html: true
-      minify_js: true
-      minify_css: true
-      htmlmin_opts:
-        remove_comments: true
-  - git-revision-date-localized:
-      type: date
+  language: en
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/toggle-switch-off-outline 
+        name: Switch to dark mode
+      primary: teal
+      accent: purple 
+    - scheme: slate 
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode    
+      primary: teal
+      accent: lime
 
 nav:
   - Home: index.md
-  - Getting Started:
-    - Installation: getting-started/installation.md
-    - Quick Start: getting-started/quickstart.md
-    - Local Network: guides/local_network.md
-    - Local Development: guides/local_development.md
   - Core Concepts:
     - Data Types: guides/data_types.md
-    - Data Storage: guides/data_storage.md
     - Client Modes: guides/client_modes.md
-    - Payments: guides/payments.md
-  - Development Guides:
-    - Web Development: guides/web_development.md
-    - Quantum Security: guides/quantum_security.md
-    - Error Handling: guides/error_handling.md
-    - Data Science: guides/data_science.md
-    - Rust Performance: guides/rust_performance.md
-    - EVM Integration: guides/evm_integration.md
-    - Testing Guide: guides/testing_guide.md
-  - API Reference:
-    - Overview: api/README.md
-    - Rust: api/rust/README.md
-    - Python: api/python/README.md
-    - TypeScript: api/nodejs/README.md
-  - Libraries:
-    - Self-Encryption: libraries/self_encryption.md
-    - Antnode: libraries/antnode.md
-    - BLS Threshold Cryptography: libraries/blsttc.md
+  - Developer Guides:
+    - Local Network Setup: guides/local_network.md
+    - Data Storage: guides/data_storage.md
+  - API Reference: api/README.md
 
-extra:
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/dirvine/autonomi
-    - icon: fontawesome/brands/discord
-      link: https://discord.gg/autonomi
-    - icon: fontawesome/brands/twitter
-      link: https://twitter.com/autonomi
-    - icon: fontawesome/brands/linkedin
-      link: https://linkedin.com/company/autonomi
-  analytics:
-    provider: google
-    property: !ENV GOOGLE_ANALYTICS_KEY
-  consent:
-    title: Cookie consent
-    description: >- 
-      We use cookies to recognize your repeated visits and preferences, as well
-      as to measure the effectiveness of our documentation and whether users
-      find what they're searching for. With your consent, you're helping us to
-      make our documentation better. 
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.tabbed:
+      alternate_style: true 

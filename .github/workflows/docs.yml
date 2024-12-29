@@ -1,0 +1,36 @@
+name: Deploy Documentation
+on:
+  push:
+    branches:
+      - main
+      - data_further_refactor
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install mkdocs-material mkdocstrings mkdocstrings-python mkdocs-git-revision-date-localized-plugin
+
+      - name: Deploy Documentation
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          mkdocs gh-deploy --force 

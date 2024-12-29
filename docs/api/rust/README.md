@@ -94,6 +94,236 @@ impl Pointer {
 }
 ```
 
+### Scratchpad
+
+Represents a mutable storage location with versioning and encryption.
+
+```rust
+pub struct ScratchpadConfig {
+    pub content_type: u64,
+    pub data: Vec<u8>,
+    pub secret_key: SecretKey,
+}
+
+pub struct Scratchpad {
+    // ... implementation details ...
+}
+
+impl Scratchpad {
+    /// Create a new scratchpad with the given configuration
+    pub fn new(config: ScratchpadConfig) -> Result<Self>;
+    
+    /// Get the network address of the scratchpad
+    pub fn address(&self) -> &str;
+    
+    /// Get the current version counter
+    pub fn counter(&self) -> u64;
+    
+    /// Update the data and sign with secret key
+    pub fn update_and_sign(&mut self, data: Vec<u8>, secret_key: &SecretKey) -> Result<()>;
+    
+    /// Verify the signature
+    pub fn verify(&self) -> bool;
+    
+    /// Decrypt the data using the secret key
+    pub fn decrypt(&self, secret_key: &SecretKey) -> Result<Vec<u8>>;
+}
+
+### Self-Encryption
+
+Utilities for data encryption and chunking.
+
+```rust
+pub struct ChunkInfo {
+    pub hash: String,
+    pub size: usize,
+    pub offset: usize,
+}
+
+pub struct DataMap {
+    pub chunks: Vec<ChunkInfo>,
+    pub total_size: usize,
+}
+
+pub struct EncryptionResult {
+    pub data_map: DataMap,
+    pub chunks: Vec<Vec<u8>>,
+}
+
+pub mod self_encryption {
+    use super::*;
+    
+    /// Encrypt and chunk the data
+    pub fn encrypt(data: &[u8]) -> Result<EncryptionResult>;
+    
+    /// Decrypt and reassemble the data
+    pub fn decrypt(data_map: &DataMap, chunks: &[Vec<u8>]) -> Result<Vec<u8>>;
+    
+    /// Pack a data map into a chunk
+    pub fn pack_data_map(data_map: &DataMap) -> Result<Vec<u8>>;
+}
+
+### Files and Directories
+
+Utilities for managing files and directories in the network.
+
+```rust
+use chrono::{DateTime, Utc};
+
+pub struct FileMetadata {
+    pub name: String,
+    pub size: u64,
+    pub created: DateTime<Utc>,
+    pub modified: DateTime<Utc>,
+    pub content_type: String,
+}
+
+pub enum DirectoryEntry {
+    File {
+        name: String,
+        metadata: FileMetadata,
+    },
+    Directory {
+        name: String,
+    },
+}
+
+pub struct File {
+    // ... implementation details ...
+}
+
+impl File {
+    /// Create a new file with optional initial data
+    pub fn new(name: &str, data: Option<Vec<u8>>) -> Result<Self>;
+    
+    /// Get file metadata
+    pub fn metadata(&self) -> &FileMetadata;
+    
+    /// Read file contents
+    pub async fn read(&self) -> Result<Vec<u8>>;
+    
+    /// Write file contents
+    pub async fn write(&mut self, data: Vec<u8>) -> Result<()>;
+    
+    /// Update file metadata
+    pub async fn update_metadata(&mut self, metadata: FileMetadata) -> Result<()>;
+}
+
+pub struct Directory {
+    // ... implementation details ...
+}
+
+impl Directory {
+    /// Create a new directory
+    pub fn new(name: &str) -> Result<Self>;
+    
+    /// List directory contents
+    pub async fn list(&self) -> Result<Vec<DirectoryEntry>>;
+    
+    /// Create a new file
+    pub async fn create_file(&mut self, name: &str, data: Option<Vec<u8>>) -> Result<File>;
+    
+    /// Create a new subdirectory
+    pub async fn create_directory(&mut self, name: &str) -> Result<Directory>;
+    
+    /// Get a file or directory by name
+    pub async fn get(&self, name: &str) -> Result<DirectoryEntry>;
+    
+    /// Delete a file or directory
+    pub async fn delete(&mut self, name: &str) -> Result<()>;
+}
+
+### Archive
+
+Utilities for creating and managing archives.
+
+```rust
+pub enum Compression {
+    None,
+    Gzip,
+    Bzip2,
+}
+
+pub struct EncryptionConfig {
+    pub algorithm: String,  // "aes-256-gcm"
+    pub key: Vec<u8>,
+}
+
+pub struct ArchiveOptions {
+    pub compression: Compression,
+    pub encryption: Option<EncryptionConfig>,
+}
+
+pub struct ArchiveEntry {
+    pub name: String,
+    pub size: u64,
+    pub compressed: bool,
+    pub encrypted: bool,
+}
+
+pub struct Archive {
+    // ... implementation details ...
+}
+
+impl Archive {
+    /// Create a new archive with optional configuration
+    pub fn new(options: Option<ArchiveOptions>) -> Result<Self>;
+    
+    /// Add a file or directory to the archive
+    pub async fn add<P: AsRef<str>>(&mut self, path: P, source: &(impl AsRef<File> + AsRef<Directory>)) -> Result<()>;
+    
+    /// Extract files from the archive
+    pub async fn extract(&self, destination: &mut Directory, pattern: Option<&str>) -> Result<()>;
+    
+    /// List archive contents
+    pub async fn list(&self) -> Result<Vec<ArchiveEntry>>;
+    
+    /// Verify archive integrity
+    pub async fn verify(&self) -> Result<bool>;
+}
+
+### Vault
+
+Secure storage for sensitive data.
+
+```rust
+pub struct VaultConfig {
+    pub secret_key: Vec<u8>,
+    pub algorithm: String,  // "aes-256-gcm" or "xchacha20-poly1305"
+    pub iterations: u32,
+}
+
+pub struct VaultEntry {
+    pub key: String,
+    pub created: DateTime<Utc>,
+    pub modified: DateTime<Utc>,
+    pub tags: Option<Vec<String>>,
+}
+
+pub struct Vault {
+    // ... implementation details ...
+}
+
+impl Vault {
+    /// Create a new vault with the given configuration
+    pub fn new(config: VaultConfig) -> Result<Self>;
+    
+    /// Store encrypted data
+    pub async fn put(&mut self, key: &str, data: Vec<u8>, tags: Option<Vec<String>>) -> Result<()>;
+    
+    /// Retrieve and decrypt data
+    pub async fn get(&self, key: &str) -> Result<Vec<u8>>;
+    
+    /// List vault contents
+    pub async fn list(&self, tag: Option<&str>) -> Result<Vec<VaultEntry>>;
+    
+    /// Delete data
+    pub async fn delete(&mut self, key: &str) -> Result<()>;
+    
+    /// Rotate encryption key
+    pub async fn rotate_key(&mut self, new_key: Vec<u8>) -> Result<()>;
+}
+
 ## Error Handling
 
 ```rust

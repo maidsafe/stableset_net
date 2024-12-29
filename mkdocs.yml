@@ -22,8 +22,6 @@ theme:
     - search.suggest
     - search.highlight
     - content.code.copy
-  logo: assets/logo.svg
-  favicon: assets/favicon.ico
   icon:
     repo: fontawesome/brands/github
 
@@ -72,35 +70,23 @@ plugins:
         remove_comments: true
   - git-revision-date-localized:
       type: date
-  - social:
-      cards_layout_options:
-        background_color: "#303030"
-        color: "#FFFFFF"
 
 nav:
   - Home: index.md
   - Getting Started:
-    - Quick Start: guides/quick_start.md
-    - Installation: guides/installation.md
     - Local Network: guides/local_network.md
   - Core Concepts:
     - Data Types: guides/data_types.md
     - Client Modes: guides/client_modes.md
-    - Security: guides/security.md
-    - Performance: guides/performance.md
   - API Reference:
     - Overview: api/README.md
     - Rust: api/rust/README.md
     - Python: api/python/README.md
     - TypeScript: api/nodejs/README.md
   - Libraries:
-    - Overview: libraries/README.md
     - Self-Encryption: libraries/self_encryption.md
     - Antnode: libraries/antnode.md
     - BLS Threshold Cryptography: libraries/blsttc.md
-  - Community:
-    - Contributing: contributing.md
-    - Code of Conduct: code_of_conduct.md
 
 extra:
   social:

@@ -1,66 +1,124 @@
 site_name: Autonomi Documentation
+site_url: https://docs.autonomi.com
+site_description: Documentation for Autonomi - The Alternative Future of the Cloud
+site_author: Autonomi Team
+
 theme:
   name: material
+  palette:
+    scheme: slate
+    primary: deep purple
+    accent: purple
+  font:
+    text: Roboto
+    code: Roboto Mono
   features:
+    - navigation.instant
+    - navigation.tracking
     - navigation.tabs
     - navigation.sections
     - navigation.expand
-    - navigation.indexes
-    - toc.integrate
+    - navigation.top
     - search.suggest
     - search.highlight
-    - content.tabs.link
-    - content.code.annotation
     - content.code.copy
-  language: en
-  palette:
-    - scheme: default
-      toggle:
-        icon: material/toggle-switch-off-outline 
-        name: Switch to dark mode
-      primary: teal
-      accent: purple 
-    - scheme: slate 
-      toggle:
-        icon: material/toggle-switch
-        name: Switch to light mode    
-      primary: teal
-      accent: lime
+  logo: assets/logo.svg
+  favicon: assets/favicon.ico
+  icon:
+    repo: fontawesome/brands/github
 
-nav:
-  - Home: index.md
-  - Core Concepts:
-    - Data Types: guides/data_types.md
-    - Client Modes: guides/client_modes.md
-  - Developer Guides:
-    - Local Network Setup: guides/local_network.md
-    - Data Storage: guides/data_storage.md
-  - API Reference:
-    - Overview: api/README.md
-    - Node.js: api/nodejs/README.md
-    - Python: api/python/README.md
-    - Rust: api/rust/README.md
+repo_name: dirvine/autonomi
+repo_url: https://github.com/dirvine/autonomi
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - meta
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
 
 plugins:
   - search
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
   - git-revision-date-localized:
-      enable_creation_date: true
+      type: date
+  - social:
+      cards_layout_options:
+        background_color: "#303030"
+        color: "#FFFFFF"
 
-markdown_extensions:
-  - pymdownx.highlight:
-      anchor_linenums: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
-  - admonition
-  - pymdownx.arithmatex:
-      generic: true
-  - footnotes
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.mark
-  - attr_list
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.tabbed:
-      alternate_style: true 
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: guides/quick_start.md
+    - Installation: guides/installation.md
+    - Local Network: guides/local_network.md
+  - Core Concepts:
+    - Data Types: guides/data_types.md
+    - Client Modes: guides/client_modes.md
+    - Security: guides/security.md
+    - Performance: guides/performance.md
+  - API Reference:
+    - Overview: api/README.md
+    - Rust: api/rust/README.md
+    - Python: api/python/README.md
+    - TypeScript: api/nodejs/README.md
+  - Libraries:
+    - Overview: libraries/README.md
+    - Self-Encryption: libraries/self_encryption.md
+    - Antnode: libraries/antnode.md
+    - BLS Threshold Cryptography: libraries/blsttc.md
+  - Community:
+    - Contributing: contributing.md
+    - Code of Conduct: code_of_conduct.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/dirvine/autonomi
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/autonomi
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/autonomi
+    - icon: fontawesome/brands/linkedin
+      link: https://linkedin.com/company/autonomi
+  analytics:
+    provider: google
+    property: !ENV GOOGLE_ANALYTICS_KEY
+  consent:
+    title: Cookie consent
+    description: >- 
+      We use cookies to recognize your repeated visits and preferences, as well
+      as to measure the effectiveness of our documentation and whether users
+      find what they're searching for. With your consent, you're helping us to
+      make our documentation better. 

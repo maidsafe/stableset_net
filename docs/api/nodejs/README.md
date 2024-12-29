@@ -411,8 +411,8 @@ interface Client {
 
 ## Further Reading
 
-- [Web Development Guide](/guides/web_development)
-- [Quantum Security Guide](/guides/quantum_security)
-- [Error Handling Guide](/guides/error_handling)
+- [Web Development Guide](../../guides/web_development.md)
+- [Quantum Security Guide](../../guides/quantum_security.md)
+- [Error Handling Guide](../../guides/error_handling.md)
 - [API Reference](https://autonomi.dev/api)
 - [Examples Repository](https://github.com/autonomi/examples)

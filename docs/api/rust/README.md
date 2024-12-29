@@ -328,8 +328,8 @@ client.update_pointers_batch(updates).await?;
 
 ## Further Reading
 
-- [Rust Performance Guide](/guides/rust_performance)
-- [Quantum Security Guide](/guides/quantum_security)
-- [Error Handling Guide](/guides/error_handling)
+- [Rust Performance Guide](../../guides/rust_performance.md)
+- [Quantum Security Guide](../../guides/quantum_security.md)
+- [Error Handling Guide](../../guides/error_handling.md)
 - [API Reference](https://docs.rs/autonomi)
 - [Examples Repository](https://github.com/autonomi/examples)

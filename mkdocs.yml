@@ -64,5 +64,6 @@ nav:
     - Local Network: guides/local_network.md
     - EVM Integration: guides/evm_integration.md
     - Testing: guides/testing_guide.md
+    - Data Storage: guides/data_storage.md
   - Design Documents:
     - Pointer Design: pointer_design_doc.md 

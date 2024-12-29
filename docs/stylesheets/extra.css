@@ -1,9 +1,9 @@
 /* Autonomi Custom Styling */
 
 :root {
-    --md-primary-fg-color: #6200ee;
-    --md-primary-fg-color--light: #b085f5;
-    --md-primary-fg-color--dark: #3700b3;
+    --md-primary-fg-color: #00796b;
+    --md-primary-fg-color--light: #48a999;
+    --md-primary-fg-color--dark: #004c40;
     --md-accent-fg-color: #bb86fc;
 }
 
@@ -49,38 +49,84 @@ body {
 }
 
 /* Code Blocks */
-.md-typeset pre {
+.md-typeset pre,
+.md-typeset code,
+.highlight {
     background-color: #f8f9fa !important;
     color: #212529 !important;
 }
 
-.md-typeset code {
-    background-color: #f8f9fa !important;
-    color: #212529 !important;
+.md-typeset pre code {
+    background-color: transparent !important;
 }
 
-/* Syntax highlighting for light mode */
-.highlight .k {
+/* Syntax highlighting */
+.highlight .k,
+.highlight .kc,
+.highlight .kd,
+.highlight .kn,
+.highlight .kp,
+.highlight .kr,
+.highlight .kt {
     color: #0033b3 !important;
 }
 
 /* Keyword */
-.highlight .s {
+.highlight .s,
+.highlight .sa,
+.highlight .sb,
+.highlight .sc,
+.highlight .dl,
+.highlight .sd,
+.highlight .s2,
+.highlight .se,
+.highlight .sh,
+.highlight .si,
+.highlight .sx,
+.highlight .sr,
+.highlight .s1,
+.highlight .ss {
     color: #067d17 !important;
 }
 
 /* String */
-.highlight .n {
+.highlight .n,
+.highlight .na,
+.highlight .nb,
+.highlight .bp,
+.highlight .nc,
+.highlight .no,
+.highlight .nd,
+.highlight .ni,
+.highlight .ne,
+.highlight .nf,
+.highlight .nl,
+.highlight .nn,
+.highlight .nx,
+.highlight .py,
+.highlight .nt,
+.highlight .nv,
+.highlight .vc,
+.highlight .vg,
+.highlight .vi,
+.highlight .vm {
     color: #000000 !important;
 }
 
 /* Name */
-.highlight .c {
+.highlight .c,
+.highlight .ch,
+.highlight .cm,
+.highlight .cp,
+.highlight .cpf,
+.highlight .c1,
+.highlight .cs {
     color: #8c8c8c !important;
 }
 
 /* Comment */
-.highlight .o {
+.highlight .o,
+.highlight .ow {
     color: #000000 !important;
 }
 
@@ -90,50 +136,20 @@ body {
 }
 
 /* Punctuation */
-.highlight .m {
+.highlight .m,
+.highlight .mb,
+.highlight .mf,
+.highlight .mh,
+.highlight .mi,
+.highlight .mo {
     color: #1750eb !important;
 }
 
 /* Number */
-.highlight .f {
-    color: #0033b3 !important;
-}
-
-/* Function */
-.highlight .kc {
-    color: #0033b3 !important;
-}
-
-/* Keyword.Constant */
-.highlight .kd {
-    color: #0033b3 !important;
-}
-
-/* Keyword.Declaration */
-.highlight .na {
-    color: #000000 !important;
-}
-
-/* Name.Attribute */
-.highlight .nb {
-    color: #0033b3 !important;
-}
-
-/* Name.Builtin */
-.highlight .nc {
-    color: #000000 !important;
-}
-
-/* Name.Class */
-.highlight .nf {
-    color: #000000 !important;
-}
-
-/* Name.Function */
 
 /* Navigation */
 .md-nav__link:hover {
-    color: var(--md-accent-fg-color);
+    color: var(--md-primary-fg-color);
 }
 
 .md-nav__item--active>.md-nav__link {
@@ -261,4 +277,27 @@ body {
     .md-typeset div[align="center"] {
         padding: 1rem;
     }
+}
+
+/* General text */
+.md-typeset {
+    color: #212529;
+}
+
+/* Headers */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+    color: var(--md-primary-fg-color);
+    font-weight: bold;
+}
+
+/* Links */
+.md-typeset a {
+    color: var(--md-primary-fg-color);
+}
+
+.md-typeset a:hover {
+    color: var(--md-primary-fg-color--light);
 }

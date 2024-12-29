@@ -22,12 +22,12 @@ pip install autonomi[data-science]
 
 ## Client Initialization
 
-The client provides flexible initialization options to match your use case:
+The client provides flexible initialization options to match your security and performance needs:
 
 ```python
 from autonomi import Client
 
-# Initialize a read-only client for data analysis
+# Initialize a read-only client for browsing
 client = Client.init_read_only()
 
 # Initialize with write capabilities and custom configuration
@@ -46,13 +46,13 @@ client.upgrade_to_read_write(wallet)
 
 ### Chunk - Quantum-Secure Storage
 
-Store and retrieve immutable, quantum-secure encrypted data with optional compression:
+Store and retrieve immutable, quantum-secure encrypted data with maximum efficiency:
 
 ```python
 from autonomi import Chunk
 import numpy as np
 
-# Store raw data as a chunk
+# Store raw data as a chunk with optional compression
 data = b"Hello, World!"
 chunk = client.store_chunk(data)
 
@@ -60,7 +60,7 @@ chunk = client.store_chunk(data)
 array_data = np.random.randn(1000, 1000)
 chunk = client.store_chunk_compressed(array_data.tobytes())
 
-# Retrieve chunk data
+# Retrieve chunk data with automatic decompression
 retrieved = client.get_chunk(chunk.address)
 assert data == retrieved
 
@@ -74,13 +74,13 @@ chunks = client.store_chunks(data_list)
 
 ### Pointer - Mutable References
 
-Create and manage version-tracked references with automatic conflict resolution:
+Create and manage version-tracked references with atomic updates:
 
 ```python
 from autonomi import Pointer
 from datetime import datetime
 
-# Create a pointer with metadata
+# Create a pointer with custom metadata
 metadata = {
     'created_at': datetime.utcnow(),
     'description': 'Latest model weights'
@@ -90,7 +90,7 @@ pointer = client.create_pointer_with_metadata(
     metadata
 )
 
-# Update pointer with version checking
+# Atomic pointer updates with version checking
 client.update_pointer(pointer.address, new_target_address)
 
 # Resolve pointer with caching
@@ -103,7 +103,7 @@ print(f"Version: {metadata.version}, Updates: {metadata.update_count}")
 
 ### LinkedList - Transaction Chains
 
-Build decentralized DAG structures with streaming support:
+Build high-performance decentralized DAG structures:
 
 ```python
 from autonomi import LinkedList
@@ -119,7 +119,11 @@ list = client.create_linked_list_with_config(config)
 # Efficient batch appends
 client.append_to_list_batch(list.address, items)
 
-# Stream list contents as pandas DataFrame
+# Stream list contents with generator
+for item in client.stream_list(list.address):
+    process_item(item)
+
+# Stream as pandas DataFrame for data analysis
 for chunk in client.stream_list_as_dataframe(list.address):
     process_dataframe(chunk)
 
@@ -134,11 +138,10 @@ else:
 
 ### ScratchPad - Temporary Workspace
 
-Efficient unstructured data storage with pandas integration:
+Efficient unstructured data storage with CRDT properties:
 
 ```python
 from autonomi import ScratchPad, ContentType
-import pandas as pd
 
 # Create a scratchpad with custom configuration
 config = {
@@ -149,6 +152,13 @@ pad = client.create_scratchpad_with_config(
     ContentType.USER_SETTINGS,
     config
 )
+
+# Batch updates for efficiency
+updates = [
+    ('key1', value1),
+    ('key2', value2)
+]
+client.update_scratchpad_batch(pad.address, updates)
 
 # Store pandas DataFrame
 df = pd.DataFrame({'A': range(1000), 'B': range(1000)})
@@ -161,7 +171,7 @@ for update in client.stream_scratchpad_updates(pad.address):
 
 ## File System Operations
 
-Intuitive file and directory operations with pandas integration:
+High-performance file and directory operations:
 
 ```python
 from autonomi.fs import File, Directory, FileOptions
@@ -174,7 +184,7 @@ options = FileOptions(
     redundancy=3
 )
 file = client.store_file_with_options(
-    "data.csv",
+    "example.txt",
     content,
     options
 )
@@ -183,13 +193,13 @@ file = client.store_file_with_options(
 df = pd.DataFrame({'A': range(1000), 'B': range(1000)})
 file = client.store_dataframe(df, "data.csv")
 
-# Create a directory with metadata
+# Create a directory with custom metadata
 dir = client.create_directory_with_metadata(
-    "datasets",
+    "docs",
     metadata
 )
 
-# Recursive operations
+# Efficient recursive operations
 client.add_to_directory_recursive(dir.address, file.address)
 
 # Stream directory entries
@@ -243,18 +253,20 @@ import pandas as pd
 import numpy as np
 from autonomi.data import DataFrameStore
 
-# Store and retrieve pandas DataFrames
+# Create a data store for efficient DataFrame operations
 store = DataFrameStore(client)
-store.put("dataset", df)
-retrieved_df = store.get("dataset")
 
-# Store numpy arrays efficiently
-array = np.random.randn(1000, 1000)
-address = client.store_numpy_array(array)
-retrieved = client.get_numpy_array(address)
+# Store DataFrame with automatic optimization
+store.put("dataset", df, optimize=True)
 
-# Stream large datasets
-for chunk in client.stream_csv("large_dataset.csv"):
+# Retrieve with lazy loading for large datasets
+retrieved_df = store.get("dataset", lazy=True)
+
+# Perform operations on stored DataFrames
+result = store.apply("dataset", lambda df: df.groupby('column').mean())
+
+# Stream large datasets in chunks
+for chunk in store.stream("dataset", chunk_size=10000):
     process_chunk(chunk)
 ```
 
@@ -263,40 +275,26 @@ for chunk in client.stream_csv("large_dataset.csv"):
 ```python
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
 
-class MyData(BaseModel):
-    field1: str
-    field2: int
-    timestamp: datetime
-    metadata: Optional[dict] = None
+class UserProfile(BaseModel):
+    name: str
+    age: int
+    preferences: dict
+    created_at: datetime = datetime.utcnow()
 
-# Store custom type with compression
-data = MyData(
-    field1="test",
-    field2=42,
-    timestamp=datetime.utcnow()
+# Use the model with Autonomi
+profile = UserProfile(
+    name="Alice",
+    age=30,
+    preferences={
+        "theme": "light",
+        "notifications": True
+    }
 )
-pad = client.create_scratchpad(ContentType.CUSTOM("MyData"))
-client.update_scratchpad_compressed(pad.address, data)
-```
 
-### Quantum-Secure Encryption
-
-```python
-from autonomi.crypto import encrypt_quantum_secure, decrypt_quantum_secure
-
-# Generate quantum-secure keys
-key = generate_quantum_secure_key()
-
-# Encrypt data with quantum security
-encrypted = encrypt_quantum_secure(data, key)
-pad = client.create_scratchpad(ContentType.ENCRYPTED)
-client.update_scratchpad(pad.address, encrypted)
-
-# Decrypt with quantum security
-encrypted = client.get_scratchpad(pad.address)
-decrypted = decrypt_quantum_secure(encrypted, key)
+# Store with validation
+pad = client.create_scratchpad(ContentType.Custom("UserProfile"))
+client.update_scratchpad_validated(pad.address, profile.dict())
 ```
 
 ## Performance Optimization

@@ -282,29 +282,31 @@ client.onOnline(async () => {
 });
 ```
 
-### Custom Types with Zod
+### Custom Types with TypeScript
+
+You can define custom types using TypeScript interfaces:
 
 ```typescript
-import { z } from 'zod';
+interface UserProfile {
+  name: string;
+  age: number;
+  preferences: {
+    theme: 'light' | 'dark';
+    notifications: boolean;
+  };
+}
 
-// Define schema with validation
-const MyDataSchema = z.object({
-    field1: z.string(),
-    field2: z.number(),
-    timestamp: z.date(),
-    metadata: z.record(z.string()).optional()
-});
-
-type MyData = z.infer<typeof MyDataSchema>;
-
-// Store custom type with validation
-const data: MyData = {
-    field1: 'test',
-    field2: 42,
-    timestamp: new Date()
+// Use the type with Autonomi
+const profile: UserProfile = {
+  name: "Alice",
+  age: 30,
+  preferences: {
+    theme: "light",
+    notifications: true
+  }
 };
-const pad = await client.createScratchpad(ContentType.Custom('MyData'));
-await client.updateScratchpadValidated(pad.address, data, MyDataSchema);
+
+await client.store(profile);
 ```
 
 ### Quantum-Secure Encryption

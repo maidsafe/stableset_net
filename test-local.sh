@@ -28,9 +28,12 @@ cargo build -p ant-node --features local
 echo "Building evm-testnet..."
 cargo build -p evm-testnet
 
+# Kill any existing processes
+cleanup
+
 # Start the EVM testnet in the background
 echo "Starting EVM testnet..."
-./target/debug/evm-testnet --genesis-wallet 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 &
+RPC_PORT=8545 ./target/debug/evm-testnet --genesis-wallet 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 &
 EVM_PID=$!
 
 # Wait for EVM testnet to be ready

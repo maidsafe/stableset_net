@@ -34,8 +34,12 @@ jobs:
 
     - name: Run Local Tests
       run: |
+        # Kill any existing processes
+        pkill -f "antnode" || true
+        pkill -f "evm-testnet" || true
+
         # Start EVM testnet
-        ./target/debug/evm-testnet --genesis-wallet 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 &
+        RPC_PORT=8545 ./target/debug/evm-testnet --genesis-wallet 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 &
         EVM_PID=$!
 
         # Wait for EVM testnet to be ready

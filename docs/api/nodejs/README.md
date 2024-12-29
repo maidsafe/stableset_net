@@ -1,317 +1,416 @@
-# Node.js API Reference
+# Node.js/TypeScript API Documentation
+
+The TypeScript/Node.js implementation of Autonomi provides a modern, type-safe interface for web and server applications. It's ideal for:
+
+- Building decentralized web applications
+- Creating secure backend services
+- Developing real-time applications
+- Integration with modern web frameworks
 
 ## Installation
 
 ```bash
-npm install @autonomi/client
+# Install with npm
+npm install autonomi
+
+# Or with specific features
+npm install autonomi@latest quantum-secure compression
+
+# For web applications
+npm install autonomi@latest web
 ```
 
-## Core Classes
+## Client Initialization
 
-### Client
-
-The main interface for interacting with the Autonomi network.
+The client provides flexible initialization options to match your application needs:
 
 ```typescript
-class Client {
-  constructor(config?: ClientConfig);
-  
-  // Linked List Operations
-  async linkedListPut(list: LinkedList): Promise<LinkedListAddress>;
-  async linkedListGet(address: LinkedListAddress): Promise<LinkedList>;
-  
-  // Pointer Operations
-  async pointerPut(pointer: Pointer): Promise<PointerAddress>;
-  async pointerGet(address: PointerAddress): Promise<Pointer>;
-  
-  // Network Operations
-  async connect(): Promise<void>;
-  async disconnect(): Promise<void>;
-}
+import { Client, ClientConfig } from 'autonomi';
+
+// Initialize a read-only client for browsing
+const client = await Client.initReadOnly();
+
+// Initialize with write capabilities and custom configuration
+const config: ClientConfig = {
+    quantumSecurity: true,
+    compression: true,
+    cacheSize: '1GB',
+    webSocket: true
+};
+const client = await Client.initWithWalletAndConfig(wallet, config);
+
+// Upgrade a read-only client to read-write
+await client.upgradeToReadWrite(wallet);
 ```
 
-### LinkedList
+## Core Data Types
 
-Represents a linked list data structure.
+### Chunk - Quantum-Secure Storage
+
+Store and retrieve immutable, quantum-secure encrypted data with streaming support:
 
 ```typescript
-class LinkedList {
-  constructor();
-  
-  append(data: any): void;
-  prepend(data: any): void;
-  remove(index: number): void;
-  get(index: number): any;
-  toString(): string;
-}
+import { Chunk, ChunkOptions } from 'autonomi';
+
+// Store raw data as a chunk
+const data = Buffer.from('Hello, World!');
+const chunk = await client.storeChunk(data);
+
+// Store large file with streaming
+const stream = createReadStream('large-file.dat');
+const chunk = await client.storeChunkStream(stream, {
+    compression: true,
+    chunkSize: '1MB'
+});
+
+// Retrieve chunk data with streaming
+const retrieved = await client.getChunk(chunk.address);
+assert(Buffer.compare(data, retrieved) === 0);
+
+// Stream large chunks
+const stream = await client.getChunkStream(chunk.address);
+stream.pipe(createWriteStream('output.dat'));
+
+// Get chunk metadata including storage metrics
+const metadata = await client.getChunkMetadata(chunk.address);
+console.log(`Size: ${metadata.size}, Replicas: ${metadata.replicas}`);
+
+// Store multiple chunks efficiently
+const chunks = await client.storeChunks(dataList);
 ```
 
-### Pointer
+### Pointer - Mutable References
 
-Represents a pointer in the network.
+Create and manage version-tracked references with real-time updates:
 
 ```typescript
-class Pointer {
-  constructor();
-  
-  setTarget(target: string): void;
-  getTarget(): string;
-  isValid(): boolean;
-}
+import { Pointer, PointerOptions } from 'autonomi';
+
+// Create a pointer with metadata
+const metadata = {
+    createdAt: new Date(),
+    description: 'Latest application state'
+};
+const pointer = await client.createPointerWithMetadata(
+    targetAddress,
+    metadata
+);
+
+// Update pointer with version checking
+await client.updatePointer(pointer.address, newTargetAddress);
+
+// Subscribe to pointer updates
+client.subscribeToPointer(pointer.address, (update) => {
+    console.log(`New target: ${update.target}`);
+});
+
+// Get pointer metadata and version history
+const metadata = await client.getPointerMetadata(pointer.address);
+console.log(`Version: ${metadata.version}, Updates: ${metadata.updateCount}`);
 ```
 
-### Scratchpad
+### LinkedList - Transaction Chains
 
-Represents a mutable storage location with versioning and encryption.
-
-```typescript
-interface ScratchpadConfig {
-  contentType: number;
-  data: Uint8Array;
-  secretKey: Uint8Array;
-}
-
-class Scratchpad {
-  constructor(config: ScratchpadConfig);
-  
-  // Get the network address
-  getAddress(): string;
-  
-  // Get the current version counter
-  getCounter(): number;
-  
-  // Update the data and sign with secret key
-  update(data: Uint8Array, secretKey: Uint8Array): void;
-  
-  // Verify the signature
-  verify(): boolean;
-  
-  // Decrypt the data using the secret key
-  decrypt(secretKey: Uint8Array): Uint8Array;
-}
-```
-
-### Self-Encryption
-
-Utilities for data encryption and chunking.
+Build decentralized DAG structures with real-time synchronization:
 
 ```typescript
-interface EncryptionResult {
-  dataMap: DataMap;
-  chunks: Chunk[];
-}
+import { LinkedList, LinkedListConfig } from 'autonomi';
 
-interface DataMap {
-  chunks: ChunkInfo[];
-  totalSize: number;
-}
+// Create a new linked list with configuration
+const config: LinkedListConfig = {
+    forkDetection: true,
+    historyCompression: true,
+    realtime: true
+};
+const list = await client.createLinkedListWithConfig(config);
 
-interface ChunkInfo {
-  hash: string;
-  size: number;
-  offset: number;
-}
+// Efficient batch appends
+await client.appendToListBatch(list.address, items);
 
-class SelfEncryption {
-  static async encrypt(data: Uint8Array): Promise<EncryptionResult>;
-  static async decrypt(dataMap: DataMap, chunks: Chunk[]): Promise<Uint8Array>;
-  static async packDataMap(dataMap: DataMap): Promise<Chunk>;
-}
+// Subscribe to list updates
+client.subscribeToList(list.address, (update) => {
+    console.log(`New item: ${update.data}`);
+});
 
-### Files and Directories
-
-Utilities for managing files and directories in the network.
-
-```typescript
-interface FileMetadata {
-  name: string;
-  size: number;
-  created: Date;
-  modified: Date;
-  contentType: string;
-}
-
-interface DirectoryEntry {
-  name: string;
-  type: 'file' | 'directory';
-  metadata?: FileMetadata;
-}
-
-class File {
-  constructor(name: string, data?: Uint8Array);
-  
-  // Get file metadata
-  getMetadata(): FileMetadata;
-  
-  // Read file contents
-  async read(): Promise<Uint8Array>;
-  
-  // Write file contents
-  async write(data: Uint8Array): Promise<void>;
-  
-  // Update file metadata
-  async updateMetadata(metadata: Partial<FileMetadata>): Promise<void>;
-}
-
-class Directory {
-  constructor(name: string);
-  
-  // List directory contents
-  async list(): Promise<DirectoryEntry[]>;
-  
-  // Create a new file
-  async createFile(name: string, data?: Uint8Array): Promise<File>;
-  
-  // Create a new subdirectory
-  async createDirectory(name: string): Promise<Directory>;
-  
-  // Get a file or directory by name
-  async get(name: string): Promise<File | Directory>;
-  
-  // Delete a file or directory
-  async delete(name: string): Promise<void>;
+// Advanced fork detection and resolution
+const forks = await client.detectForksDetailed(list.address);
+if (!forks) {
+    console.log('No forks detected');
+} else {
+    const resolved = await client.resolveForkAutomatically(forks.branches);
+    console.log(`Fork resolved: ${resolved}`);
 }
 ```
 
-### Archive
+### ScratchPad - Temporary Workspace
 
-Utilities for creating and managing archives.
-
-```typescript
-interface ArchiveOptions {
-  compression?: 'none' | 'gzip' | 'bzip2';
-  encryption?: {
-    algorithm: 'aes-256-gcm';
-    key: Uint8Array;
-  };
-}
-
-interface ArchiveEntry {
-  name: string;
-  size: number;
-  compressed: boolean;
-  encrypted: boolean;
-}
-
-class Archive {
-  constructor(options?: ArchiveOptions);
-  
-  // Add a file or directory to the archive
-  async add(path: string, source: File | Directory): Promise<void>;
-  
-  // Extract files from the archive
-  async extract(destination: Directory, pattern?: string): Promise<void>;
-  
-  // List archive contents
-  async list(): Promise<ArchiveEntry[]>;
-  
-  // Verify archive integrity
-  async verify(): Promise<boolean>;
-}
-
-### Vault
-
-Secure storage for sensitive data.
+Efficient unstructured data storage with real-time updates:
 
 ```typescript
-interface VaultConfig {
-  secretKey: Uint8Array;
-  algorithm?: 'aes-256-gcm' | 'xchacha20-poly1305';
-  iterations?: number;
-}
+import { ScratchPad, ContentType, ScratchPadConfig } from 'autonomi';
 
-interface VaultEntry {
-  key: string;
-  created: Date;
-  modified: Date;
-  tags?: string[];
-}
+// Create a scratchpad with custom configuration
+const config: ScratchPadConfig = {
+    compression: true,
+    encryption: true,
+    realtime: true
+};
+const pad = await client.createScratchpadWithConfig(
+    ContentType.UserSettings,
+    config
+);
 
-class Vault {
-  constructor(config: VaultConfig);
-  
-  // Store encrypted data
-  async put(key: string, data: Uint8Array, tags?: string[]): Promise<void>;
-  
-  // Retrieve and decrypt data
-  async get(key: string): Promise<Uint8Array>;
-  
-  // List vault contents
-  async list(tag?: string): Promise<VaultEntry[]>;
-  
-  // Delete data
-  async delete(key: string): Promise<void>;
-  
-  // Rotate encryption key
-  async rotateKey(newKey: Uint8Array): Promise<void>;
-}
+// Update with JSON data
+const settings = { theme: 'dark', fontSize: 14 };
+await client.updateScratchpadJson(pad.address, settings);
 
-## Types
+// Subscribe to updates
+client.subscribeToScratchpad(pad.address, (update) => {
+    console.log(`New data: ${update.data}`);
+});
+```
+
+## File System Operations
+
+Modern file and directory operations with streaming support:
 
 ```typescript
-interface ClientConfig {
-  networkUrl?: string;
-  timeout?: number;
-  retries?: number;
-}
+import { File, Directory, FileOptions } from 'autonomi/fs';
 
-type LinkedListAddress = string;
-type PointerAddress = string;
+// Store a file with custom options
+const options: FileOptions = {
+    compression: true,
+    encryption: true,
+    redundancy: 3,
+    chunkSize: '1MB'
+};
+const file = await client.storeFileWithOptions(
+    'example.txt',
+    content,
+    options
+);
+
+// Stream large files
+const writeStream = await client.createFileWriteStream('large-file.dat');
+sourceStream.pipe(writeStream);
+
+// Create a directory with metadata
+const dir = await client.createDirectoryWithMetadata(
+    'docs',
+    metadata
+);
+
+// Subscribe to directory changes
+client.subscribeToDirectory(dir.address, (update) => {
+    console.log(`Directory updated: ${update.type}`);
+});
 ```
 
 ## Error Handling
 
-```typescript
-class AutonomiError extends Error {
-  constructor(message: string, code: string);
-  
-  readonly code: string;
-  readonly message: string;
-}
-```
-
-## Examples
-
-### Basic Usage
+Comprehensive error handling with TypeScript support:
 
 ```typescript
-import { Client, LinkedList } from '@autonomi/client';
+import {
+    ChunkError,
+    PointerError,
+    ListError,
+    ScratchPadError
+} from 'autonomi/errors';
 
-async function example() {
-  const client = new Client();
-  
-  // Create and store a linked list
-  const list = new LinkedList();
-  list.append("Hello");
-  list.append("World");
-  
-  const address = await client.linkedListPut(list);
-  console.log(`List stored at: ${address}`);
-  
-  // Retrieve the list
-  const retrieved = await client.linkedListGet(address);
-  console.log(retrieved.toString()); // "Hello World"
-}
-```
-
-### Error Handling
-
-```typescript
+// Handle chunk operations with detailed errors
 try {
-  const client = new Client();
-  await client.connect();
+    const data = await client.getChunk(address);
+    processData(data);
 } catch (error) {
-  if (error instanceof AutonomiError) {
-    console.error(`Error code: ${error.code}`);
-    console.error(`Message: ${error.message}`);
-  }
+    if (error instanceof ChunkError.NotFound) {
+        console.log(`Chunk not found: ${error.address}`);
+        handleMissing();
+    } else if (error instanceof ChunkError.NetworkError) {
+        console.log(`Network error: ${error.message}`);
+        handleNetworkError(error);
+    } else if (error instanceof ChunkError.ValidationError) {
+        console.log(`Validation failed: expected ${error.expected}, got ${error.actual}`);
+        handleValidationError();
+    } else {
+        handleOtherError(error);
+    }
 }
+
+// Handle pointer updates with version conflicts
+try {
+    await client.updatePointer(address, newTarget);
+    console.log('Update successful');
+} catch (error) {
+    if (error instanceof PointerError.VersionConflict) {
+        console.log(`Version conflict: current ${error.current}, attempted ${error.attempted}`);
+        handleConflict();
+    } else {
+        handleOtherError(error);
+    }
+}
+```
+
+## Advanced Usage
+
+### Web Integration
+
+```typescript
+import { WebClient, WebClientConfig } from 'autonomi/web';
+
+// Create a web-optimized client
+const config: WebClientConfig = {
+    webSocket: true,
+    compression: true,
+    cacheSize: '100MB'
+};
+const client = await WebClient.init(config);
+
+// Subscribe to real-time updates
+client.subscribe('updates', (update) => {
+    updateUI(update);
+});
+
+// Handle offline mode
+client.onOffline(() => {
+    enableOfflineMode();
+});
+
+// Sync when back online
+client.onOnline(async () => {
+    await client.sync();
+});
+```
+
+### Custom Types with Zod
+
+```typescript
+import { z } from 'zod';
+
+// Define schema with validation
+const MyDataSchema = z.object({
+    field1: z.string(),
+    field2: z.number(),
+    timestamp: z.date(),
+    metadata: z.record(z.string()).optional()
+});
+
+type MyData = z.infer<typeof MyDataSchema>;
+
+// Store custom type with validation
+const data: MyData = {
+    field1: 'test',
+    field2: 42,
+    timestamp: new Date()
+};
+const pad = await client.createScratchpad(ContentType.Custom('MyData'));
+await client.updateScratchpadValidated(pad.address, data, MyDataSchema);
+```
+
+### Quantum-Secure Encryption
+
+```typescript
+import {
+    encryptQuantumSecure,
+    decryptQuantumSecure,
+    generateKey
+} from 'autonomi/crypto';
+
+// Generate quantum-secure keys
+const key = await generateQuantumSecureKey();
+
+// Encrypt data with quantum security
+const encrypted = await encryptQuantumSecure(data, key);
+const pad = await client.createScratchpad(ContentType.Encrypted);
+await client.updateScratchpad(pad.address, encrypted);
+
+// Decrypt with quantum security
+const encrypted = await client.getScratchpad(pad.address);
+const decrypted = await decryptQuantumSecure(encrypted, key);
+```
+
+## Performance Optimization
+
+### Connection Pooling
+
+```typescript
+import { Pool, PoolConfig } from 'autonomi/pool';
+
+// Create a connection pool
+const pool = new Pool({
+    minConnections: 5,
+    maxConnections: 20,
+    idleTimeout: 30000
+});
+
+// Get a client from the pool
+const client = await pool.get();
+try {
+    await processData(client);
+} finally {
+    await pool.release(client);
+}
+```
+
+### Batch Operations
+
+```typescript
+// Batch chunk storage
+const chunks = await client.storeChunksBatch(dataList);
+
+// Batch pointer updates
+const updates = [
+    new PointerUpdate(addr1, target1),
+    new PointerUpdate(addr2, target2)
+];
+await client.updatePointersBatch(updates);
 ```
 
 ## Best Practices
 
-1. Always use TypeScript for better type safety
-2. Handle errors appropriately
-3. Use async/await for all asynchronous operations
-4. Properly dispose of resources
-5. Follow the provided examples for memory management
+1. **Web Integration**
+   - Use WebSocket for real-time updates
+   - Implement offline support
+   - Handle connection state
+   - Cache frequently accessed data
+
+2. **Error Handling**
+   - Use TypeScript for type safety
+   - Implement retry logic
+   - Handle version conflicts
+   - Validate data integrity
+
+3. **Security**
+   - Enable quantum security
+   - Use encryption for sensitive data
+   - Implement access control
+   - Validate all inputs
+
+4. **Resource Management**
+   - Use connection pools
+   - Clean up resources
+   - Monitor memory usage
+   - Handle backpressure
+
+## TypeScript Types
+
+The API is fully typed for better IDE support and code quality:
+
+```typescript
+import { Address, Data, Metadata } from 'autonomi/types';
+
+interface Client {
+    storeChunk(data: Buffer): Promise<Address>;
+    getChunk(address: Address): Promise<Buffer>;
+    createPointer(target: Address): Promise<Pointer>;
+    updatePointer(address: Address, target: Address): Promise<void>;
+}
+```
+
+## Further Reading
+
+- [Web Development Guide](../guides/web_development.md)
+- [Quantum Security Details](../guides/quantum_security.md)
+- [Advanced Error Handling](../guides/error_handling.md)
+- [API Reference](https://autonomi.dev/api)
+- [Examples Repository](https://github.com/autonomi/examples)

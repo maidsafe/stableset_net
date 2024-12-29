@@ -6,9 +6,9 @@ site_author: Autonomi Team
 theme:
   name: material
   palette:
-    scheme: slate
-    primary: deep purple
-    accent: purple
+    scheme: default
+    primary: green
+    accent: green
   font:
     text: Roboto
     code: Roboto Mono
@@ -74,10 +74,23 @@ plugins:
 nav:
   - Home: index.md
   - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
     - Local Network: guides/local_network.md
+    - Local Development: guides/local_development.md
   - Core Concepts:
     - Data Types: guides/data_types.md
+    - Data Storage: guides/data_storage.md
     - Client Modes: guides/client_modes.md
+    - Payments: guides/payments.md
+  - Development Guides:
+    - Web Development: guides/web_development.md
+    - Quantum Security: guides/quantum_security.md
+    - Error Handling: guides/error_handling.md
+    - Data Science: guides/data_science.md
+    - Rust Performance: guides/rust_performance.md
+    - EVM Integration: guides/evm_integration.md
+    - Testing Guide: guides/testing_guide.md
   - API Reference:
     - Overview: api/README.md
     - Rust: api/rust/README.md

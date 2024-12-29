@@ -4,27 +4,32 @@ This guide explains Autonomi's approach to quantum-resistant security and how to
 
 ## Overview
 
-Autonomi is built with post-quantum cryptography at its core, ensuring that your data remains secure even against quantum computer attacks. This guide covers the security features and best practices for maintaining quantum-resistant security in your applications.
+Autonomi implements a hybrid security approach, combining information-theoretic security for data storage with traditional cryptographic methods for signatures. This guide covers the security features and best practices for maintaining security in your applications.
 
-## Quantum-Resistant Features
+## Security Features
 
-### Self-Encryption
+### Self-Encryption (Information-Theoretically Secure)
 
-Autonomi uses a quantum-resistant self-encryption scheme that:
+Autonomi's self-encryption scheme provides the highest level of security possible:
 
-- Splits data into chunks
-- Encrypts each chunk with quantum-resistant algorithms
+- Information-theoretically secure chunking (quantum-secure by definition)
+- No reliance on computational hardness assumptions
+- Secure against both classical and quantum attacks
+- Splits data into chunks using information-theoretic principles
 - Creates secure data maps for reconstruction
 - Implements content-based addressing
 
-### BLS Threshold Signatures
+### BLS Threshold Signatures (Classical Security)
 
 Our BLS threshold signature implementation provides:
 
-- Quantum-resistant signature schemes
+- Classical cryptographic security (not quantum-resistant)
 - Distributed key generation
 - Threshold signature creation
 - Secure aggregation
+
+!!! warning "Quantum Computing Consideration"
+    The BLS signature scheme is based on elliptic curve cryptography and will require updates when quantum computers reach sufficient capability. However, the core data storage mechanism using self-encryption chunks remains secure against quantum attacks.
 
 ## Implementation Guide
 
@@ -89,15 +94,14 @@ let combined = scheme.combine_signatures(&[signature1, signature2, signature3])?
 
 ### Current Threats
 
-- Grover's algorithm impact on symmetric cryptography
-- Shor's algorithm impact on asymmetric cryptography
-- Store now, decrypt later attacks
+- Shor's algorithm impact on BLS signatures (future consideration)
+- Store now, decrypt later attacks (mitigated by information-theoretic security for data)
 - Quantum side-channel attacks
 
 ### Mitigation Strategies
 
-1. Use increased key sizes
-2. Implement quantum-resistant algorithms
+1. Core data storage is already quantum-secure through information-theoretic security
+2. Future upgrade path planned for signature scheme
 3. Regular security audits
 4. Continuous monitoring
 

@@ -102,7 +102,6 @@ Test your installation by running a simple client initialization:
 
 ## Next Steps
 
-- [Quick Start Guide](quickstart.md)
 - API References:
   - [Autonomi Client](../api/autonomi-client/README.md)
   - [Ant Node](../api/ant-node/README.md)

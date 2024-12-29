@@ -14,7 +14,6 @@ Autonomi is a decentralized network client that provides:
 ## Quick Links
 
 - [Installation Guide](getting-started/installation.md)
-- [Quick Start Guide](getting-started/quickstart.md)
 - API References:
   - [Autonomi Client](api/autonomi-client/README.md) - Core client library for network operations
   - [Ant Node](api/ant-node/README.md) - Node implementation for network participation

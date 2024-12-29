@@ -32,7 +32,6 @@ nav:
   - Home: index.md
   - Getting Started:
     - Installation: getting-started/installation.md
-    - Quick Start: getting-started/quickstart.md
   - Core Concepts:
     - Data Types: guides/data_types.md
     - Client Modes: guides/client_modes.md

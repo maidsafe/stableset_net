@@ -42,7 +42,11 @@ nav:
     - EVM Integration: guides/evm_integration.md
     - Testing Guide: guides/testing_guide.md
     - Payments: guides/payments.md
-  - API Reference: api/README.md
+  - API Reference:
+    - Autonomi Client: api/autonomi-client/README.md
+    - Ant Node: api/ant-node/README.md
+    - BLS Threshold Crypto: api/blsttc/README.md
+    - Self Encryption: api/self-encryption/README.md
 
 plugins:
   - search

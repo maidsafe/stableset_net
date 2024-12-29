@@ -1,128 +1,239 @@
 # Autonomi API Reference
 
-Autonomi is a decentralized, quantum-secure storage and computation platform that enables developers to build the next generation of secure, scalable applications. Our API provides a consistent interface across multiple programming languages, making it easy to leverage Autonomi's powerful capabilities in your preferred development environment.
+Autonomi is a decentralized storage and computation platform that enables developers to build secure, scalable applications. Our API provides a consistent interface across multiple programming languages.
 
-## Language-Specific Documentation
+<div class="language-selector">
+<select onchange="switchLanguage(this.value)">
+  <option value="rust">Rust</option>
+  <option value="python">Python</option>
+  <option value="typescript">TypeScript/Node.js</option>
+</select>
+</div>
 
-- [Rust API Documentation](rust/README.md) - High-performance systems programming
-- [Python API Documentation](python/README.md) - Data science and general-purpose development
-- [TypeScript/Node.js API Documentation](nodejs/README.md) - Web and server applications
+<div class="language-content" id="rust-content">
 
-## Core Features
-
-### Quantum-Secure Storage
-
-Store and retrieve data with post-quantum cryptographic security, ensuring your data remains protected against both classical and quantum attacks.
-
-### Decentralized Architecture
-
-Built on a robust peer-to-peer network that eliminates single points of failure and ensures high availability of your data and applications.
-
-### Real-Time Synchronization
-
-Automatic data synchronization across nodes with conflict resolution, enabling real-time collaborative applications.
-
-### High Performance
-
-Optimized for speed and efficiency with features like connection pooling, batch operations, and streaming support.
-
-## Getting Started
+## Rust API
 
 ### Installation
 
-Choose your preferred language:
-
 ```toml
-# Rust
 [dependencies]
 autonomi = "0.1.0"
+
+# With optional features
+autonomi = { version = "0.1.0", features = ["fs", "registers", "vault"] }
 ```
 
+Available features:
+
+- `fs`: File system operations (up/download files and directories)
+- `registers`: Register datatype operations
+- `vault`: Vault datatype operations
+- `local`: Local peer discovery using mDNS (for development)
+
+### Client Initialization
+
+```{.rust .light}
+use autonomi::Client;
+
+// Initialize with default configuration
+let client = Client::init().await?;
+
+// Initialize with custom configuration
+let config = ClientConfig {
+    local: true,  // For local development
+    peers: Some(vec!["/ip4/127.0.0.1/tcp/5000".parse()?]),
+};
+let client = Client::init_with_config(config).await?;
+
+// Initialize with wallet for write access
+let client = Client::init_with_wallet(wallet).await?;
+```
+
+### Data Operations
+
+```{.rust .light}
+// Store and retrieve data
+let data = b"Hello, World!";
+let data_addr = client.data_put_public(Bytes::from(data), (&wallet).into()).await?;
+let retrieved = client.data_get_public(data_addr).await?;
+
+// File operations (with 'fs' feature)
+let dir_addr = client.dir_and_archive_upload_public("files/to/upload".into(), &wallet).await?;
+client.dir_download_public(dir_addr, "files/downloaded".into()).await?;
+```
+
+### Error Handling
+
+```{.rust .light}
+use autonomi::PutError;
+
+match client.data_put_public(data, payment).await {
+    Ok(addr) => println!("Stored at: {}", addr),
+    Err(PutError::InsufficientBalance) => println!("Need more funds"),
+    Err(e) => println!("Error: {}", e),
+}
+```
+
+</div>
+
+<div class="language-content" id="python-content" style="display: none;">
+
+## Python API
+
+### Installation
+
 ```bash
-# Python
 pip install autonomi
 ```
 
+### Client Initialization
+
+```{.python .light}
+from autonomi import Client
+
+# Initialize read-only client
+client = Client.init_read_only()
+
+# Initialize with wallet for write access
+client = Client.init_with_wallet(wallet)
+```
+
+### Data Operations
+
+```{.python .light}
+# Store and retrieve data
+data = b"Hello, World!"
+data_addr = client.data_put_public(data, payment)
+retrieved = client.data_get_public(data_addr)
+
+# File operations
+dir_addr = client.dir_and_archive_upload_public("files/to/upload", wallet)
+client.dir_download_public(dir_addr, "files/downloaded")
+```
+
+### Error Handling
+
+```{.python .light}
+try:
+    addr = client.data_put_public(data, payment)
+except InsufficientBalanceError:
+    print("Need more funds")
+except NetworkError as e:
+    print(f"Network error: {e}")
+```
+
+</div>
+
+<div class="language-content" id="typescript-content" style="display: none;">
+
+## TypeScript/Node.js API
+
+### Installation
+
 ```bash
-# TypeScript/Node.js
 npm install autonomi
 ```
 
-### Quick Start
+### Client Initialization
 
-Initialize a client and start using Autonomi's core features:
+```{.typescript .light}
+import { Client } from 'autonomi';
 
-```python
-from autonomi import Client
-
-# Initialize a client with quantum security enabled
-client = Client.init_with_config({
-    'quantum_security': True,
-    'compression': True
-})
-
-# Store and retrieve data
-chunk = client.store_chunk(b"Hello, Autonomi!")
-data = client.get_chunk(chunk.address)
+// Initialize client
+const client = await Client.connect({
+    local: true,  // For local development
+    peers: ["/ip4/127.0.0.1/tcp/5000"]
+});
 ```
+
+### Data Operations
+
+```{.typescript .light}
+// Store and retrieve data
+const data = Buffer.from("Hello, World!");
+const dataAddr = await client.dataPutPublic(data, payment);
+const retrieved = await client.dataGetPublic(dataAddr);
+
+// Linked List operations
+const list = await client.linkedListGet(address);
+await client.linkedListPut(options, payment);
+
+// Pointer operations
+const pointer = await client.pointerGet(address);
+```
+
+### Error Handling
+
+```{.typescript .light}
+try {
+    const addr = await client.dataPutPublic(data, payment);
+} catch (error) {
+    if (error instanceof InsufficientBalanceError) {
+        console.log("Need more funds");
+    } else {
+        console.error("Error:", error);
+    }
+}
+```
+
+</div>
+
+<script>
+function switchLanguage(lang) {
+    document.querySelectorAll('.language-content').forEach(el => {
+        el.style.display = 'none';
+    });
+    document.getElementById(lang + '-content').style.display = 'block';
+}
+</script>
+
+<style>
+.language-selector {
+    margin: 20px 0;
+}
+.language-selector select {
+    padding: 8px 16px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+}
+</style>
 
 ## Core Components
 
-### Chunks
+### Data Storage
 
-Immutable, quantum-secure data storage units that form the foundation of Autonomi's storage system. Perfect for storing any type of data with guaranteed integrity.
+Store and retrieve data with content-addressed chunks. Data is split into chunks using self-encryption, yielding a 'data map' for reconstruction.
 
-### Pointers
+### Registers
 
-Mutable references that enable version tracking and atomic updates. Ideal for managing changing state in your applications.
+Keep small values pointing to data with update history. Supports concurrent updates with eventual consistency.
 
-### LinkedLists
+### File System Operations
 
-High-performance transaction chains for building decentralized DAG structures. Great for implementing append-only logs or blockchain-like data structures.
-
-### ScratchPads
-
-Efficient temporary workspaces with CRDT properties. Perfect for collaborative editing and real-time data synchronization.
-
-## Use Cases
-
-- **Web3 Applications**: Build decentralized applications with quantum-secure data storage
-- **Secure File Storage**: Implement encrypted file storage with version control
-- **Real-Time Collaboration**: Create collaborative applications with automatic synchronization
-- **Data Science**: Process and analyze large datasets with high-performance streaming
-- **Edge Computing**: Deploy applications with local-first data storage and sync
+Upload and download files and directories with the `fs` feature enabled.
 
 ## Best Practices
 
-1. **Security**
-   - Enable quantum security for sensitive data
-   - Use encryption for all personal information
-   - Implement proper access control
-   - Validate all inputs
+1. **Error Handling**
+   - Implement proper error handling for network operations
+   - Handle insufficient balance errors for write operations
+   - Use retry logic for network operations
 
 2. **Performance**
-   - Use batch operations for multiple items
-   - Enable compression for large data
-   - Utilize connection pooling
-   - Stream large datasets
+   - Use streaming for large files
+   - Enable appropriate features for your use case
+   - Handle resource cleanup properly
 
-3. **Error Handling**
-   - Implement comprehensive error handling
-   - Use retry logic for network operations
-   - Handle version conflicts appropriately
-   - Validate data integrity
+3. **Development**
+   - Use local mode for development and testing
+   - Monitor network connectivity
+   - Implement proper error recovery
 
 ## Further Reading
 
 - [Getting Started Guide](../guides/getting_started.md)
-- [Web Development Guide](../guides/web_development.md)
-- [Data Science Guide](../guides/data_science.md)
-- [Quantum Security Guide](../guides/quantum_security.md)
 - [Error Handling Guide](../guides/error_handling.md)
-- [Rust Performance Guide](../guides/rust_performance.md)
-
-## API Reference
-
-- [Rust API Reference](https://docs.rs/autonomi)
-- [Python API Reference](https://autonomi.readthedocs.io)
-- [TypeScript API Reference](https://autonomi.dev/api)
+- [Examples Repository](https://github.com/autonomi/examples)

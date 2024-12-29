@@ -26,8 +26,8 @@ jobs:
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
 
-    - name: Build ant-node with local feature
-      run: cargo build -p ant-node --features local
+    - name: Build ant-node with test feature
+      run: cargo build -p ant-node --features test
 
     - name: Build evm-testnet
       run: cargo build -p evm-testnet
@@ -49,8 +49,8 @@ jobs:
           echo "Port 4343 is already in use, assuming EVM network is running..."
         fi
 
-        # Run tests
-        RUST_LOG=trace cargo test -p autonomi --features local -- --nocapture
+        # Run tests with test feature
+        RUST_LOG=trace cargo test -p autonomi --features test -- --nocapture
 
         # Cleanup
         kill $EVM_PID || true

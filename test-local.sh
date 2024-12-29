@@ -26,9 +26,9 @@ if ! command -v anvil &> /dev/null; then
     foundryup
 fi
 
-# Build ant-node with local feature
-echo "Building ant-node with local feature..."
-cargo build -p ant-node --features local
+# Build ant-node with test feature (which includes local)
+echo "Building ant-node..."
+cargo build -p ant-node --features test
 
 # Build evm-testnet
 echo "Building evm-testnet..."
@@ -49,9 +49,9 @@ else
     sleep 5
 fi
 
-# Run the tests with local feature
+# Run the tests with test feature
 echo "Running tests..."
-RUST_LOG=trace cargo test -p autonomi --features local -- --nocapture
+RUST_LOG=trace cargo test -p autonomi --features test -- --nocapture
 
 # Wait for tests to complete
 wait 

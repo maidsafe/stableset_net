@@ -1,71 +1,64 @@
 site_name: Autonomi Documentation
-site_description: Documentation for the Autonomi network client
-repo_url: https://github.com/dirvine/autonomi
-repo_name: dirvine/autonomi
-edit_uri: edit/main/docs/
-
 theme:
   name: material
   features:
     - navigation.tabs
     - navigation.sections
     - navigation.expand
+    - navigation.indexes
+    - toc.integrate
+    - search.suggest
     - search.highlight
+    - content.tabs.link
+    - content.code.annotation
     - content.code.copy
+  language: en
   palette:
     - scheme: default
-      primary: indigo
-      accent: indigo
       toggle:
-        icon: material/brightness-7
+        icon: material/toggle-switch-off-outline 
         name: Switch to dark mode
-    - scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: teal
+      accent: purple 
+    - scheme: slate 
       toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
+        icon: material/toggle-switch
+        name: Switch to light mode    
+      primary: teal
+      accent: lime
+
+nav:
+  - Home: index.md
+  - API:
+    - Overview: api/README.md
+    - Node.js: api/nodejs/README.md
+    - Python: api/python/README.md
+    - Rust: api/rust/README.md
+  - Guides:
+    - Local Network: guides/local_network.md
+    - Client Modes: guides/client_modes.md
+    - Data Storage: guides/data_storage.md
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
 
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
   - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
   - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
   - pymdownx.tabbed:
-      alternate_style: true
-  - tables
-  - toc:
-      permalink: true
-
-plugins:
-  - search
-  - mkdocstrings:
-      handlers:
-        python:
-          paths: [autonomi]
-          options:
-            show_source: true
-  - git-revision-date-localized:
-      enable_creation_date: true
-
-nav:
-  - Home: index.md
-  - Getting Started:
-    - Installation: getting-started/installation.md
-    - Quick Start: getting-started/quickstart.md
-  - API Reference:
-    - Node.js: api/nodejs/README.md
-    - Python: api/python/README.md
-    - Rust: api/rust/README.md
-  - Guides:
-    - Local Network: guides/local_network.md
-    - Local Development: guides/local_development.md
-    - EVM Integration: guides/evm_integration.md
-    - Testing: guides/testing_guide.md
-    - Data Storage: guides/data_storage.md
-    - Payments: guides/payments.md
-  - Design Documents:
-    - Pointer Design: pointer_design_doc.md 
+      alternate_style: true 

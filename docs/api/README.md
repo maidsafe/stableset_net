@@ -49,4 +49,3 @@ The Autonomi API provides a flexible interface for interacting with the network.
 - [Local Network Setup](../guides/local_network.md)
 - [Client Modes Guide](../guides/client_modes.md)
 - [Data Storage Guide](../guides/data_storage.md)
-- [Payment Guide](../guides/payment.md)

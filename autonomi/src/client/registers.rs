@@ -8,10 +8,10 @@
 
 #![allow(deprecated)]
 
-use crate::client::data::PayError;
-use crate::client::Client;
-use crate::client::ClientEvent;
-use crate::client::UploadSummary;
+use crate::client::{
+    error::{CostError, PayError},
+    Client, ClientEvent, UploadSummary,
+};
 
 pub use ant_registers::{Permissions as RegisterPermissions, RegisterAddress};
 pub use bls::SecretKey as RegisterSecretKey;
@@ -28,8 +28,6 @@ use bytes::Bytes;
 use libp2p::kad::{Quorum, Record};
 use std::collections::BTreeSet;
 use xor_name::XorName;
-
-use super::data::CostError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RegisterError {
@@ -53,6 +51,12 @@ pub enum RegisterError {
     InvalidQuote,
     #[error("The payment proof contains no payees.")]
     PayeesMissing,
+}
+
+impl From<ant_registers::Error> for RegisterError {
+    fn from(err: ant_registers::Error) -> Self {
+        Self::Write(err)
+    }
 }
 
 #[deprecated(

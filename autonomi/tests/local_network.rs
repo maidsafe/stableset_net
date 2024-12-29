@@ -8,9 +8,13 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tokio::time::sleep;
+use serial_test::serial;
+use ant_networking::find_local_ip;
 
-// Use a private network IP instead of loopback for mDNS to work
-const LOCAL_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 23));
+// Get the local IP for testing
+lazy_static::lazy_static! {
+    static ref LOCAL_IP: IpAddr = find_local_ip().expect("Failed to find local IP");
+}
 
 #[derive(Debug)]
 struct NodeOutput {
@@ -52,7 +56,7 @@ async fn process_output(
 }
 
 fn get_available_port() -> Result<u16> {
-    let listener = TcpListener::bind((LOCAL_IP, 0))?;
+    let listener = TcpListener::bind((*LOCAL_IP, 0))?;
     Ok(listener.local_addr()?.port())
 }
 
@@ -85,7 +89,7 @@ async fn start_local_node(
     port: Option<u16>,
 ) -> Result<(Child, u16, Arc<Mutex<NodeOutput>>)> {
     let port = port.unwrap_or_else(|| get_available_port().unwrap());
-    println!("Setting up node to listen on {}:{}", LOCAL_IP, port);
+    println!("Setting up node to listen on {}:{}", *LOCAL_IP, port);
 
     let mut cmd = Command::new("../target/debug/antnode");
     cmd.arg("--rewards-address")
@@ -173,10 +177,11 @@ async fn wait_for_node_ready(port: u16, node_output: Arc<Mutex<NodeOutput>>) -> 
 }
 
 async fn get_node_multiaddr(port: u16, peer_id: &str) -> String {
-    format!("/ip4/{}/udp/{}/quic-v1/p2p/{}", LOCAL_IP, port, peer_id)
+    format!("/ip4/{}/udp/{}/quic-v1/p2p/{}", *LOCAL_IP, port, peer_id)
 }
 
 #[tokio::test]
+#[serial]
 async fn test_local_client_operations() -> Result<()> {
     println!("\nStarting test_local_client_operations");
     cleanup_nodes().await?;
@@ -194,7 +199,17 @@ async fn test_local_client_operations() -> Result<()> {
 
     // Allow time for the first node to be fully ready
     println!("Waiting for first node to be fully ready...");
-    sleep(Duration::from_secs(20)).await;
+    sleep(Duration::from_secs(30)).await;
+
+    // Start second node with first node as peer
+    let (_node2, port2, node_output2) = start_local_node(false, Some(&first_node_addr), None).await?;
+    wait_for_node_ready(port2, node_output2.clone()).await?;
+
+    let peer_id2 = {
+        let output = node_output2.lock().await;
+        output.peer_id.clone().expect("Peer ID should be set")
+    };
+    println!("Second node peer ID: {}", peer_id2);
 
     // Initialize client in local mode with bootstrap peer
     println!("Initializing client...");
@@ -207,24 +222,30 @@ async fn test_local_client_operations() -> Result<()> {
 
     // Allow time for peer discovery
     println!("Waiting for peer discovery...");
-    for i in 1..=10 {
+    for i in 1..=30 {
         sleep(Duration::from_secs(10)).await;
         let info = client.network_info().await?;
         println!(
-            "Check {}: Connected to {} peers",
+            "Check {}/30: Connected to {} peers",
             i,
             info.connected_peers.len()
         );
         if !info.connected_peers.is_empty() {
+            println!("Connected peers:");
+            for peer in &info.connected_peers {
+                println!("  - {}", peer);
+            }
             println!("Successfully connected to peers");
             return Ok(());
         }
+        println!("No peers connected yet, waiting...");
     }
 
     anyhow::bail!("Failed to connect to any peers after multiple attempts")
 }
 
 #[tokio::test]
+#[serial]
 async fn test_local_client_with_peers() -> Result<()> {
     println!("\nStarting test_local_client_with_peers");
     cleanup_nodes().await?;
@@ -251,8 +272,9 @@ async fn test_local_client_with_peers() -> Result<()> {
         peers: Some(vec![first_node_addr.parse()?]),
     };
     let client1 = Client::init_with_config(config1).await?;
+    println!("First client initialized");
 
-    // Allow time for the first client to connect
+    // Wait for first client to connect
     println!("Waiting for first client to connect...");
     for i in 1..=10 {
         sleep(Duration::from_secs(10)).await;
@@ -265,6 +287,9 @@ async fn test_local_client_with_peers() -> Result<()> {
         if !info.connected_peers.is_empty() {
             break;
         }
+        if i == 10 {
+            anyhow::bail!("Failed to connect to any peers after multiple attempts");
+        }
     }
 
     // Create second client
@@ -276,7 +301,7 @@ async fn test_local_client_with_peers() -> Result<()> {
     let client2 = Client::init_with_config(config2).await?;
     println!("Second client initialized");
 
-    // Allow time for the second client to connect
+    // Wait for second client to connect
     println!("Waiting for second client to connect...");
     for i in 1..=10 {
         sleep(Duration::from_secs(10)).await;

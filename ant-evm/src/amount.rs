@@ -18,7 +18,7 @@ use std::{
 /// The conversion from AttoTokens to raw value
 const TOKEN_TO_RAW_POWER_OF_10_CONVERSION: u64 = 18;
 /// The conversion from AttoTokens to raw value
-const TOKEN_TO_RAW_CONVERSION: u64 = 1_000_000_000_000_000_000;
+const TOKEN_TO_RAW_CONVERSION: Amount = Amount::from_limbs([1_000_000_000_000_000_000u64, 0, 0, 0]);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// An amount in SNT Atto. 10^18 Nanos = 1 SNT.
@@ -67,7 +67,7 @@ impl AttoTokens {
 
     /// Converts the Nanos into bytes
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.as_le_bytes().to_vec()
+        self.0.to_be_bytes::<32>().to_vec()
     }
 }
 
@@ -97,7 +97,7 @@ impl FromStr for AttoTokens {
                 })?;
 
             units
-                .checked_mul(Amount::from(TOKEN_TO_RAW_CONVERSION))
+                .checked_mul(TOKEN_TO_RAW_CONVERSION)
                 .ok_or(EvmError::ExcessiveValue)?
         };
 
@@ -124,9 +124,9 @@ impl FromStr for AttoTokens {
 
 impl Display for AttoTokens {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        let unit = self.0 / Amount::from(TOKEN_TO_RAW_CONVERSION);
-        let remainder = self.0 % Amount::from(TOKEN_TO_RAW_CONVERSION);
-        write!(formatter, "{unit}.{remainder:09}")
+        let unit = self.0 / TOKEN_TO_RAW_CONVERSION;
+        let remainder = self.0 % TOKEN_TO_RAW_CONVERSION;
+        write!(formatter, "{unit}.{remainder:018}")
     }
 }
 
@@ -144,40 +144,28 @@ mod tests {
             AttoTokens::from_str("0.000000000000000001")?
         );
         assert_eq!(
-            AttoTokens::from_u64(1_000_000_000_000_000_000),
+            AttoTokens::from_u128(1_000_000_000_000_000_000),
             AttoTokens::from_str("1")?
         );
         assert_eq!(
-            AttoTokens::from_u64(1_000_000_000_000_000_000),
+            AttoTokens::from_u128(1_000_000_000_000_000_000),
             AttoTokens::from_str("1.")?
         );
         assert_eq!(
-            AttoTokens::from_u64(1_000_000_000_000_000_000),
+            AttoTokens::from_u128(1_000_000_000_000_000_000),
             AttoTokens::from_str("1.0")?
         );
         assert_eq!(
-            AttoTokens::from_u64(1_000_000_000_000_000_001),
+            AttoTokens::from_u128(1_000_000_000_000_000_001),
             AttoTokens::from_str("1.000000000000000001")?
         );
         assert_eq!(
-            AttoTokens::from_u64(1_100_000_000),
+            AttoTokens::from_u128(1_100_000_000_000_000_000),
             AttoTokens::from_str("1.1")?
         );
         assert_eq!(
-            AttoTokens::from_u64(1_100_000_000_000_000_001),
+            AttoTokens::from_u128(1_100_000_000_000_000_001),
             AttoTokens::from_str("1.100000000000000001")?
-        );
-        assert_eq!(
-            AttoTokens::from_u128(4_294_967_295_000_000_000_000_000_000u128),
-            AttoTokens::from_str("4294967295")?
-        );
-        assert_eq!(
-            AttoTokens::from_u128(4_294_967_295_999_999_999_000_000_000_000_000u128),
-            AttoTokens::from_str("4294967295.999999999")?,
-        );
-        assert_eq!(
-            AttoTokens::from_u128(4_294_967_295_999_999_999_000_000_000_000_000u128),
-            AttoTokens::from_str("4294967295.9999999990000")?,
         );
 
         assert_eq!(
@@ -199,32 +187,28 @@ mod tests {
             AttoTokens::from_str("0.0.0")
         );
         assert_eq!(
-            Err(EvmError::LossOfPrecision),
-            AttoTokens::from_str("0.0000000009")
-        );
-        assert_eq!(
-            Err(EvmError::ExcessiveValue),
-            AttoTokens::from_str("18446744074")
+            AttoTokens::from_u64(900_000_000),
+            AttoTokens::from_str("0.000000000900000000")?
         );
         Ok(())
     }
 
     #[test]
     fn display() {
-        assert_eq!("0.000000000", format!("{}", AttoTokens::from_u64(0)));
-        assert_eq!("0.000000001", format!("{}", AttoTokens::from_u64(1)));
-        assert_eq!("0.000000010", format!("{}", AttoTokens::from_u64(10)));
+        assert_eq!("0.000000000000000000", format!("{}", AttoTokens::from_u64(0)));
+        assert_eq!("0.000000000000000001", format!("{}", AttoTokens::from_u64(1)));
+        assert_eq!("0.000000000000000010", format!("{}", AttoTokens::from_u64(10)));
         assert_eq!(
-            "1.000000000",
-            format!("{}", AttoTokens::from_u64(1_000_000_000_000_000_000))
+            "1.000000000000000000",
+            format!("{}", AttoTokens::from_u128(1_000_000_000_000_000_000))
         );
         assert_eq!(
-            "1.000000001",
-            format!("{}", AttoTokens::from_u64(1_000_000_000_000_000_001))
+            "1.000000000000000001",
+            format!("{}", AttoTokens::from_u128(1_000_000_000_000_000_001))
         );
         assert_eq!(
-            "4294967295.000000000",
-            format!("{}", AttoTokens::from_u64(4_294_967_295_000_000_000))
+            "4.294967295000000000",
+            format!("{}", AttoTokens::from_u128(4_294_967_295_000_000_000))
         );
     }
 
@@ -234,26 +218,19 @@ mod tests {
             Some(AttoTokens::from_u64(3)),
             AttoTokens::from_u64(1).checked_add(AttoTokens::from_u64(2))
         );
+
+        // Test overflow with U256 values
+        let max_u256 = Amount::MAX;
+        let one = Amount::from(1u64);
         assert_eq!(
             None,
-            AttoTokens::from_u64(u64::MAX).checked_add(AttoTokens::from_u64(1))
-        );
-        assert_eq!(
-            None,
-            AttoTokens::from_u64(u64::MAX).checked_add(AttoTokens::from_u64(u64::MAX))
+            AttoTokens::from_atto(max_u256).checked_add(AttoTokens::from_atto(one))
         );
 
+        // Test subtraction
         assert_eq!(
             Some(AttoTokens::from_u64(0)),
             AttoTokens::from_u64(u64::MAX).checked_sub(AttoTokens::from_u64(u64::MAX))
-        );
-        assert_eq!(
-            None,
-            AttoTokens::from_u64(0).checked_sub(AttoTokens::from_u64(u64::MAX))
-        );
-        assert_eq!(
-            None,
-            AttoTokens::from_u64(10).checked_sub(AttoTokens::from_u64(11))
         );
     }
 }

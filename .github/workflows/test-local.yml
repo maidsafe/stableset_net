@@ -1,0 +1,49 @@
+name: Local Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Run Local Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Dependencies
+      uses: Swatinem/rust-cache@v2
+
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+
+    - name: Build ant-node with local feature
+      run: cargo build -p ant-node --features local
+
+    - name: Build evm-testnet
+      run: cargo build -p evm-testnet
+
+    - name: Run Local Tests
+      run: |
+        # Start EVM testnet
+        ./target/debug/evm-testnet --genesis-wallet 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 &
+        EVM_PID=$!
+
+        # Wait for EVM testnet to be ready
+        sleep 5
+
+        # Run tests
+        RUST_LOG=trace cargo test -p autonomi --features local -- --nocapture
+
+        # Cleanup
+        kill $EVM_PID || true
+        pkill -f "antnode" || true 

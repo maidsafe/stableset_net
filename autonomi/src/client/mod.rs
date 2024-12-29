@@ -521,25 +521,20 @@ impl Client {
 }
 
 fn build_client_and_run_swarm(local: bool) -> (Network, mpsc::Receiver<NetworkEvent>) {
-    let keypair = Keypair::generate_ed25519();
-    let mut builder = NetworkBuilder::new(keypair);
-
-    if local {
-        builder = builder.local(true);
-    }
+    let mut network_builder = NetworkBuilder::new(Keypair::generate_ed25519()).local(local);
 
     // In local mode, we want to disable cache writing
     if local {
         if let Ok(mut config) = BootstrapCacheConfig::default_config() {
             config.disable_cache_writing = true;
             if let Ok(cache) = BootstrapCacheStore::new(config) {
-                builder.bootstrap_cache(cache);
+                network_builder.bootstrap_cache(cache);
             }
         }
     }
 
     let (network, event_receiver, driver) =
-        builder.build_client().expect("Failed to build network");
+        network_builder.build_client().expect("Failed to build network");
 
     // Spawn the driver to run in the background
     ant_networking::target_arch::spawn(async move {

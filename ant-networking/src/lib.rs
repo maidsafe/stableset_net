@@ -1344,8 +1344,9 @@ mod tests {
 
     #[test]
     fn test_network_sign_verify() -> eyre::Result<()> {
-        let (network, _, _) =
-            NetworkBuilder::new(Keypair::generate_ed25519(), false).build_client()?;
+        let mut builder = NetworkBuilder::new(Keypair::generate_ed25519());
+        builder = builder.local(true);
+        let (network, _, _) = builder.build_client()?;
         let msg = b"test message";
         let sig = network.sign(msg)?;
         assert!(network.verify(msg, &sig));

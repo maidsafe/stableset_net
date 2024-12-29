@@ -48,7 +48,7 @@ pub enum TransactionError {
 
 impl Client {
     /// Fetches a Transaction from the network.
-    pub async fn transaction_get(
+    pub async fn linked_list_get(
         &self,
         address: LinkedListAddress,
     ) -> Result<Vec<LinkedList>, TransactionError> {
@@ -57,7 +57,7 @@ impl Client {
         Ok(transactions)
     }
 
-    pub async fn transaction_put(
+    pub async fn linked_list_put(
         &self,
         transaction: LinkedList,
         wallet: &EvmWallet,
@@ -132,7 +132,7 @@ impl Client {
     }
 
     /// Get the cost to create a transaction
-    pub async fn transaction_cost(&self, key: SecretKey) -> Result<AttoTokens, TransactionError> {
+    pub async fn linked_list_cost(&self, key: SecretKey) -> Result<AttoTokens, TransactionError> {
         let pk = key.public_key();
         trace!("Getting cost for transaction of {pk:?}");
 

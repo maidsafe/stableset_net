@@ -161,7 +161,7 @@ impl NodeBuilder {
     ///
     /// Returns an error if there is a problem initializing the `SwarmDriver`.
     pub fn build_and_run(self) -> Result<RunningNode> {
-        let mut network_builder = NetworkBuilder::new(self.identity_keypair, self.local);
+        let mut network_builder = NetworkBuilder::new(self.identity_keypair).local(self.local);
 
         #[cfg(feature = "open-metrics")]
         let metrics_recorder = if self.metrics_server_port.is_some() {

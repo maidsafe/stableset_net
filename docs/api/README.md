@@ -1,239 +1,651 @@
-# Autonomi API Reference
+# Autonomi API Documentation
 
-Autonomi is a decentralized storage and computation platform that enables developers to build secure, scalable applications. Our API provides a consistent interface across multiple programming languages.
+## Installation
 
-<div class="language-selector">
-<select onchange="switchLanguage(this.value)">
-  <option value="rust">Rust</option>
-  <option value="python">Python</option>
-  <option value="typescript">TypeScript/Node.js</option>
-</select>
-</div>
+Choose your preferred language:
 
-<div class="language-content" id="rust-content">
+```bash
+# Python
+pip install autonomi
 
-## Rust API
+# Node.js/TypeScript
+npm install autonomi
 
-### Installation
-
-```toml
+# Rust
+# Add to Cargo.toml:
 [dependencies]
 autonomi = "0.1.0"
-
-# With optional features
-autonomi = { version = "0.1.0", features = ["fs", "registers", "vault"] }
 ```
 
-Available features:
+## Client Initialization
 
-- `fs`: File system operations (up/download files and directories)
-- `registers`: Register datatype operations
-- `vault`: Vault datatype operations
-- `local`: Local peer discovery using mDNS (for development)
+Initialize a client in read-only mode for browsing data, or with write capabilities for full access:
 
-### Client Initialization
-
-```{.rust .light}
+```rust
+// Rust
 use autonomi::Client;
 
-// Initialize with default configuration
-let client = Client::init().await?;
+// Initialize a read-only client
+let client = Client::init_read_only().await?;
 
-// Initialize with custom configuration
-let config = ClientConfig {
-    local: true,  // For local development
-    peers: Some(vec!["/ip4/127.0.0.1/tcp/5000".parse()?]),
-};
-let client = Client::init_with_config(config).await?;
-
-// Initialize with wallet for write access
+// Or initialize with write capabilities
 let client = Client::init_with_wallet(wallet).await?;
+
+// Upgrade a read-only client to read-write
+client.upgrade_to_read_write(wallet)?;
 ```
 
-### Data Operations
+```typescript
+// TypeScript
+import { Client } from 'autonomi';
 
-```{.rust .light}
-// Store and retrieve data
+// Initialize a read-only client
+const client = await Client.initReadOnly();
+
+// Or initialize with write capabilities
+const client = await Client.initWithWallet(wallet);
+
+// Upgrade a read-only client to read-write
+await client.upgradeToReadWrite(wallet);
+```
+
+```python
+# Python
+from autonomi import Client
+
+# Initialize a read-only client
+client = Client.init_read_only()
+
+# Or initialize with write capabilities
+client = Client.init_with_wallet(wallet)
+
+# Upgrade a read-only client to read-write
+client.upgrade_to_read_write(wallet)
+```
+
+## Core Data Types
+
+Autonomi provides four fundamental data types that serve as building blocks for all network operations. For detailed information about each type, see the [Data Types Guide](../guides/data_types.md).
+
+### 1. Chunk
+
+Immutable, quantum-secure encrypted data blocks:
+
+```rust
+// Rust
+use autonomi::Chunk;
+
+// Store raw data as a chunk
 let data = b"Hello, World!";
-let data_addr = client.data_put_public(Bytes::from(data), (&wallet).into()).await?;
-let retrieved = client.data_get_public(data_addr).await?;
+let chunk = client.store_chunk(data).await?;
 
-// File operations (with 'fs' feature)
-let dir_addr = client.dir_and_archive_upload_public("files/to/upload".into(), &wallet).await?;
-client.dir_download_public(dir_addr, "files/downloaded".into()).await?;
+// Retrieve chunk data
+let retrieved = client.get_chunk(chunk.address()).await?;
+assert_eq!(data, &retrieved[..]);
+
+// Get chunk metadata
+let metadata = client.get_chunk_metadata(chunk.address()).await?;
+println!("Size: {}", metadata.size);
 ```
 
-### Error Handling
+```typescript
+// TypeScript
+import { Chunk } from 'autonomi';
 
-```{.rust .light}
-use autonomi::PutError;
+// Store raw data as a chunk
+const data = Buffer.from('Hello, World!');
+const chunk = await client.storeChunk(data);
 
-match client.data_put_public(data, payment).await {
-    Ok(addr) => println!("Stored at: {}", addr),
-    Err(PutError::InsufficientBalance) => println!("Need more funds"),
-    Err(e) => println!("Error: {}", e),
+// Retrieve chunk data
+const retrieved = await client.getChunk(chunk.address);
+assert(Buffer.compare(data, retrieved) === 0);
+
+// Get chunk metadata
+const metadata = await client.getChunkMetadata(chunk.address);
+console.log(`Size: ${metadata.size}`);
+```
+
+```python
+# Python
+from autonomi import Chunk
+
+# Store raw data as a chunk
+data = b"Hello, World!"
+chunk = client.store_chunk(data)
+
+# Retrieve chunk data
+retrieved = client.get_chunk(chunk.address)
+assert data == retrieved
+
+# Get chunk metadata
+metadata = client.get_chunk_metadata(chunk.address)
+print(f"Size: {metadata.size}")
+```
+
+### 2. Pointer
+
+Mutable references with version tracking:
+
+```rust
+// Rust
+use autonomi::Pointer;
+
+// Create a pointer to some data
+let pointer = client.create_pointer(target_address).await?;
+
+// Update pointer target
+client.update_pointer(pointer.address(), new_target_address).await?;
+
+// Resolve pointer to get current target
+let target = client.resolve_pointer(pointer.address()).await?;
+
+// Get pointer metadata and version
+let metadata = client.get_pointer_metadata(pointer.address()).await?;
+println!("Version: {}", metadata.version);
+```
+
+```typescript
+// TypeScript
+import { Pointer } from 'autonomi';
+
+// Create a pointer to some data
+const pointer = await client.createPointer(targetAddress);
+
+// Update pointer target
+await client.updatePointer(pointer.address, newTargetAddress);
+
+// Resolve pointer to get current target
+const target = await client.resolvePointer(pointer.address);
+
+// Get pointer metadata and version
+const metadata = await client.getPointerMetadata(pointer.address);
+console.log(`Version: ${metadata.version}`);
+```
+
+```python
+# Python
+from autonomi import Pointer
+
+# Create a pointer to some data
+pointer = client.create_pointer(target_address)
+
+# Update pointer target
+client.update_pointer(pointer.address, new_target_address)
+
+# Resolve pointer to get current target
+target = client.resolve_pointer(pointer.address)
+
+# Get pointer metadata and version
+metadata = client.get_pointer_metadata(pointer.address)
+print(f"Version: {metadata.version}")
+```
+
+### 3. LinkedList
+
+Decentralized DAG structures for transaction chains:
+
+```rust
+// Rust
+use autonomi::LinkedList;
+
+// Create a new linked list
+let list = client.create_linked_list().await?;
+
+// Append items
+client.append_to_list(list.address(), item1).await?;
+client.append_to_list(list.address(), item2).await?;
+
+// Read list contents
+let items = client.get_list(list.address()).await?;
+
+// Get list history
+let history = client.get_list_history(list.address()).await?;
+for entry in history {
+    println!("Version {}: {:?}", entry.version, entry.data);
+}
+
+// Check for forks
+let forks = client.detect_forks(list.address()).await?;
+match forks {
+    Fork::None => println!("No forks detected"),
+    Fork::Detected(branches) => handle_forks(branches),
 }
 ```
 
-</div>
+```typescript
+// TypeScript
+import { LinkedList } from 'autonomi';
 
-<div class="language-content" id="python-content" style="display: none;">
+// Create a new linked list
+const list = await client.createLinkedList();
 
-## Python API
+// Append items
+await client.appendToList(list.address, item1);
+await client.appendToList(list.address, item2);
 
-### Installation
+// Read list contents
+const items = await client.getList(list.address);
 
-```bash
-pip install autonomi
+// Get list history
+const history = await client.getListHistory(list.address);
+for (const entry of history) {
+    console.log(`Version ${entry.version}: ${entry.data}`);
+}
+
+// Check for forks
+const forks = await client.detectForks(list.address);
+if (!forks) {
+    console.log('No forks detected');
+} else {
+    handleForks(forks.branches);
+}
 ```
 
-### Client Initialization
+```python
+# Python
+from autonomi import LinkedList
 
-```{.python .light}
-from autonomi import Client
+# Create a new linked list
+list = client.create_linked_list()
 
-# Initialize read-only client
-client = Client.init_read_only()
+# Append items
+client.append_to_list(list.address, item1)
+client.append_to_list(list.address, item2)
 
-# Initialize with wallet for write access
-client = Client.init_with_wallet(wallet)
+# Read list contents
+items = client.get_list(list.address)
+
+# Get list history
+history = client.get_list_history(list.address)
+for entry in history:
+    print(f"Version {entry.version}: {entry.data}")
+
+# Check for forks
+forks = client.detect_forks(list.address)
+if not forks:
+    print("No forks detected")
+else:
+    handle_forks(forks.branches)
 ```
 
-### Data Operations
+### 4. ScratchPad
 
-```{.python .light}
-# Store and retrieve data
-data = b"Hello, World!"
-data_addr = client.data_put_public(data, payment)
-retrieved = client.data_get_public(data_addr)
+Unstructured data with CRDT properties:
 
-# File operations
-dir_addr = client.dir_and_archive_upload_public("files/to/upload", wallet)
-client.dir_download_public(dir_addr, "files/downloaded")
+```rust
+// Rust
+use autonomi::{ScratchPad, ContentType};
+
+// Create a scratchpad
+let pad = client.create_scratchpad(ContentType::UserSettings).await?;
+
+// Update with data
+client.update_scratchpad(pad.address(), settings_data).await?;
+
+// Read current data
+let current = client.get_scratchpad(pad.address()).await?;
+
+// Get metadata
+let metadata = client.get_scratchpad_metadata(pad.address()).await?;
+println!("Updates: {}", metadata.update_counter);
 ```
 
-### Error Handling
+```typescript
+// TypeScript
+import { ScratchPad, ContentType } from 'autonomi';
 
-```{.python .light}
-try:
-    addr = client.data_put_public(data, payment)
-except InsufficientBalanceError:
-    print("Need more funds")
-except NetworkError as e:
-    print(f"Network error: {e}")
+// Create a scratchpad
+const pad = await client.createScratchpad(ContentType.UserSettings);
+
+// Update with data
+await client.updateScratchpad(pad.address, settingsData);
+
+// Read current data
+const current = await client.getScratchpad(pad.address);
+
+// Get metadata
+const metadata = await client.getScratchpadMetadata(pad.address);
+console.log(`Updates: ${metadata.updateCounter}`);
 ```
 
-</div>
+```python
+# Python
+from autonomi import ScratchPad, ContentType
 
-<div class="language-content" id="typescript-content" style="display: none;">
+# Create a scratchpad
+pad = client.create_scratchpad(ContentType.USER_SETTINGS)
 
-## TypeScript/Node.js API
+# Update with data
+client.update_scratchpad(pad.address, settings_data)
 
-### Installation
+# Read current data
+current = client.get_scratchpad(pad.address)
 
-```bash
-npm install autonomi
+# Get metadata
+metadata = client.get_scratchpad_metadata(pad.address)
+print(f"Updates: {metadata.update_counter}")
 ```
 
-### Client Initialization
+## File System Operations
 
-```{.typescript .light}
-import { Client } from 'autonomi';
+Create and manage files and directories:
 
-// Initialize client
-const client = await Client.connect({
-    local: true,  // For local development
-    peers: ["/ip4/127.0.0.1/tcp/5000"]
-});
-```
+```rust
+// Rust
+use autonomi::fs::{File, Directory};
 
-### Data Operations
+// Store a file
+let file = client.store_file("example.txt", content).await?;
 
-```{.typescript .light}
-// Store and retrieve data
-const data = Buffer.from("Hello, World!");
-const dataAddr = await client.dataPutPublic(data, payment);
-const retrieved = await client.dataGetPublic(dataAddr);
+// Create a directory
+let dir = client.create_directory("docs").await?;
 
-// Linked List operations
-const list = await client.linkedListGet(address);
-await client.linkedListPut(options, payment);
+// Add file to directory
+client.add_to_directory(dir.address(), file.address()).await?;
 
-// Pointer operations
-const pointer = await client.pointerGet(address);
-```
-
-### Error Handling
-
-```{.typescript .light}
-try {
-    const addr = await client.dataPutPublic(data, payment);
-} catch (error) {
-    if (error instanceof InsufficientBalanceError) {
-        console.log("Need more funds");
-    } else {
-        console.error("Error:", error);
+// List directory contents
+let entries = client.list_directory(dir.address()).await?;
+for entry in entries {
+    match entry {
+        DirEntry::File(f) => println!("File: {}", f.name),
+        DirEntry::Directory(d) => println!("Dir: {}", d.name),
     }
 }
 ```
 
-</div>
+```typescript
+// TypeScript
+import { File, Directory } from 'autonomi/fs';
 
-<script>
-function switchLanguage(lang) {
-    document.querySelectorAll('.language-content').forEach(el => {
-        el.style.display = 'none';
-    });
-    document.getElementById(lang + '-content').style.display = 'block';
+// Store a file
+const file = await client.storeFile('example.txt', content);
+
+// Create a directory
+const dir = await client.createDirectory('docs');
+
+// Add file to directory
+await client.addToDirectory(dir.address, file.address);
+
+// List directory contents
+const entries = await client.listDirectory(dir.address);
+for (const entry of entries) {
+    if (entry.isFile) {
+        console.log(`File: ${entry.name}`);
+    } else {
+        console.log(`Dir: ${entry.name}`);
+    }
 }
-</script>
+```
 
-<style>
-.language-selector {
-    margin: 20px 0;
+```python
+# Python
+from autonomi.fs import File, Directory
+
+# Store a file
+file = client.store_file("example.txt", content)
+
+# Create a directory
+dir = client.create_directory("docs")
+
+# Add file to directory
+client.add_to_directory(dir.address, file.address)
+
+# List directory contents
+entries = client.list_directory(dir.address)
+for entry in entries:
+    if entry.is_file:
+        print(f"File: {entry.name}")
+    else:
+        print(f"Dir: {entry.name}")
+```
+
+## Error Handling
+
+Each language provides appropriate error handling mechanisms:
+
+```rust
+// Rust
+use autonomi::error::{ChunkError, PointerError, ListError, ScratchPadError};
+
+// Handle chunk operations
+match client.get_chunk(address).await {
+    Ok(data) => process_data(data),
+    Err(ChunkError::NotFound) => handle_missing(),
+    Err(ChunkError::NetworkError(e)) => handle_network_error(e),
+    Err(e) => handle_other_error(e),
 }
-.language-selector select {
-    padding: 8px 16px;
-    font-size: 16px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: white;
+
+// Handle pointer updates
+match client.update_pointer(address, new_target).await {
+    Ok(_) => println!("Update successful"),
+    Err(PointerError::VersionConflict) => handle_conflict(),
+    Err(e) => handle_other_error(e),
 }
-</style>
+```
 
-## Core Components
+```typescript
+// TypeScript
+import { ChunkError, PointerError } from 'autonomi/errors';
 
-### Data Storage
+// Handle chunk operations
+try {
+    const data = await client.getChunk(address);
+    processData(data);
+} catch (error) {
+    if (error instanceof ChunkError.NotFound) {
+        handleMissing();
+    } else if (error instanceof ChunkError.NetworkError) {
+        handleNetworkError(error);
+    } else {
+        handleOtherError(error);
+    }
+}
 
-Store and retrieve data with content-addressed chunks. Data is split into chunks using self-encryption, yielding a 'data map' for reconstruction.
+// Handle pointer updates
+try {
+    await client.updatePointer(address, newTarget);
+    console.log('Update successful');
+} catch (error) {
+    if (error instanceof PointerError.VersionConflict) {
+        handleConflict();
+    } else {
+        handleOtherError(error);
+    }
+}
+```
 
-### Registers
+```python
+# Python
+from autonomi.errors import ChunkError, PointerError
 
-Keep small values pointing to data with update history. Supports concurrent updates with eventual consistency.
+# Handle chunk operations
+try:
+    data = client.get_chunk(address)
+    process_data(data)
+except ChunkError.NotFound:
+    handle_missing()
+except ChunkError.NetworkError as e:
+    handle_network_error(e)
+except Exception as e:
+    handle_other_error(e)
 
-### File System Operations
+# Handle pointer updates
+try:
+    client.update_pointer(address, new_target)
+    print("Update successful")
+except PointerError.VersionConflict:
+    handle_conflict()
+except Exception as e:
+    handle_other_error(e)
+```
 
-Upload and download files and directories with the `fs` feature enabled.
+## Advanced Usage
+
+### Custom Types
+
+```rust
+// Rust
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize)]
+struct MyData {
+    field1: String,
+    field2: u64,
+}
+
+// Store custom type in a scratchpad
+let data = MyData {
+    field1: "test".into(),
+    field2: 42,
+};
+let pad = client.create_scratchpad(ContentType::Custom("MyData")).await?;
+client.update_scratchpad(pad.address(), &data).await?;
+```
+
+```typescript
+// TypeScript
+interface MyData {
+    field1: string;
+    field2: number;
+}
+
+// Store custom type in a scratchpad
+const data: MyData = {
+    field1: 'test',
+    field2: 42
+};
+const pad = await client.createScratchpad(ContentType.Custom('MyData'));
+await client.updateScratchpad(pad.address, data);
+```
+
+```python
+# Python
+from dataclasses import dataclass
+
+@dataclass
+class MyData:
+    field1: str
+    field2: int
+
+# Store custom type in a scratchpad
+data = MyData(field1="test", field2=42)
+pad = client.create_scratchpad(ContentType.CUSTOM("MyData"))
+client.update_scratchpad(pad.address, data)
+```
+
+### Encryption
+
+```rust
+// Rust
+use autonomi::crypto::{encrypt_aes, decrypt_aes};
+
+// Encrypt data before storage
+let key = generate_aes_key();
+let encrypted = encrypt_aes(data, &key)?;
+let pad = client.create_scratchpad(ContentType::Encrypted).await?;
+client.update_scratchpad(pad.address(), &encrypted).await?;
+
+// Decrypt retrieved data
+let encrypted = client.get_scratchpad(pad.address()).await?;
+let decrypted = decrypt_aes(encrypted, &key)?;
+```
+
+```typescript
+// TypeScript
+import { encrypt, decrypt, generateKey } from 'autonomi/crypto';
+
+// Encrypt data before storage
+const key = await generateAesKey();
+const encrypted = await encryptAes(data, key);
+const pad = await client.createScratchpad(ContentType.Encrypted);
+await client.updateScratchpad(pad.address, encrypted);
+
+// Decrypt retrieved data
+const encrypted = await client.getScratchpad(pad.address);
+const decrypted = await decryptAes(encrypted, key);
+```
+
+```python
+# Python
+from autonomi.crypto import encrypt_aes, decrypt_aes
+
+# Encrypt data before storage
+key = generate_aes_key()
+encrypted = encrypt_aes(data, key)
+pad = client.create_scratchpad(ContentType.ENCRYPTED)
+client.update_scratchpad(pad.address, encrypted)
+
+# Decrypt retrieved data
+encrypted = client.get_scratchpad(pad.address)
+decrypted = decrypt_aes(encrypted, key)
+```
 
 ## Best Practices
 
-1. **Error Handling**
-   - Implement proper error handling for network operations
-   - Handle insufficient balance errors for write operations
-   - Use retry logic for network operations
+1. **Data Type Selection**
+   - Use Chunks for immutable data
+   - Use Pointers for mutable references
+   - Use LinkedLists for ordered collections
+   - Use ScratchPads for temporary data
 
-2. **Performance**
-   - Use streaming for large files
-   - Enable appropriate features for your use case
-   - Handle resource cleanup properly
+2. **Error Handling**
+   - Always handle network errors appropriately
+   - Use type-specific error handling
+   - Implement retry logic for transient failures
 
-3. **Development**
-   - Use local mode for development and testing
-   - Monitor network connectivity
-   - Implement proper error recovery
+3. **Performance**
+   - Use batch operations for multiple items
+   - Consider chunking large data sets
+   - Cache frequently accessed data locally
+
+4. **Security**
+   - Encrypt sensitive data before storage
+   - Use secure key management
+   - Validate data integrity
+
+## Type System
+
+### Rust
+
+```rust
+use autonomi::types::{Address, Data, Metadata};
+
+pub trait Client {
+    async fn store_chunk(&self, data: &[u8]) -> Result<Address>;
+    async fn get_chunk(&self, address: &Address) -> Result<Vec<u8>>;
+    async fn create_pointer(&self, target: Address) -> Result<Pointer>;
+    async fn update_pointer(&self, address: Address, target: Address) -> Result<()>;
+}
+```
+
+### TypeScript
+
+```typescript
+import { Address, Data, Metadata } from 'autonomi/types';
+
+interface Client {
+    storeChunk(data: Buffer): Promise<Address>;
+    getChunk(address: Address): Promise<Buffer>;
+    createPointer(target: Address): Promise<Pointer>;
+    updatePointer(address: Address, target: Address): Promise<void>;
+}
+```
+
+### Python
+
+```python
+from typing import List, Optional, Union
+from autonomi.types import Address, Data, Metadata
+
+class Client:
+    def store_chunk(self, data: bytes) -> Address: ...
+    def get_chunk(self, address: Address) -> bytes: ...
+    def create_pointer(self, target: Address) -> Pointer: ...
+    def update_pointer(self, address: Address, target: Address) -> None: ...
+```
 
 ## Further Reading
 
-- [Getting Started Guide](../guides/getting_started.md)
-- [Error Handling Guide](../guides/error_handling.md)
-- [Examples Repository](https://github.com/autonomi/examples)
+- [Data Types Guide](../guides/data_types.md)
+- [Client Modes Guide](../guides/client_modes.md)
+- [Local Network Setup](../guides/local_network.md)

@@ -72,7 +72,7 @@ pub use ant_evm::EvmNetwork as Network;
 pub use ant_evm::EvmWallet as Wallet;
 pub use ant_evm::QuoteHash;
 pub use ant_evm::RewardsAddress;
-pub use ant_protocol::storage::{Chunk, ChunkAddress};
+pub use ant_protocol::storage::{Chunk, ChunkAddress, LinkedList, LinkedListAddress};
 
 #[doc(no_inline)] // Place this under 'Re-exports' in the docs.
 pub use bytes::Bytes;

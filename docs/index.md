@@ -45,6 +45,66 @@ Autonomi provides client libraries for multiple languages:
     let client = Client::new()?;
     ```
 
+## Building from Source
+
+=== "Python (using Maturin & uv)"
+    ```bash
+    # Install build dependencies
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    uv pip install maturin
+
+    # Clone the repository
+    git clone https://github.com/dirvine/autonomi.git
+    cd autonomi
+
+    # Create and activate virtual environment
+    uv venv
+    source .venv/bin/activate  # Unix
+    # or
+    .venv\Scripts\activate     # Windows
+
+    # Build and install the package
+    cd python
+    maturin develop
+    
+    # Install dependencies
+    uv pip install -r requirements.txt
+    ```
+
+=== "Node.js"
+    ```bash
+    # Install build dependencies
+    npm install -g node-gyp
+
+    # Clone the repository
+    git clone https://github.com/dirvine/autonomi.git
+    cd autonomi
+
+    # Build the Node.js bindings
+    cd nodejs
+    npm install
+    npm run build
+
+    # Link for local development
+    npm link
+    ```
+
+=== "Rust"
+    ```bash
+    # Clone the repository
+    git clone https://github.com/dirvine/autonomi.git
+    cd autonomi
+
+    # Build the project
+    cargo build --release
+
+    # Run tests
+    cargo test --all-features
+
+    # Install locally
+    cargo install --path .
+    ```
+
 ## Contributing
 
 We welcome contributions! Here's how you can help:

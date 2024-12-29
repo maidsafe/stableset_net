@@ -27,7 +27,7 @@ autonomi = { version = "0.1.0", features = ["quantum-secure", "compression"] }
 
 The client provides flexible initialization options to match your security and performance needs:
 
-```rust
+```{.rust .light}
 use autonomi::Client;
 
 // Initialize a read-only client for browsing
@@ -50,7 +50,7 @@ client.upgrade_to_read_write(wallet)?;
 
 Store and retrieve immutable, quantum-secure encrypted data with maximum efficiency:
 
-```rust
+```{.rust .light}
 use autonomi::Chunk;
 
 // Store raw data as a chunk with optional compression
@@ -73,7 +73,7 @@ let chunks = client.store_chunks(data_vec).await?;
 
 Create and manage version-tracked references with atomic updates:
 
-```rust
+```{.rust .light}
 use autonomi::Pointer;
 
 // Create a pointer with custom metadata
@@ -97,7 +97,7 @@ println!("Version: {}, Updates: {}", metadata.version, metadata.update_count);
 
 Build high-performance decentralized DAG structures:
 
-```rust
+```{.rust .light}
 use autonomi::LinkedList;
 
 // Create a new linked list with configuration
@@ -129,7 +129,7 @@ match client.detect_forks_detailed(list.address()).await? {
 
 Efficient unstructured data storage with CRDT properties:
 
-```rust
+```{.rust .light}
 use autonomi::{ScratchPad, ContentType};
 
 // Create a scratchpad with custom configuration
@@ -156,7 +156,7 @@ while let Some(update) = updates.next().await {
 
 High-performance file and directory operations:
 
-```rust
+```{.rust .light}
 use autonomi::fs::{File, Directory, FileOptions};
 
 // Store a file with custom options
@@ -193,7 +193,7 @@ while let Some(entry) = entries.next().await {
 
 Comprehensive error handling with detailed error types:
 
-```rust
+```{.rust .light}
 use autonomi::error::{ChunkError, PointerError, ListError, ScratchPadError};
 
 // Handle chunk operations with detailed errors
@@ -229,7 +229,7 @@ match client.update_pointer(address, new_target).await {
 
 ### Custom Types with Serde
 
-```rust
+```{.rust .light}
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -252,7 +252,7 @@ client.update_scratchpad_compressed(pad.address(), &data).await?;
 
 ### Quantum-Secure Encryption
 
-```rust
+```{.rust .light}
 use autonomi::crypto::{encrypt_quantum_secure, decrypt_quantum_secure};
 
 // Generate quantum-secure keys
@@ -272,7 +272,7 @@ let decrypted = decrypt_quantum_secure(encrypted, &key)?;
 
 ### Connection Pooling
 
-```rust
+```{.rust .light}
 use autonomi::pool::{Pool, PoolConfig};
 
 // Create a connection pool
@@ -288,7 +288,7 @@ let client = pool.get().await?;
 
 ### Batch Operations
 
-```rust
+```{.rust .light}
 // Batch chunk storage
 let chunks = client.store_chunks_batch(data_vec).await?;
 

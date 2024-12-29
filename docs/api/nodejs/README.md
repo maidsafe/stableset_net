@@ -24,7 +24,7 @@ npm install autonomi@latest web
 
 The client provides flexible initialization options to match your application needs:
 
-```typescript
+```{.typescript .light}
 import { Client, ClientConfig } from 'autonomi';
 
 // Initialize a read-only client for browsing
@@ -49,7 +49,7 @@ await client.upgradeToReadWrite(wallet);
 
 Store and retrieve immutable, quantum-secure encrypted data with streaming support:
 
-```typescript
+```{.typescript .light}
 import { Chunk, ChunkOptions } from 'autonomi';
 
 // Store raw data as a chunk
@@ -83,7 +83,7 @@ const chunks = await client.storeChunks(dataList);
 
 Create and manage version-tracked references with real-time updates:
 
-```typescript
+```{.typescript .light}
 import { Pointer, PointerOptions } from 'autonomi';
 
 // Create a pointer with metadata
@@ -113,7 +113,7 @@ console.log(`Version: ${metadata.version}, Updates: ${metadata.updateCount}`);
 
 Build decentralized DAG structures with real-time synchronization:
 
-```typescript
+```{.typescript .light}
 import { LinkedList, LinkedListConfig } from 'autonomi';
 
 // Create a new linked list with configuration
@@ -146,7 +146,7 @@ if (!forks) {
 
 Efficient unstructured data storage with real-time updates:
 
-```typescript
+```{.typescript .light}
 import { ScratchPad, ContentType, ScratchPadConfig } from 'autonomi';
 
 // Create a scratchpad with custom configuration
@@ -174,7 +174,7 @@ client.subscribeToScratchpad(pad.address, (update) => {
 
 Modern file and directory operations with streaming support:
 
-```typescript
+```{.typescript .light}
 import { File, Directory, FileOptions } from 'autonomi/fs';
 
 // Store a file with custom options
@@ -210,7 +210,7 @@ client.subscribeToDirectory(dir.address, (update) => {
 
 Comprehensive error handling with TypeScript support:
 
-```typescript
+```{.typescript .light}
 import {
     ChunkError,
     PointerError,
@@ -255,7 +255,7 @@ try {
 
 ### Web Integration
 
-```typescript
+```{.typescript .light}
 import { WebClient, WebClientConfig } from 'autonomi/web';
 
 // Create a web-optimized client
@@ -286,7 +286,7 @@ client.onOnline(async () => {
 
 You can define custom types using TypeScript interfaces:
 
-```typescript
+```{.typescript .light}
 interface UserProfile {
   name: string;
   age: number;
@@ -311,7 +311,7 @@ await client.store(profile);
 
 ### Quantum-Secure Encryption
 
-```typescript
+```{.typescript .light}
 import {
     encryptQuantumSecure,
     decryptQuantumSecure,
@@ -335,7 +335,7 @@ const decrypted = await decryptQuantumSecure(encrypted, key);
 
 ### Connection Pooling
 
-```typescript
+```{.typescript .light}
 import { Pool, PoolConfig } from 'autonomi/pool';
 
 // Create a connection pool
@@ -356,7 +356,7 @@ try {
 
 ### Batch Operations
 
-```typescript
+```{.typescript .light}
 // Batch chunk storage
 const chunks = await client.storeChunksBatch(dataList);
 
@@ -398,7 +398,7 @@ await client.updatePointersBatch(updates);
 
 The API is fully typed for better IDE support and code quality:
 
-```typescript
+```{.typescript .light}
 import { Address, Data, Metadata } from 'autonomi/types';
 
 interface Client {

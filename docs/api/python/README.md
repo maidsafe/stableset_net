@@ -24,7 +24,7 @@ pip install autonomi[data-science]
 
 The client provides flexible initialization options to match your security and performance needs:
 
-```python
+```{.python .light}
 from autonomi import Client
 
 # Initialize a read-only client for browsing
@@ -48,7 +48,7 @@ client.upgrade_to_read_write(wallet)
 
 Store and retrieve immutable, quantum-secure encrypted data with maximum efficiency:
 
-```python
+```{.python .light}
 from autonomi import Chunk
 import numpy as np
 
@@ -76,7 +76,7 @@ chunks = client.store_chunks(data_list)
 
 Create and manage version-tracked references with atomic updates:
 
-```python
+```{.python .light}
 from autonomi import Pointer
 from datetime import datetime
 
@@ -105,7 +105,7 @@ print(f"Version: {metadata.version}, Updates: {metadata.update_count}")
 
 Build high-performance decentralized DAG structures:
 
-```python
+```{.python .light}
 from autonomi import LinkedList
 import pandas as pd
 
@@ -140,7 +140,7 @@ else:
 
 Efficient unstructured data storage with CRDT properties:
 
-```python
+```{.python .light}
 from autonomi import ScratchPad, ContentType
 
 # Create a scratchpad with custom configuration
@@ -173,7 +173,7 @@ for update in client.stream_scratchpad_updates(pad.address):
 
 High-performance file and directory operations:
 
-```python
+```{.python .light}
 from autonomi.fs import File, Directory, FileOptions
 import pandas as pd
 
@@ -214,7 +214,7 @@ for entry in client.stream_directory(dir.address):
 
 Comprehensive error handling with detailed exceptions:
 
-```python
+```{.python .light}
 from autonomi.errors import ChunkError, PointerError, ListError, ScratchPadError
 
 # Handle chunk operations with detailed errors
@@ -248,7 +248,7 @@ except Exception as e:
 
 ### Data Science Integration
 
-```python
+```{.python .light}
 import pandas as pd
 import numpy as np
 from autonomi.data import DataFrameStore
@@ -272,7 +272,7 @@ for chunk in store.stream("dataset", chunk_size=10000):
 
 ### Custom Types with Pydantic
 
-```python
+```{.python .light}
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -301,7 +301,7 @@ client.update_scratchpad_validated(pad.address, profile.dict())
 
 ### Connection Pooling
 
-```python
+```{.python .light}
 from autonomi.pool import Pool
 
 # Create a connection pool
@@ -318,7 +318,7 @@ with pool.get() as client:
 
 ### Batch Operations
 
-```python
+```{.python .light}
 # Batch chunk storage
 chunks = client.store_chunks_batch(data_list)
 
@@ -360,7 +360,7 @@ client.update_pointers_batch(updates)
 
 The Python API uses type hints throughout for better IDE support and code quality:
 
-```python
+```{.python .light}
 from typing import List, Optional, Union
 from autonomi.types import Address, Data, Metadata
 

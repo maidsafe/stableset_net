@@ -61,7 +61,7 @@ impl From<ant_registers::Error> for RegisterError {
 
 #[deprecated(
     since = "0.2.4",
-    note = "Use transactions instead (see Client::transaction_put)"
+    note = "Use linked lists instead (see Client::linked_list_put)"
 )]
 #[derive(Clone, Debug)]
 pub struct Register {
@@ -134,7 +134,7 @@ impl Register {
 
 #[deprecated(
     since = "0.2.4",
-    note = "Use transactions instead (see Client::transaction_put)"
+    note = "Use linked lists instead (see Client::linked_list_put)"
 )]
 impl Client {
     /// Generate a new register key

@@ -192,10 +192,57 @@ Handle private data storage references.
   - Self-encrypt data
   - Returns (data_map, chunks)
 
+### LinkedList
+
+Handle network linked lists for storing ordered data.
+
+- `new(owner: PublicKey, counter: u32, target: PointerTarget, key: SecretKey) -> LinkedList`
+  - Create new linked list
+  - `owner`: Public key of the owner
+  - `counter`: Counter value
+  - `target`: Target address
+  - `key`: Secret key for signing
+
+- `address() -> str`
+  - Get linked list's network address
+
+- `hex() -> str`
+  - Get hex representation of linked list
+
+#### Client LinkedList Methods
+
+- `linked_list_get(address: str) -> List[LinkedList]`
+  - Retrieve linked list from network
+  - `address`: Hex-encoded linked list address
+
+- `linked_list_put(linked_list: LinkedList, wallet: Wallet)`
+  - Store linked list on network
+  - Requires payment via wallet
+
+- `linked_list_cost(key: SecretKey) -> str`
+  - Calculate linked list storage cost
+  - Returns cost in atto tokens
+
+- `linked_list_address(owner: PublicKey, counter: u32) -> str`
+  - Get linked list address for owner and counter
+
+### LinkedListAddress
+
+Handle network addresses for linked lists.
+
+- `new(hex_str: str) -> LinkedListAddress`
+  - Create from hex string
+  - `hex_str`: Hex-encoded address
+
+- `hex() -> str`
+  - Get hex representation of address
+
 ## Examples
 
 See the `examples/` directory for complete examples:
+
 - `autonomi_example.py`: Basic data operations
+- `autonomi_linked_lists.py`: Working with linked lists
 - `autonomi_pointers.py`: Working with pointers
 - `autonomi_vault.py`: Vault operations
 - `autonomi_private_data.py`: Private data handling
@@ -210,7 +257,7 @@ See the `examples/` directory for complete examples:
 3. Use appropriate error handling
 4. Monitor wallet balance for payments
 5. Use appropriate content types for vault storage
-6. Consider using pointers for updatable references
+6. Consider using linked lists for ordered data storage
 7. Properly manage and backup vault keys
 
 For more examples and detailed usage, see the examples in the repository.

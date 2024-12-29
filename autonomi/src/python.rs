@@ -10,7 +10,8 @@ use crate::client::{
 };
 use crate::{Bytes, Network, Wallet as RustWallet};
 use ant_protocol::storage::{
-    ChunkAddress, Pointer as RustPointer, PointerAddress as RustPointerAddress,
+    ChunkAddress, LinkedList as RustLinkedList, LinkedListAddress as RustLinkedListAddress,
+    Pointer as RustPointer, PointerAddress as RustPointerAddress,
     PointerTarget as RustPointerTarget,
 };
 use bls::{PublicKey as RustPublicKey, SecretKey as RustSecretKey};
@@ -221,6 +222,53 @@ impl Client {
             &RustSecretKey::random(),
         );
         let address = pointer.network_address();
+        let bytes: [u8; 32] = address.xorname().0;
+        Ok(hex::encode(bytes))
+    }
+
+    fn linked_list_get(&self, address: &str) -> PyResult<Vec<PyLinkedList>> {
+        let rt = tokio::runtime::Runtime::new().expect("Could not start tokio runtime");
+        let xorname = XorName::from_content(&hex::decode(address).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!("Invalid linked list address: {e}"))
+        })?);
+        let address = RustLinkedListAddress::new(xorname);
+
+        let linked_lists = rt.block_on(self.inner.linked_list_get(address)).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!("Failed to get linked list: {e}"))
+        })?;
+
+        Ok(linked_lists.into_iter().map(|ll| PyLinkedList { inner: ll }).collect())
+    }
+
+    fn linked_list_put(
+        &self,
+        linked_list: &PyLinkedList,
+        wallet: &Wallet,
+    ) -> PyResult<()> {
+        let rt = tokio::runtime::Runtime::new().expect("Could not start tokio runtime");
+        rt.block_on(self.inner.linked_list_put(linked_list.inner.clone(), &wallet.inner))
+            .map_err(|e| PyValueError::new_err(format!("Failed to put linked list: {}", e)))
+    }
+
+    fn linked_list_cost(&self, key: &PySecretKey) -> PyResult<String> {
+        let rt = tokio::runtime::Runtime::new().expect("Could not start tokio runtime");
+        let cost = rt
+            .block_on(self.inner.linked_list_cost(key.inner.clone()))
+            .map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!("Failed to get linked list cost: {e}"))
+            })?;
+        Ok(cost.to_string())
+    }
+
+    fn linked_list_address(&self, owner: &PyPublicKey, counter: u32) -> PyResult<String> {
+        let mut rng = thread_rng();
+        let linked_list = RustLinkedList::new(
+            owner.inner.clone(),
+            counter,
+            RustPointerTarget::ChunkAddress(ChunkAddress::new(XorName::random(&mut rng))),
+            &RustSecretKey::random(),
+        );
+        let address = linked_list.address();
         let bytes: [u8; 32] = address.xorname().0;
         Ok(hex::encode(bytes))
     }
@@ -636,6 +684,64 @@ fn encrypt(data: Vec<u8>) -> PyResult<(Vec<u8>, Vec<Vec<u8>>)> {
     Ok((data_map_bytes, chunks_bytes))
 }
 
+#[pyclass(name = "LinkedList")]
+#[derive(Debug, Clone)]
+pub struct PyLinkedList {
+    inner: RustLinkedList,
+}
+
+#[pymethods]
+impl PyLinkedList {
+    #[new]
+    pub fn new(owner: &PyPublicKey, counter: u32, target: &PyPointerTarget, key: &PySecretKey) -> PyResult<Self> {
+        Ok(Self {
+            inner: RustLinkedList::new(
+                owner.inner.clone(),
+                counter,
+                target.inner.clone(),
+                &key.inner,
+            ),
+        })
+    }
+
+    #[getter]
+    pub fn hex(&self) -> String {
+        let bytes: [u8; 32] = self.inner.xorname().0;
+        hex::encode(bytes)
+    }
+
+    pub fn address(&self) -> PyLinkedListAddress {
+        PyLinkedListAddress {
+            inner: self.inner.address(),
+        }
+    }
+}
+
+#[pyclass(name = "LinkedListAddress")]
+#[derive(Debug, Clone)]
+pub struct PyLinkedListAddress {
+    inner: RustLinkedListAddress,
+}
+
+#[pymethods]
+impl PyLinkedListAddress {
+    #[new]
+    pub fn new(hex_str: String) -> PyResult<Self> {
+        let bytes = hex::decode(&hex_str)
+            .map_err(|e| PyValueError::new_err(format!("Invalid hex string: {}", e)))?;
+        let xorname = XorName::from_content(&bytes);
+        Ok(Self {
+            inner: RustLinkedListAddress::new(xorname),
+        })
+    }
+
+    #[getter]
+    pub fn hex(&self) -> String {
+        let bytes: [u8; 32] = self.inner.xorname().0;
+        hex::encode(bytes)
+    }
+}
+
 #[pymodule]
 #[pyo3(name = "autonomi_client")]
 fn autonomi_client_module(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
@@ -645,12 +751,14 @@ fn autonomi_client_module(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyVaultSecretKey>()?;
     m.add_class::<PyUserData>()?;
     m.add_class::<PyDataMapChunk>()?;
-    m.add_class::<PyPointer>()?;
     m.add_class::<PyPointerAddress>()?;
+    m.add_class::<PyPointer>()?;
     m.add_class::<PyPointerTarget>()?;
     m.add_class::<PyChunkAddress>()?;
     m.add_class::<PySecretKey>()?;
     m.add_class::<PyPublicKey>()?;
+    m.add_class::<PyLinkedList>()?;
+    m.add_class::<PyLinkedListAddress>()?;
     m.add_function(wrap_pyfunction!(encrypt, m)?)?;
     Ok(())
 }

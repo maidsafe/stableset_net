@@ -27,60 +27,60 @@ use tracing::{debug, error, info, trace};
 use xor_name::XorName;
 
 #[derive(Debug, thiserror::Error)]
-pub enum TransactionError {
+pub enum LinkedListError {
     #[error("Cost error: {0}")]
     Cost(#[from] CostError),
     #[error("Network error")]
     Network(#[from] NetworkError),
     #[error("Serialization error")]
     Serialization,
-    #[error("Transaction could not be verified (corrupt)")]
+    #[error("Linked list could not be verified (corrupt)")]
     FailedVerification,
-    #[error("Payment failure occurred during transaction creation.")]
+    #[error("Payment failure occurred during linked list creation.")]
     Pay(#[from] PayError),
     #[error("Failed to retrieve wallet payment")]
     Wallet(#[from] EvmWalletError),
-    #[error("Received invalid quote from node, this node is possibly malfunctioning, try another node by trying another transaction name")]
+    #[error("Received invalid quote from node, this node is possibly malfunctioning, try another node by trying another linked list name")]
     InvalidQuote,
-    #[error("Transaction already exists at this address: {0:?}")]
-    TransactionAlreadyExists(LinkedListAddress),
+    #[error("Linked list already exists at this address: {0:?}")]
+    LinkedListAlreadyExists(LinkedListAddress),
 }
 
 impl Client {
-    /// Fetches a Transaction from the network.
+    /// Fetches a Linked List from the network.
     pub async fn linked_list_get(
         &self,
         address: LinkedListAddress,
-    ) -> Result<Vec<LinkedList>, TransactionError> {
-        let transactions = self.network.get_linked_list(address).await?;
+    ) -> Result<Vec<LinkedList>, LinkedListError> {
+        let linked_lists = self.network.get_linked_list(address).await?;
 
-        Ok(transactions)
+        Ok(linked_lists)
     }
 
     pub async fn linked_list_put(
         &self,
-        transaction: LinkedList,
+        linked_list: LinkedList,
         wallet: &EvmWallet,
-    ) -> Result<(), TransactionError> {
-        let address = transaction.address();
+    ) -> Result<(), LinkedListError> {
+        let address = linked_list.address();
 
-        // pay for the transaction
+        // pay for the linked list
         let xor_name = address.xorname();
-        debug!("Paying for transaction at address: {address:?}");
+        debug!("Paying for linked list at address: {address:?}");
         let payment_proofs = self
             .pay(std::iter::once(*xor_name), wallet)
             .await
             .inspect_err(|err| {
-                error!("Failed to pay for transaction at address: {address:?} : {err}")
+                error!("Failed to pay for linked list at address: {address:?} : {err}")
             })?;
 
-        // make sure the transaction was paid for
+        // make sure the linked list was paid for
         let (proof, price) = match payment_proofs.get(xor_name) {
             Some((proof, price)) => (proof, price),
             None => {
-                // transaction was skipped, meaning it was already paid for
-                error!("Transaction at address: {address:?} was already paid for");
-                return Err(TransactionError::TransactionAlreadyExists(address));
+                // linked list was skipped, meaning it was already paid for
+                error!("Linked list at address: {address:?} was already paid for");
+                return Err(LinkedListError::LinkedListAlreadyExists(address));
             }
         };
 
@@ -88,8 +88,8 @@ impl Client {
         let payees = proof.payees();
         let record = Record {
             key: NetworkAddress::from_linked_list_address(address).to_record_key(),
-            value: try_serialize_record(&(proof, &transaction), RecordKind::LinkedListWithPayment)
-                .map_err(|_| TransactionError::Serialization)?
+            value: try_serialize_record(&(proof, &linked_list), RecordKind::LinkedListWithPayment)
+                .map_err(|_| LinkedListError::Serialization)?
                 .to_vec(),
             publisher: None,
             expires: None,
@@ -109,12 +109,12 @@ impl Client {
         };
 
         // put the record to the network
-        debug!("Storing transaction at address {address:?} to the network");
+        debug!("Storing linked list at address {address:?} to the network");
         self.network
             .put_record(record, &put_cfg)
             .await
             .inspect_err(|err| {
-                error!("Failed to put record - transaction {address:?} to the network: {err}")
+                error!("Failed to put record - linked list {address:?} to the network: {err}")
             })?;
 
         // send client event
@@ -131,10 +131,10 @@ impl Client {
         Ok(())
     }
 
-    /// Get the cost to create a transaction
-    pub async fn linked_list_cost(&self, key: SecretKey) -> Result<AttoTokens, TransactionError> {
+    /// Get the cost to create a linked list
+    pub async fn linked_list_cost(&self, key: SecretKey) -> Result<AttoTokens, LinkedListError> {
         let pk = key.public_key();
-        trace!("Getting cost for transaction of {pk:?}");
+        trace!("Getting cost for linked list of {pk:?}");
 
         let address = LinkedListAddress::from_owner(pk);
         let xor = *address.xorname();
@@ -146,7 +146,7 @@ impl Client {
                 .map(|quote| quote.price())
                 .sum::<Amount>(),
         );
-        debug!("Calculated the cost to create transaction of {pk:?} is {total_cost}");
+        debug!("Calculated the cost to create linked list of {pk:?} is {total_cost}");
         Ok(total_cost)
     }
 }

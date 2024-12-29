@@ -15,7 +15,7 @@ Autonomi is a decentralized network client that provides:
 
 - [Installation Guide](getting-started/installation.md)
 - [Quick Start Guide](getting-started/quickstart.md)
-- [API Reference](api/README.md)
+- [API Reference](api/autonomi-client/README.md)
 - [Local Network Setup](guides/local_network.md)
 
 ## Language Support
@@ -50,7 +50,7 @@ Autonomi provides client libraries for multiple languages:
 === "Python (using Maturin & uv)"
     ```bash
     # Install build dependencies
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    curl -LsSf <https://astral.sh/uv/install.sh> | sh
     uv pip install maturin
 
     # Clone the repository
@@ -92,7 +92,7 @@ Autonomi provides client libraries for multiple languages:
 === "Rust"
     ```bash
     # Clone the repository
-    git clone https://github.com/dirvine/autonomi.git
+    git clone <https://github.com/dirvine/autonomi.git>
     cd autonomi
 
     # Build the project
@@ -119,5 +119,5 @@ For more details, see our [Contributing Guide](https://github.com/dirvine/autono
 ## Getting Help
 
 - [GitHub Issues](https://github.com/dirvine/autonomi/issues)
-- [API Reference](api/README.md)
+- [API Reference](api/autonomi-client/README.md)
 - [Testing Guide](guides/testing_guide.md)

@@ -60,5 +60,5 @@ Test your installation by running a simple client initialization:
 ## Next Steps
 
 - [Quick Start Guide](quickstart.md)
-- [API Reference](../api/README.md)
+- [API Reference](../api/autonomi-client/README.md)
 - [Local Network Setup](../guides/local_network.md)

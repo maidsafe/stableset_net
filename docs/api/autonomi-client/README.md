@@ -71,7 +71,7 @@ Initialize a client in read-only mode for browsing data, or with write capabilit
 
 ## Core Data Types
 
-Autonomi provides four fundamental data types that serve as building blocks for all network operations. For detailed information about each type, see the [Data Types Guide](../guides/data_types.md).
+Autonomi provides four fundamental data types that serve as building blocks for all network operations. For detailed information about each type, see the [Data Types Guide](../../guides/data_types.md).
 
 ### 1. Chunk
 
@@ -649,6 +649,6 @@ Each language provides appropriate error handling mechanisms:
 
 ## Further Reading
 
-- [Data Types Guide](../guides/data_types.md)
-- [Client Modes Guide](../guides/client_modes.md)
-- [Local Network Setup](../guides/local_network.md)
+- [Data Types Guide](../../guides/data_types.md)
+- [Client Modes Guide](../../guides/client_modes.md)
+- [Local Network Setup](../../guides/local_network.md)

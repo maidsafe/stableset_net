@@ -156,7 +156,6 @@ Pointers allow you to create references to data in the network:
 
 ## Next Steps
 
+- [Installation Guide](installation.md)
+- [API Reference](../api/autonomi-client/README.md)
 - [Local Network Setup](../guides/local_network.md)
-- [EVM Integration](../guides/evm_integration.md)
-- [Testing Guide](../guides/testing_guide.md)
-- [API Reference](../api/README.md)

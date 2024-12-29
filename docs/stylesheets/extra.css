@@ -50,16 +50,86 @@ body {
 
 /* Code Blocks */
 .md-typeset pre {
-    background-color: #1a1a1a;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    background-color: #f8f9fa !important;
+    color: #212529 !important;
 }
 
 .md-typeset code {
-    background-color: rgba(98, 0, 238, 0.1);
-    border-radius: 4px;
-    padding: 0.2em 0.4em;
+    background-color: #f8f9fa !important;
+    color: #212529 !important;
 }
+
+/* Syntax highlighting for light mode */
+.highlight .k {
+    color: #0033b3 !important;
+}
+
+/* Keyword */
+.highlight .s {
+    color: #067d17 !important;
+}
+
+/* String */
+.highlight .n {
+    color: #000000 !important;
+}
+
+/* Name */
+.highlight .c {
+    color: #8c8c8c !important;
+}
+
+/* Comment */
+.highlight .o {
+    color: #000000 !important;
+}
+
+/* Operator */
+.highlight .p {
+    color: #000000 !important;
+}
+
+/* Punctuation */
+.highlight .m {
+    color: #1750eb !important;
+}
+
+/* Number */
+.highlight .f {
+    color: #0033b3 !important;
+}
+
+/* Function */
+.highlight .kc {
+    color: #0033b3 !important;
+}
+
+/* Keyword.Constant */
+.highlight .kd {
+    color: #0033b3 !important;
+}
+
+/* Keyword.Declaration */
+.highlight .na {
+    color: #000000 !important;
+}
+
+/* Name.Attribute */
+.highlight .nb {
+    color: #0033b3 !important;
+}
+
+/* Name.Builtin */
+.highlight .nc {
+    color: #000000 !important;
+}
+
+/* Name.Class */
+.highlight .nf {
+    color: #000000 !important;
+}
+
+/* Name.Function */
 
 /* Navigation */
 .md-nav__link:hover {

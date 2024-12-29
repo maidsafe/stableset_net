@@ -374,8 +374,8 @@ def update_pointer(self, address: Address, target: Address) -> None: ...
 
 ## Further Reading
 
-- [Data Science Guide](../guides/data_science.md)
-- [Quantum Security Details](../guides/quantum_security.md)
-- [Advanced Error Handling](../guides/error_handling.md)
+- [Data Science Guide](/guides/data_science)
+- [Quantum Security Guide](/guides/quantum_security)
+- [Error Handling Guide](/guides/error_handling)
 - [API Reference](https://autonomi.readthedocs.io)
 - [Examples Repository](https://github.com/autonomi/examples)

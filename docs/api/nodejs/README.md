@@ -409,8 +409,8 @@ interface Client {
 
 ## Further Reading
 
-- [Web Development Guide](../guides/web_development.md)
-- [Quantum Security Details](../guides/quantum_security.md)
-- [Advanced Error Handling](../guides/error_handling.md)
+- [Web Development Guide](/guides/web_development)
+- [Quantum Security Guide](/guides/quantum_security)
+- [Error Handling Guide](/guides/error_handling)
 - [API Reference](https://autonomi.dev/api)
 - [Examples Repository](https://github.com/autonomi/examples)

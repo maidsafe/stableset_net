@@ -34,16 +34,20 @@ jobs:
 
     - name: Run Local Tests
       run: |
-        # Kill any existing processes
+        # Kill any existing antnode processes
         pkill -f "antnode" || true
-        pkill -f "evm-testnet" || true
 
-        # Start EVM testnet
-        RPC_PORT=8545 ./target/debug/evm-testnet --genesis-wallet 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 &
-        EVM_PID=$!
+        # Check if port 4343 is in use
+        if ! nc -z localhost 4343; then
+          # Start EVM testnet
+          RPC_PORT=4343 ./target/debug/evm-testnet --genesis-wallet 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 &
+          EVM_PID=$!
 
-        # Wait for EVM testnet to be ready
-        sleep 5
+          # Wait for EVM testnet to be ready
+          sleep 5
+        else
+          echo "Port 4343 is already in use, assuming EVM network is running..."
+        fi
 
         # Run tests
         RUST_LOG=trace cargo test -p autonomi --features local -- --nocapture

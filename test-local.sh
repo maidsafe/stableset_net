@@ -9,6 +9,12 @@ cleanup() {
     rm -rf "$HOME/Library/Application Support/autonomi/node" || true
 }
 
+# Function to check if a port is in use
+check_port() {
+    nc -z localhost $1 >/dev/null 2>&1
+    return $?
+}
+
 # Register the cleanup function to run on script exit
 trap cleanup EXIT
 
@@ -28,16 +34,20 @@ cargo build -p ant-node --features local
 echo "Building evm-testnet..."
 cargo build -p evm-testnet
 
-# Kill any existing processes
-cleanup
+# Kill any existing antnode processes
+pkill -f "antnode" || true
+rm -rf "$HOME/Library/Application Support/autonomi/node" || true
 
-# Start the EVM testnet in the background
-echo "Starting EVM testnet..."
-RPC_PORT=8545 ./target/debug/evm-testnet --genesis-wallet 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 &
-EVM_PID=$!
-
-# Wait for EVM testnet to be ready
-sleep 5
+# Check if EVM network is already running
+if check_port 4343 || check_port 8545; then
+    echo "EVM network is already running, using existing instance..."
+else
+    echo "Starting new EVM testnet..."
+    RPC_PORT=4343 ./target/debug/evm-testnet --genesis-wallet 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 &
+    EVM_PID=$!
+    # Wait for EVM testnet to be ready
+    sleep 5
+fi
 
 # Run the tests with local feature
 echo "Running tests..."

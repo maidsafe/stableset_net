@@ -40,3 +40,4 @@ uv.lock
 *.swp
 
 /vendor/
+node_modules/

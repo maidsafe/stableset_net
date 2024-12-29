@@ -6,7 +6,11 @@ Choose your preferred language:
 
 === "Node.js"
     ```bash
-    npm install autonomi
+    # Note: Package not yet published to npm
+    # Clone the repository and build from source
+    git clone https://github.com/dirvine/autonomi.git
+    cd autonomi
+    npm install
     ```
 
 === "Python"
@@ -18,7 +22,7 @@ Choose your preferred language:
     ```toml
     # Add to Cargo.toml:
     [dependencies]
-    autonomi = "0.1.0"
+    autonomi = "0.3.1"
     ```
 
 ## Client Initialization
@@ -32,11 +36,11 @@ Initialize a client in read-only mode for browsing data, or with write capabilit
     // Initialize a read-only client
     const client = await Client.initReadOnly();
 
-    // Or initialize with write capabilities
-    const client = await Client.initWithWallet(wallet);
-
-    // Upgrade a read-only client to read-write
-    await client.upgradeToReadWrite(wallet);
+    // Or initialize with write capabilities and configuration
+    const config = {
+        // Add your configuration here
+    };
+    const client = await Client.initWithConfig(config);
     ```
 
 === "Python"
@@ -46,11 +50,11 @@ Initialize a client in read-only mode for browsing data, or with write capabilit
     # Initialize a read-only client
     client = Client.init_read_only()
 
-    # Or initialize with write capabilities
-    client = Client.init_with_wallet(wallet)
-
-    # Upgrade a read-only client to read-write
-    client.upgrade_to_read_write(wallet)
+    # Or initialize with write capabilities and configuration
+    config = {
+        # Add your configuration here
+    }
+    client = Client.init_with_config(config)
     ```
 
 === "Rust"
@@ -58,13 +62,11 @@ Initialize a client in read-only mode for browsing data, or with write capabilit
     use autonomi::Client;
 
     // Initialize a read-only client
-    let client = Client::init_read_only().await?;
+    let client = Client::new_local().await?;
 
-    // Or initialize with write capabilities
-    let client = Client::init_with_wallet(wallet).await?;
-
-    // Upgrade a read-only client to read-write
-    client.upgrade_to_read_write(wallet)?;
+    // Or initialize with configuration
+    let config = ClientConfig::default();
+    let client = Client::new(config).await?;
     ```
 
 ## Core Data Types

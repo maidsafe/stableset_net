@@ -40,9 +40,11 @@ jobs:
       # As normal user won't care much about initial client startup,
       # but be more alerted on communication speed during transmission.
       # Meanwhile the criterion testing code includes the client startup as well,
-      # we'll use the test feature for benchmarking to ensure consistent test environment
+      # we'll use local feature for ant-node and test feature for autonomi
       - name: Build binaries
-        run: cargo build --release --features test --bin antnode --bin ant
+        run: |
+          cargo build --release --features local --bin antnode
+          cargo build --release --features test --bin ant
         timeout-minutes: 30
 
       - name: Start a local network

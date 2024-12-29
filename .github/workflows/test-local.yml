@@ -26,8 +26,8 @@ jobs:
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
 
-    - name: Build ant-node with test feature
-      run: cargo build -p ant-node --features test
+    - name: Build ant-node with local feature
+      run: cargo build -p ant-node --features local
 
     - name: Build evm-testnet
       run: cargo build -p evm-testnet

@@ -26,9 +26,9 @@ if ! command -v anvil &> /dev/null; then
     foundryup
 fi
 
-# Build ant-node with test feature (which includes local)
+# Build ant-node with local feature
 echo "Building ant-node..."
-cargo build -p ant-node --features test
+cargo build -p ant-node --features local
 
 # Build evm-testnet
 echo "Building evm-testnet..."

@@ -4,12 +4,7 @@ Welcome to the Autonomi documentation! This guide will help you get started with
 
 ## What is Autonomi?
 
-Autonomi is a decentralized network client that provides:
-
-- Distributed data storage and retrieval
-- EVM network integration
-- Secure pointer management
-- Linked list data structures
+Autonomi is a decentralised data and communications platform designed to provide complete privacy, security, and freedom by distributing data across a peer-to-peer network, rather than relying on centralised servers. Through end-to-end encryption, self-authentication, and the allocation of storage and bandwidth from users’ own devices, it seeks to create an autonomous, self-sustaining system where data ownership remains firmly in the hands of individuals rather than corporations.
 
 ## Quick Links
 

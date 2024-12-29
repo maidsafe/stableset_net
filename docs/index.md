@@ -24,7 +24,7 @@ Autonomi provides client libraries for multiple languages:
 
 === "Node.js"
     ```typescript
-    import { Client } from '@autonomi/client';
+    import { Client } from 'autonomi';
 
     const client = new Client();
     await client.connect();

@@ -4,11 +4,11 @@ This guide explains the fundamental data types in Autonomi and how they can be u
 
 ## Fundamental Data Types
 
-Autonomi provides four fundamental data types that serve as building blocks for all network operations:
+Autonomi provides four fundamental data types that serve as building blocks for all network operations. Each type is designed for specific use cases and together they provide a complete system for decentralized data management.
 
 ### 1. Chunk
 
-The most basic unit of data storage in the network. Chunks are immutable blocks of bytes with content-addressed storage.
+Chunks are the foundation of secure data storage in Autonomi, primarily used as the output of self-encrypting files. This provides quantum-secure encryption for data at rest.
 
 ```rust
 // Store raw bytes as a chunk
@@ -21,16 +21,21 @@ assert_eq!(data, retrieved);
 ```
 
 Key characteristics:
-
-- Immutable
+- Quantum-secure encryption through self-encryption
+- Immutable content
 - Content-addressed (address is derived from data)
 - Size-limited (maximum chunk size)
-- Encrypted at rest
 - Efficient for small to medium-sized data
+
+#### Self-Encryption Process
+1. Data is split into fixed-size sections
+2. Each section is encrypted using data from other sections
+3. Results in multiple encrypted chunks
+4. Original data can only be recovered with all chunks
 
 ### 2. Pointer
 
-A mutable reference to any other data type. Pointers allow updating references while maintaining a stable address.
+Pointers provide a fixed network address that can reference any other data type, including other pointers. They enable mutable data structures while maintaining stable addresses.
 
 ```rust
 // Create a pointer to some data
@@ -41,62 +46,169 @@ client.update_pointer(pointer.address(), new_target_address).await?;
 
 // Resolve pointer to get current target
 let target = client.resolve_pointer(pointer.address()).await?;
+
+// Chain pointers for indirection
+let pointer_to_pointer = client.create_pointer(pointer.address()).await?;
 ```
 
 Key characteristics:
-
-- Mutable reference
+- Fixed network address
+- Mutable reference capability
 - Single owner (controlled by secret key)
-- Version tracking
+- Version tracking with monotonic counter
 - Atomic updates
-- Useful for mutable data structures
+- Support for pointer chains and indirection
+
+#### Common Use Cases
+1. **Mutable Data References**
+   ```rust
+   // Update data while maintaining same address
+   let pointer = client.create_pointer(initial_data).await?;
+   client.update_pointer(pointer.address(), updated_data).await?;
+   ```
+
+2. **Latest Version Publishing**
+   ```rust
+   // Point to latest version while maintaining history
+   let history = client.create_linked_list().await?;
+   let latest = client.create_pointer(history.address()).await?;
+   ```
+
+3. **Indirection and Redirection**
+   ```rust
+   // Create chain of pointers for flexible data management
+   let data_pointer = client.create_pointer(data).await?;
+   let redirect_pointer = client.create_pointer(data_pointer.address()).await?;
+   ```
 
 ### 3. LinkedList
 
-An ordered collection of items that can be appended to or modified.
+LinkedLists in Autonomi are powerful structures that can form transaction chains or decentralized Directed Acyclic Graphs (DAGs) on the network. They provide both historical tracking and CRDT-like properties.
 
 ```rust
 // Create a new linked list
 let list = client.create_linked_list().await?;
 
-// Append items
+// Append items to create history
 client.append_to_list(list.address(), item1).await?;
 client.append_to_list(list.address(), item2).await?;
 
-// Read list contents
+// Read list contents including history
 let items = client.get_list(list.address()).await?;
+
+// Check for forks
+let forks = client.detect_forks(list.address()).await?;
 ```
 
 Key characteristics:
+- Decentralized DAG structure
+- Fork detection and handling
+- Transaction chain support
+- CRDT-like conflict resolution
+- Version history tracking
+- Support for value transfer (cryptocurrency-like)
 
-- Append-only structure
-- Ordered items
-- Efficient for sequential access
-- Supports large collections
-- Version control via counter
+#### DAG Properties
+1. **Fork Detection**
+   ```rust
+   // Detect and handle forks in the list
+   match client.detect_forks(list.address()).await? {
+       Fork::None => proceed_with_updates(),
+       Fork::Detected(branches) => resolve_conflict(branches),
+   }
+   ```
+
+2. **Transaction Chains**
+   ```rust
+   // Create a transaction chain
+   let transaction = Transaction {
+       previous: Some(last_tx_hash),
+       amount: 100,
+       recipient: address,
+   };
+   client.append_to_list(chain.address(), transaction).await?;
+   ```
+
+3. **History Tracking**
+   ```rust
+   // Get full history of changes
+   let history = client.get_list_history(list.address()).await?;
+   for entry in history {
+       println!("Version {}: {:?}", entry.version, entry.data);
+   }
+   ```
 
 ### 4. ScratchPad
 
-A mutable workspace for temporary or frequently changing data.
+ScratchPad provides a flexible, unstructured data storage mechanism with CRDT properties through counter-based versioning. It's ideal for user account data, application configurations, and other frequently updated small data packets.
 
 ```rust
-// Create a scratchpad
-let pad = client.create_scratchpad(content_type).await?;
+// Create a scratchpad for user settings
+let pad = client.create_scratchpad(ContentType::UserSettings).await?;
 
-// Update scratchpad data
-client.update_scratchpad(pad.address(), new_data).await?;
+// Update with encrypted data
+let encrypted = encrypt_aes(settings_data, user_key)?;
+client.update_scratchpad(pad.address(), encrypted).await?;
 
-// Read current data
-let data = client.get_scratchpad(pad.address()).await?;
+// Read and decrypt current data
+let encrypted = client.get_scratchpad(pad.address()).await?;
+let settings = decrypt_aes(encrypted, user_key)?;
 ```
 
 Key characteristics:
-
-- Mutable workspace
+- Unstructured data storage
+- Counter-based CRDT for conflict resolution
 - Type-tagged content
+- Support for user-managed encryption
 - Efficient for frequent updates
-- Owner-controlled access
-- Temporary storage
+- Ideal for small data packets
+
+#### Security Considerations
+
+1. **Encryption**
+   ```rust
+   // Example of AES encryption for scratchpad data
+   let key = generate_aes_key();
+   let encrypted = aes_encrypt(data, key)?;
+   client.update_scratchpad(pad.address(), encrypted).await?;
+   ```
+
+2. **Access Control**
+   ```rust
+   // Create encrypted scratchpad with access control
+   let (public_key, private_key) = generate_keypair();
+   let encrypted_key = encrypt_with_public_key(aes_key, public_key);
+   let metadata = ScratchpadMetadata {
+       encrypted_key,
+       allowed_users: vec![public_key],
+   };
+   client.create_scratchpad_with_access(metadata).await?;
+   ```
+
+#### Common Applications
+
+1. **User Profiles**
+   ```rust
+   // Store encrypted user profile
+   let profile = UserProfile { name, settings };
+   let encrypted = encrypt_profile(profile, user_key);
+   client.update_scratchpad(profile_pad, encrypted).await?;
+   ```
+
+2. **Application State**
+   ```rust
+   // Maintain application configuration
+   let config = AppConfig { preferences, state };
+   let pad = client.get_or_create_config_pad().await?;
+   client.update_scratchpad(pad, config).await?;
+   ```
+
+3. **Temporary Storage**
+   ```rust
+   // Use as temporary workspace
+   let workspace = client.create_scratchpad(ContentType::Workspace).await?;
+   client.update_scratchpad(workspace, working_data).await?;
+   ```
 
 ## Higher-Level Abstractions
 

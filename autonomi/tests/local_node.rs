@@ -1,3 +1,5 @@
+#![cfg(feature = "local")]
+
 use anyhow::Result;
 use autonomi::network::LocalNode;
 use std::time::Duration;

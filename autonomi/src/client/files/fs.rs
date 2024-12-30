@@ -15,13 +15,13 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::archive::{PrivateArchive, PrivateArchiveAccess};
-use crate::client::{
-    error::{CostError, GetError, PutError},
-    data::DataMapChunk,
-    Client,
-};
 use crate::client::files::get_relative_file_path_from_abs_file_and_folder_path;
 use crate::client::utils::process_tasks_with_max_concurrency;
+use crate::client::{
+    data::DataMapChunk,
+    error::{CostError, GetError, PutError},
+    Client,
+};
 use ant_evm::EvmWallet;
 use bytes::Bytes;
 use std::{path::PathBuf, sync::LazyLock};
@@ -82,24 +82,6 @@ pub enum FileCostError {
     SelfEncryption(#[from] crate::self_encryption::Error),
     #[error("Walkdir error")]
     WalkDir(#[from] walkdir::Error),
-}
-
-impl From<GetError> for DownloadError {
-    fn from(err: GetError) -> Self {
-        Self::GetError(err)
-    }
-}
-
-impl From<PutError> for UploadError {
-    fn from(err: PutError) -> Self {
-        Self::PutError(err)
-    }
-}
-
-impl From<CostError> for FileCostError {
-    fn from(err: CostError) -> Self {
-        Self::Cost(err)
-    }
 }
 
 impl Client {

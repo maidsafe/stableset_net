@@ -8,14 +8,10 @@
 
 use crate::client::data::{DataMapChunk, CHUNK_UPLOAD_BATCH_SIZE};
 use crate::client::{
-    error::{CostError, GetError, PutError},
-    payment::{PaymentOption, Receipt},
-    utils::process_tasks_with_max_concurrency,
-    ClientEvent, UploadSummary,
+    error::{GetError, PutError},
+    payment::PaymentOption,
 };
 use crate::Client;
-use crate::ClientConfig;
-use ant_protocol::storage::Chunk;
 use anyhow::Result;
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
@@ -227,8 +223,7 @@ mod tests {
     use super::*;
     use crate::client::payment::Receipt;
     use crate::network::LocalNode;
-    use crate::self_encryption::encrypt;
-    use bytes::Bytes;
+    use crate::ClientConfig;
     use tempfile::NamedTempFile;
     use tokio::fs::File;
     use tokio::io::AsyncReadExt;

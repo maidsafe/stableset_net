@@ -1,21 +1,14 @@
 use super::Client;
-use crate::client::error::{CostError, GetError, PayError, PutError};
-use crate::client::payment::{PaymentOption, Receipt};
-use crate::client::utils::process_tasks_with_max_concurrency;
-use crate::client::{ClientEvent, UploadSummary};
-use crate::self_encryption::{self, encrypt};
+use crate::client::error::{CostError, PayError};
 use ant_evm::{Amount, AttoTokens, EvmWallet, EvmWalletError};
 use ant_networking::{GetRecordCfg, NetworkError, PutRecordCfg, VerificationKind};
 use ant_protocol::storage::{
-    try_serialize_record, Chunk, ChunkAddress, Pointer, PointerAddress, RecordKind, RetryStrategy,
+    try_serialize_record, Pointer, PointerAddress, RecordKind, RetryStrategy,
 };
 use ant_protocol::NetworkAddress;
 use bls::SecretKey;
-use bytes::Bytes;
 use libp2p::kad::{Quorum, Record};
-use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info, trace};
-use xor_name::XorName;
+use tracing::{debug, error, trace};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PointerError {

@@ -1144,8 +1144,8 @@ mod tests {
             ..Default::default()
         };
         let self_id = PeerId::random();
-        let (network_event_sender, _) = mpsc::channel(1);
-        let (swarm_cmd_sender, _) = mpsc::channel(1);
+        let (network_event_sender, _network_event_receiver) = mpsc::channel(1);
+        let (swarm_cmd_sender, _swarm_cmd_receiver) = mpsc::channel(1);
 
         let mut store = NodeRecordStore::with_config(
             self_id,
@@ -1184,6 +1184,8 @@ mod tests {
 
         // Restart the store with same encrypt_seed
         drop(store);
+        let (network_event_sender, _network_event_receiver) = mpsc::channel(1);
+        let (swarm_cmd_sender, _swarm_cmd_receiver) = mpsc::channel(1);
         let store = NodeRecordStore::with_config(
             self_id,
             store_config,
@@ -1205,6 +1207,8 @@ mod tests {
             encryption_seed: [2u8; 16],
             ..Default::default()
         };
+        let (network_event_sender, _network_event_receiver) = mpsc::channel(1);
+        let (swarm_cmd_sender, _swarm_cmd_receiver) = mpsc::channel(1);
         let store_diff = NodeRecordStore::with_config(
             self_id_diff,
             store_config_diff,

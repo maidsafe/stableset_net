@@ -37,17 +37,16 @@ pub mod wasm;
 mod rate_limiter;
 mod utils;
 
-use ant_bootstrap::{BootstrapCacheConfig, BootstrapCacheStore};
+use ant_bootstrap::{BootstrapCacheConfig, BootstrapCacheStore, PeersArgs};
 pub use ant_evm::Amount;
-use ant_evm::{EvmNetwork, EvmWallet, EvmWalletError};
+use ant_evm::{EvmNetwork, EvmWallet};
 use ant_networking::{
-    interval, multiaddr_is_global, Network, NetworkBuilder, NetworkError, NetworkEvent,
+    interval, multiaddr_is_global, Network, NetworkBuilder, NetworkEvent,
 };
 use ant_protocol::version::IDENTIFY_PROTOCOL_STR;
-use ant_protocol::NetworkAddress;
 use ant_service_management::rpc::{NetworkInfo, NodeInfo, RecordAddress};
 use anyhow::Result;
-use libp2p::{identity::Keypair, Multiaddr, PeerId};
+use libp2p::{identity::Keypair, Multiaddr};
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{debug, error};
@@ -144,39 +143,7 @@ impl Default for ClientConfig {
 impl Client {
     /// Initialize a new client with default configuration
     pub async fn init() -> Result<Self> {
-        Self::init_with_config(ClientConfig::default()).await
-    }
-
-    /// Initialize the network with the given config
-    pub async fn init_with_config(config: ClientConfig) -> Result<Self> {
-        let keypair = Keypair::generate_ed25519();
-        let mut builder = NetworkBuilder::new(keypair);
-
-        // Configure local mode if enabled
-        if config.local {
-            builder = builder.local(true);
-        }
-
-    /// Initialize a client that bootstraps from a list of peers.
-    ///
-    /// If any of the provided peers is a global address, the client will not be local.
-    ///
-    /// ```no_run
-    /// # use autonomi::Client;
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// // Will set `local` to true.
-    /// let client = Client::init_with_peers(vec!["/ip4/127.0.0.1/udp/1234/quic-v1".parse()?]).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn init_with_peers(peers: Vec<Multiaddr>) -> Result<Self, ConnectError> {
-        // Always use local mode for testing
-        Self::init_with_config(ClientConfig {
-            local: true,
-            peers: Some(peers),
-        })
-        .await
+        Ok(Self::init_with_config(ClientConfig::default()).await?)
     }
 
     /// Initialize the client with the given configuration.
@@ -194,7 +161,7 @@ impl Client {
     /// # }
     /// ```
     pub async fn init_with_config(config: ClientConfig) -> Result<Self, ConnectError> {
-        let (network, event_receiver) = build_client_and_run_swarm(config.local);
+        let (network, _event_receiver) = build_client_and_run_swarm(config.local);
 
         let peers_args = PeersArgs {
             disable_mainnet_contacts: config.local,
@@ -215,14 +182,6 @@ impl Client {
                     error!("Failed to dial addr={addr} with err: {err:?}");
                 };
             }
-        }
-
-        let (network, _event_receiver, driver) =
-            builder.build_client().expect("Failed to build network");
-
-        // Spawn the driver to run in the background
-        ant_networking::target_arch::spawn(async move {
-            driver.run().await;
         });
 
         Ok(Self {
@@ -231,6 +190,28 @@ impl Client {
             evm_network: Default::default(),
             mode: ClientMode::ReadOnly,
         })
+    }
+
+    /// Initialize a client that bootstraps from a list of peers.
+    ///
+    /// If any of the provided peers is a global address, the client will not be local.
+    ///
+    /// ```no_run
+    /// # use autonomi::Client;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Will set `local` to true.
+    /// let client = Client::init_with_peers(vec!["/ip4/127.0.0.1/udp/1234/quic-v1".parse()?]).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn init_with_peers(peers: Vec<Multiaddr>) -> Result<Self> {
+        // Always use local mode for testing
+        Ok(Self::init_with_config(ClientConfig {
+            local: true,
+            peers: Some(peers),
+        })
+        .await?)
     }
 
     /// Initialize the network in local mode
@@ -257,15 +238,6 @@ impl Client {
             evm_network: Default::default(),
             mode: ClientMode::ReadOnly,
         })
-    }
-
-    /// Initialize a new client with the given peers
-    pub async fn init_with_peers(peers: Vec<Multiaddr>) -> Result<Self> {
-        let config = ClientConfig {
-            peers: Some(peers),
-            ..Default::default()
-        };
-        Self::init_with_config(config).await
     }
 
     /// Connect to the network.
@@ -521,20 +493,16 @@ impl Client {
 }
 
 fn build_client_and_run_swarm(local: bool) -> (Network, mpsc::Receiver<NetworkEvent>) {
-    let mut network_builder = NetworkBuilder::new(Keypair::generate_ed25519()).local(local);
+    let keypair = Keypair::generate_ed25519();
+    let mut builder = NetworkBuilder::new(keypair);
 
-    // In local mode, we want to disable cache writing
+    // Configure local mode if enabled
     if local {
-        if let Ok(mut config) = BootstrapCacheConfig::default_config() {
-            config.disable_cache_writing = true;
-            if let Ok(cache) = BootstrapCacheStore::new(config) {
-                network_builder.bootstrap_cache(cache);
-            }
-        }
+        builder = builder.local(true);
     }
 
     let (network, event_receiver, driver) =
-        network_builder.build_client().expect("Failed to build network");
+        builder.build_client().expect("Failed to build network");
 
     // Spawn the driver to run in the background
     ant_networking::target_arch::spawn(async move {

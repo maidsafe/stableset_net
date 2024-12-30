@@ -11,7 +11,6 @@ use ant_logging::LogBuilder;
 use anyhow::Result;
 use libp2p::Multiaddr;
 use std::net::{IpAddr, Ipv4Addr};
-use std::path::PathBuf;
 use tempfile::TempDir;
 use wiremock::{
     matchers::{method, path},
@@ -70,10 +69,18 @@ async fn test_peer_argument() -> Result<(), Box<dyn std::error::Error>> {
         bootstrap_cache_dir: None,
     };
 
-    let addrs = args.get_addrs(None, None).await?;
-
-    assert_eq!(addrs.len(), 1, "Should have one addr");
-    assert_eq!(addrs[0], peer_addr, "Should have the correct address");
+    // When local feature is enabled, get_addrs returns empty list for local discovery
+    #[cfg(not(feature = "local"))]
+    {
+        let addrs = args.get_addrs(None, None).await?;
+        assert_eq!(addrs.len(), 1, "Should have one addr");
+        assert_eq!(addrs[0], peer_addr, "Should have the correct address");
+    }
+    #[cfg(feature = "local")]
+    {
+        let addrs = args.get_addrs(None, None).await?;
+        assert_eq!(addrs.len(), 0, "Should have no peers in local mode");
+    }
 
     Ok(())
 }
@@ -105,12 +112,21 @@ async fn test_network_contacts_fallback() -> Result<(), Box<dyn std::error::Erro
         bootstrap_cache_dir: None,
     };
 
-    let addrs = args.get_addrs(Some(config), None).await?;
-    assert_eq!(
-        addrs.len(),
-        2,
-        "Should have two peers from network contacts"
-    );
+    // When local feature is enabled, get_addrs returns empty list for local discovery
+    #[cfg(not(feature = "local"))]
+    {
+        let addrs = args.get_addrs(Some(config), None).await?;
+        assert_eq!(
+            addrs.len(),
+            2,
+            "Should have two peers from network contacts"
+        );
+    }
+    #[cfg(feature = "local")]
+    {
+        let addrs = args.get_addrs(Some(config), None).await?;
+        assert_eq!(addrs.len(), 0, "Should have no peers in local mode");
+    }
 
     Ok(())
 }
@@ -172,13 +188,21 @@ async fn test_test_network_peers() -> Result<(), Box<dyn std::error::Error>> {
         bootstrap_cache_dir: None,
     };
 
-    let addrs = args.get_addrs(Some(config), None).await?;
-
-    assert_eq!(addrs.len(), 1, "Should have exactly one test network peer");
-    assert_eq!(
-        addrs[0], peer_addr,
-        "Should have the correct test network peer"
-    );
+    // When local feature is enabled, get_addrs returns empty list for local discovery
+    #[cfg(not(feature = "local"))]
+    {
+        let addrs = args.get_addrs(Some(config), None).await?;
+        assert_eq!(addrs.len(), 1, "Should have exactly one test network peer");
+        assert_eq!(
+            addrs[0], peer_addr,
+            "Should have the correct test network peer"
+        );
+    }
+    #[cfg(feature = "local")]
+    {
+        let addrs = args.get_addrs(Some(config), None).await?;
+        assert_eq!(addrs.len(), 0, "Should have no peers in local mode");
+    }
 
     Ok(())
 }

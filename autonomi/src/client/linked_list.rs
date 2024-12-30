@@ -6,25 +6,19 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::client::error::{CostError, GetError, PayError, PutError};
-use crate::client::payment::{PaymentOption, Receipt};
-use crate::client::utils::process_tasks_with_max_concurrency;
+use crate::client::error::{CostError, PayError};
 use crate::client::{ClientEvent, UploadSummary};
-use crate::self_encryption::{self, encrypt};
 use crate::Client;
 use ant_evm::{Amount, AttoTokens, EvmWallet, EvmWalletError};
 use ant_networking::{GetRecordCfg, NetworkError, PutRecordCfg, VerificationKind};
 use ant_protocol::storage::{
-    try_serialize_record, Chunk, ChunkAddress, LinkedList, LinkedListAddress, RecordKind,
+    try_serialize_record, LinkedList, LinkedListAddress, RecordKind,
     RetryStrategy,
 };
 use ant_protocol::NetworkAddress;
 pub use bls::SecretKey;
-use bytes::Bytes;
 use libp2p::kad::{Quorum, Record};
-use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info, trace};
-use xor_name::XorName;
+use tracing::{debug, error, trace};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LinkedListError {

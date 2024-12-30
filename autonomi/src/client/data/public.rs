@@ -7,23 +7,15 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use bytes::Bytes;
-use libp2p::kad::Quorum;
-use std::collections::HashSet;
 
 use crate::client::ClientMode;
 use crate::client::{
     error::{CostError, GetError, PutError},
-    payment::{PaymentOption, Receipt},
-    utils::process_tasks_with_max_concurrency,
+    payment::PaymentOption,
     ClientEvent, UploadSummary,
 };
 use crate::{self_encryption::encrypt, Client};
 use ant_evm::{Amount, AttoTokens};
-use ant_networking::{GetRecordCfg, NetworkError};
-use ant_protocol::{
-    storage::{try_deserialize_record, Chunk, ChunkAddress, RecordHeader, RecordKind},
-    NetworkAddress,
-};
 use tracing::{debug, error, info};
 
 use super::*;

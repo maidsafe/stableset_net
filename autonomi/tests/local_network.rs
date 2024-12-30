@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use autonomi::{Client, ClientConfig};
 use dirs_next;
-use std::net::{IpAddr, Ipv4Addr, TcpListener};
+use std::net::{IpAddr, TcpListener};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};

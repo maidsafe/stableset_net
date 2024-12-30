@@ -777,6 +777,7 @@ version = "0.1.1"
 dependencies = [
  "ant-logging",
  "ant-protocol",
+ "anyhow",
  "atomic-write-file",
  "chrono",
  "clap",

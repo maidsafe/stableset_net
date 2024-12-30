@@ -29,6 +29,9 @@ pub fn collect_upload_summary(
                             tokens_spent += upload_summary.tokens_spent;
                             record_count += upload_summary.record_count;
                         }
+                        Some(ClientEvent::PeerDiscovered(_)) | Some(ClientEvent::PeerDisconnected(_)) => {
+                            // Ignore peer events for upload summary collection
+                        }
                         None => break,
                     }
                 }
@@ -42,6 +45,9 @@ pub fn collect_upload_summary(
                 ClientEvent::UploadComplete(upload_summary) => {
                     tokens_spent += upload_summary.tokens_spent;
                     record_count += upload_summary.record_count;
+                }
+                ClientEvent::PeerDiscovered(_) | ClientEvent::PeerDisconnected(_) => {
+                    // Ignore peer events for upload summary collection
                 }
             }
         }

@@ -9,9 +9,6 @@
 use ant_evm::{payment_vault::error::Error as MarketPriceError, EvmWalletError};
 use ant_networking::NetworkError;
 use ant_protocol::NetworkAddress;
-use self_encryption::Error as SelfEncryptionError;
-use std::fmt;
-use thiserror::Error;
 use xor_name::XorName;
 
 /// Errors that can occur during data storage operations

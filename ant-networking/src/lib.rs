@@ -9,7 +9,6 @@
 #[macro_use]
 extern crate tracing;
 
-use anyhow::anyhow;
 
 mod bootstrap;
 mod circular_vec;

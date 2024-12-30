@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use ant_bootstrap::{BootstrapCacheConfig, PeersArgs, utils::find_local_ip};
+use ant_bootstrap::{utils::find_local_ip, BootstrapCacheConfig, PeersArgs};
 use ant_logging::LogBuilder;
 use libp2p::Multiaddr;
 use tempfile::TempDir;
@@ -52,12 +52,25 @@ async fn test_multiaddr_format_parsing() -> Result<(), Box<dyn std::error::Error
             bootstrap_cache_dir: None,
         };
 
-        let bootstrap_addresses = args.get_bootstrap_addr(None, None).await?;
-        assert_eq!(bootstrap_addresses.len(), 1, "Should have one peer");
-        assert_eq!(
-            bootstrap_addresses[0].addr, addr,
-            "Address format should match"
-        );
+        // When local feature is enabled, get_bootstrap_addr returns empty list for local discovery
+        #[cfg(not(feature = "local"))]
+        {
+            let bootstrap_addresses = args.get_bootstrap_addr(None, None).await?;
+            assert_eq!(bootstrap_addresses.len(), 1, "Should have one peer");
+            assert_eq!(
+                bootstrap_addresses[0].addr, addr,
+                "Address format should match"
+            );
+        }
+        #[cfg(feature = "local")]
+        {
+            let bootstrap_addresses = args.get_bootstrap_addr(None, None).await?;
+            assert_eq!(
+                bootstrap_addresses.len(),
+                0,
+                "Should have no peers in local mode"
+            );
+        }
     }
 
     Ok(())
@@ -91,19 +104,28 @@ async fn test_network_contacts_format() -> Result<(), Box<dyn std::error::Error>
     };
 
     let addrs = args.get_bootstrap_addr(None, None).await?;
-    assert_eq!(
-        addrs.len(),
-        2,
-        "Should have two peers from network contacts"
-    );
 
-    // Verify address formats
-    for addr in addrs {
-        let addr_str = addr.addr.to_string();
-        assert!(addr_str.contains("/ip4/"), "Should have IPv4 address");
-        assert!(addr_str.contains("/udp/"), "Should have UDP port");
-        assert!(addr_str.contains("/quic-v1/"), "Should have QUIC protocol");
-        assert!(addr_str.contains("/p2p/"), "Should have peer ID");
+    // When local feature is enabled, get_bootstrap_addr returns empty list for local discovery
+    #[cfg(not(feature = "local"))]
+    {
+        assert_eq!(
+            addrs.len(),
+            2,
+            "Should have two peers from network contacts"
+        );
+
+        // Verify address formats
+        for addr in addrs {
+            let addr_str = addr.addr.to_string();
+            assert!(addr_str.contains("/ip4/"), "Should have IPv4 address");
+            assert!(addr_str.contains("/udp/"), "Should have UDP port");
+            assert!(addr_str.contains("/quic-v1/"), "Should have QUIC protocol");
+            assert!(addr_str.contains("/p2p/"), "Should have peer ID");
+        }
+    }
+    #[cfg(feature = "local")]
+    {
+        assert_eq!(addrs.len(), 0, "Should have no peers in local mode");
     }
 
     Ok(())

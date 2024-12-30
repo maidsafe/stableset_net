@@ -6,22 +6,21 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use anyhow::{Context, Result};
 use ant_logging::LogBuilder;
 use ant_networking::find_local_ip;
 use ant_protocol::storage::LinkedList;
-use autonomi::{Client, ClientConfig};
+use anyhow::{Context, Result};
 use autonomi::client::linked_list::LinkedListError;
-use test_utils::evm::get_funded_wallet;
+use autonomi::{Client, ClientConfig};
 use bls::SecretKey;
-use libp2p::Multiaddr;
+use serial_test::serial;
 use std::net::IpAddr;
 use std::sync::Arc;
+use test_utils::evm::get_funded_wallet;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
-use serial_test::serial;
 
 lazy_static::lazy_static! {
     static ref LOCAL_IP: IpAddr = find_local_ip().expect("Failed to find local IP");
@@ -30,6 +29,7 @@ lazy_static::lazy_static! {
 #[derive(Debug)]
 struct NodeOutput {
     peer_id: Option<String>,
+    #[allow(dead_code)]
     listeners: Vec<String>,
 }
 
@@ -154,7 +154,12 @@ async fn test_linked_list() -> Result<()> {
     sleep(Duration::from_secs(10)).await;
 
     // Initialize client with local network configuration
-    let node_addr = format!("/ip4/{}/udp/{}/quic-v1/p2p/{}", LOCAL_IP.to_string(), port, peer_id);
+    let node_addr = format!(
+        "/ip4/{}/udp/{}/quic-v1/p2p/{}",
+        LOCAL_IP.to_string(),
+        port,
+        peer_id
+    );
     let config = ClientConfig {
         local: true,
         peers: Some(vec![node_addr.parse()?]),
@@ -212,7 +217,8 @@ async fn test_linked_list() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_linked_list_with_cost() -> Result<()> {
-    let _log_appender_guard = LogBuilder::init_single_threaded_tokio_test("linked_list_cost", false);
+    let _log_appender_guard =
+        LogBuilder::init_single_threaded_tokio_test("linked_list_cost", false);
 
     // Start a local node
     let port = 50001;
@@ -223,7 +229,12 @@ async fn test_linked_list_with_cost() -> Result<()> {
     sleep(Duration::from_secs(10)).await;
 
     // Initialize client with local network configuration
-    let node_addr = format!("/ip4/{}/udp/{}/quic-v1/p2p/{}", LOCAL_IP.to_string(), port, peer_id);
+    let node_addr = format!(
+        "/ip4/{}/udp/{}/quic-v1/p2p/{}",
+        LOCAL_IP.to_string(),
+        port,
+        peer_id
+    );
     let config = ClientConfig {
         local: true,
         peers: Some(vec![node_addr.parse()?]),

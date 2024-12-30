@@ -246,7 +246,7 @@ jobs:
 
       - name: Run autonomi tests
         timeout-minutes: 25
-        run: cargo test --release --package autonomi --lib --features="full,fs"
+        run: cargo test --release --package autonomi --lib --features="full"
 
       - name: Run bootstrap tests
         timeout-minutes: 25
@@ -262,7 +262,7 @@ jobs:
 
       - name: Run network tests
         timeout-minutes: 25
-        run: cargo test --release --package ant-networking --features="open-metrics, encrypt-records"
+        run: cargo test --release --package ant-networking --features="open-metrics"
 
       - name: Run protocol tests
         timeout-minutes: 25

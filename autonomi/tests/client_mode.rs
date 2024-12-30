@@ -6,9 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use ant_evm::EvmWallet;
 use ant_logging::LogBuilder;
-use autonomi::{Client, ClientConfig};
+use autonomi::Client;
 use test_utils::evm::get_funded_wallet;
 
 #[tokio::test]

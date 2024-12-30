@@ -50,7 +50,7 @@ impl AttoTokens {
         Self(Amount::from(value))
     }
 
-    /// Total AttoTokens expressed in number of nano tokens.
+    /// Total AttoTokens expressed in number of atto tokens.
     pub fn as_atto(self) -> Amount {
         self.0
     }
@@ -65,7 +65,7 @@ impl AttoTokens {
         self.0.checked_sub(rhs.0).map(Self::from_atto)
     }
 
-    /// Converts the Nanos into bytes
+    /// Converts the AttoTokens into bytes
     pub fn to_bytes(&self) -> Vec<u8> {
         self.0.to_be_bytes::<32>().to_vec()
     }

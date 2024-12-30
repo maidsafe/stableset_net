@@ -14,8 +14,7 @@ name = "antnode"
 path = "src/bin/antnode/main.rs"
 
 [features]
-default = ["metrics", "upnp", "open-metrics", "encrypt-records"]
-encrypt-records = ["ant-networking/encrypt-records"]
+default = ["metrics", "upnp", "open-metrics"]
 extension-module = ["pyo3/extension-module"]
 local = [
     "ant-networking/local",
@@ -88,7 +87,9 @@ walkdir = "~2.5.0"
 xor_name = "5.0.0"
 
 [dev-dependencies]
-ant-protocol = { path = "../ant-protocol", version = "0.3.1", features = ["rpc"] }
+ant-protocol = { path = "../ant-protocol", version = "0.3.1", features = [
+    "rpc",
+] }
 assert_fs = "1.0.0"
 evmlib = { path = "../evmlib", version = "0.1.6" }
 autonomi = { path = "../autonomi", version = "0.3.1", features = ["registers"] }

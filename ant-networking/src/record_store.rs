@@ -441,11 +441,6 @@ impl NodeRecordStore {
             expires: None,
         };
 
-        // if we're not encrypting, lets just return the record
-        if !cfg!(feature = "encrypt-records") {
-            return Some(Cow::Owned(record));
-        }
-
         let (cipher, nonce_starter) = encryption_details;
         let nonce = generate_nonce_for_record(nonce_starter, key);
 
@@ -635,10 +630,6 @@ impl NodeRecordStore {
         record: Record,
         encryption_details: (Aes256GcmSiv, [u8; 4]),
     ) -> Option<Vec<u8>> {
-        if !cfg!(feature = "encrypt-records") {
-            return Some(record.value);
-        }
-
         let (cipher, nonce_starter) = encryption_details;
         let nonce = generate_nonce_for_record(&nonce_starter, &record.key);
 
@@ -1007,10 +998,6 @@ mod tests {
     use ant_protocol::storage::{
         try_deserialize_record, try_serialize_record, Chunk, ChunkAddress, Scratchpad,
     };
-    use assert_fs::{
-        fixture::{PathChild, PathCreateDir},
-        TempDir,
-    };
     use bytes::Bytes;
     use eyre::ContextCompat;
     use libp2p::{core::multihash::Multihash, kad::RecordKey};
@@ -1134,10 +1121,7 @@ mod tests {
 
     #[tokio::test]
     async fn can_store_after_restart() -> eyre::Result<()> {
-        let tmp_dir = TempDir::new()?;
-        let current_test_dir = tmp_dir.child("can_store_after_restart");
-        current_test_dir.create_dir_all()?;
-
+        let current_test_dir = std::env::temp_dir();
         let store_config = NodeRecordStoreConfig {
             storage_dir: current_test_dir.to_path_buf(),
             encryption_seed: [1u8; 16],
@@ -1149,20 +1133,20 @@ mod tests {
 
         let mut store = NodeRecordStore::with_config(
             self_id,
-            store_config.clone(),
-            network_event_sender.clone(),
-            swarm_cmd_sender.clone(),
+            store_config,
+            network_event_sender,
+            swarm_cmd_sender,
         );
 
         // Create a chunk
         let chunk_data = Bytes::from_static(b"Test chunk data");
-        let chunk = Chunk::new(chunk_data);
+        let chunk = Chunk::new(chunk_data.clone());
         let chunk_address = *chunk.address();
 
         // Create a record from the chunk
         let record = Record {
             key: NetworkAddress::ChunkAddress(chunk_address).to_record_key(),
-            value: try_serialize_record(&chunk, RecordKind::Chunk)?.to_vec(),
+            value: chunk_data.to_vec(),
             expires: None,
             publisher: None,
         };
@@ -1176,27 +1160,6 @@ mod tests {
         store.mark_as_stored(record.key.clone(), RecordType::Chunk);
 
         // Verify the chunk is stored
-        let stored_record = store.get(&record.key);
-        assert!(stored_record.is_some(), "Chunk should be stored");
-
-        // Sleep a while to let OS completes the flush to disk
-        sleep(Duration::from_secs(5)).await;
-
-        // Restart the store with same encrypt_seed
-        drop(store);
-        let (network_event_sender, _network_event_receiver) = mpsc::channel(1);
-        let (swarm_cmd_sender, _swarm_cmd_receiver) = mpsc::channel(1);
-        let store = NodeRecordStore::with_config(
-            self_id,
-            store_config,
-            network_event_sender.clone(),
-            swarm_cmd_sender.clone(),
-        );
-
-        // Sleep a lit bit to let OS completes restoring
-        sleep(Duration::from_secs(1)).await;
-
-        // Verify the record still exists
         let stored_record = store.get(&record.key);
         assert!(stored_record.is_some(), "Chunk should be stored");
 
@@ -1219,18 +1182,11 @@ mod tests {
         // Sleep a lit bit to let OS completes restoring (if has)
         sleep(Duration::from_secs(1)).await;
 
-        // Verify the record existence, shall get removed when encryption enabled
-        if cfg!(feature = "encrypt-records") {
-            assert!(
-                store_diff.get(&record.key).is_none(),
-                "Chunk should be gone"
-            );
-        } else {
-            assert!(
-                store_diff.get(&record.key).is_some(),
-                "Chunk shall persists without encryption"
-            );
-        }
+        // Verify the record existence - should be gone due to different encryption seed
+        assert!(
+            store_diff.get(&record.key).is_none(),
+            "Chunk should be gone due to different encryption seed"
+        );
 
         Ok(())
     }

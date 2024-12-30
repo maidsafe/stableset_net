@@ -10,8 +10,7 @@ repository = "https://github.com/maidsafe/autonomi"
 version = "0.3.1"
 
 [features]
-default = []
-encrypt-records = []
+default = ["open-metrics"]
 local = ["libp2p/mdns"]
 loud = []
 open-metrics = ["libp2p/metrics", "prometheus-client", "hyper", "sysinfo"]

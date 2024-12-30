@@ -13,11 +13,13 @@ Autonomi is a decentralised data and communications platform designed to provide
   - [Data Types](guides/data_types.md) - Understanding the fundamental data structures
   - [Client Modes](guides/client_modes.md) - Different operational modes of the client
   - [Data Storage](guides/data_storage.md) - How data is stored and retrieved
-- API References:
-  - [Autonomi Client](api/autonomi-client/README.md) - Core client library for network operations
-  - [Ant Node](api/ant-node/README.md) - Node implementation for network participation
-  - [BLS Threshold Crypto](api/blsttc/README.md) - Threshold cryptography implementation
-  - [Self Encryption](api/self-encryption/README.md) - Content-based encryption library
+
+### API References
+
+- [Autonomi Client](api/autonomi-client/README.md) - Core client library for network operations
+- [Ant Node](api/ant-node/README.md) - Node implementation for network participation
+- [BLS Threshold Crypto](api/blsttc/README.md) - Threshold cryptography implementation
+- [Self Encryption](api/self-encryption/README.md) - Content-based encryption library
 - Developer Resources:
   - [Local Network Setup](guides/local_network.md) - Setting up a local development environment
 

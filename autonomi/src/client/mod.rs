@@ -24,8 +24,6 @@ pub mod external_signer;
 #[cfg(feature = "registers")]
 #[cfg_attr(docsrs, doc(cfg(feature = "registers")))]
 pub mod registers;
-#[cfg(feature = "vault")]
-#[cfg_attr(docsrs, doc(cfg(feature = "vault")))]
 pub mod vault;
 
 // private module with utility functions

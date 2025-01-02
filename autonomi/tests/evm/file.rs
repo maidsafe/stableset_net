@@ -42,7 +42,6 @@ mod test {
         Ok(())
     }
 
-    #[cfg(feature = "vault")]
     #[tokio::test]
     async fn file_into_vault() -> eyre::Result<()> {
         common::enable_logging();

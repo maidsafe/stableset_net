@@ -27,9 +27,6 @@ pub mod testnet;
 pub mod utils;
 pub mod wallet;
 
-/// Timeout for transactions
-const TX_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
-
 static PUBLIC_ARBITRUM_ONE_HTTP_RPC_URL: LazyLock<reqwest::Url> = LazyLock::new(|| {
     "https://arb1.arbitrum.io/rpc"
         .parse()

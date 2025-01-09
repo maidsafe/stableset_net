@@ -8,7 +8,6 @@
 
 use crate::common::{Address, Calldata, TxHash, U256};
 use crate::contract::network_token::NetworkTokenContract::NetworkTokenContractInstance;
-use crate::TX_TIMEOUT;
 use alloy::network::TransactionBuilder;
 use alloy::providers::{Network, Provider};
 use alloy::sol;
@@ -109,10 +108,9 @@ where
             .await
             .inspect_err(|err| {
                 error!(
-                "Error to send_transaction while approving spender {spender:?} to spend raw amt of tokens {value}:  {err:?}"
+                "Error approving spender {spender:?} to spend raw amt of tokens {value}:  {err:?}"
             )
-            })?
-            .with_timeout(Some(TX_TIMEOUT));
+            })?;
 
         let pending_tx_hash = *pending_tx_builder.tx_hash();
 
@@ -152,9 +150,8 @@ where
             .send_transaction(transaction_request)
             .await
             .inspect_err(|err| {
-                error!("Error to send_transaction during transfer raw amt of tokens to {receiver:?}: {err:?}")
-            })?
-            .with_timeout(Some(TX_TIMEOUT));
+                error!("Error transferring raw amt of tokens to {receiver:?}: {err:?}")
+            })?;
 
         let pending_tx_hash = *pending_tx_builder.tx_hash();
         debug!(

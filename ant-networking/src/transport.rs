@@ -13,6 +13,10 @@ use libp2p::{
     identity::Keypair,
     PeerId, Transport as _,
 };
+use std::time::Duration;
+
+/// The timeout for the QUIC handshake. This prevents the HandshakeTimedOut errors on connections.
+const QUIC_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
 const MAX_STREAM_DATA_ENV_STR: &str = "ANT_MAX_STREAM_DATA";
 
@@ -33,6 +37,8 @@ fn generate_quic_transport(
     keypair: &Keypair,
 ) -> libp2p::quic::GenTransport<libp2p::quic::tokio::Provider> {
     let mut quic_config = libp2p::quic::Config::new(keypair);
+    quic_config.handshake_timeout = QUIC_HANDSHAKE_TIMEOUT;
+
     if let Ok(val) = std::env::var(MAX_STREAM_DATA_ENV_STR) {
         match val.parse::<u32>() {
             Ok(val) => {

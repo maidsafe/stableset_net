@@ -13,7 +13,6 @@ mod swarm;
 use crate::{driver::SwarmDriver, error::Result};
 use core::fmt;
 use custom_debug::Debug as CustomDebug;
-use libp2p::mdns;
 use libp2p::{
     kad::{Addresses, Record, RecordKey, K_VALUE},
     request_response::ResponseChannel as PeerResponseChannel,
@@ -45,7 +44,6 @@ pub(super) enum NodeEvent {
     Upnp(libp2p::upnp::Event),
     MsgReceived(libp2p::request_response::Event<Request, Response>),
     Kademlia(libp2p::kad::Event),
-    Mdns(Box<mdns::Event>),
     Identify(Box<libp2p::identify::Event>),
     RelayClient(Box<libp2p::relay::client::Event>),
     RelayServer(Box<libp2p::relay::Event>),
@@ -68,12 +66,6 @@ impl From<libp2p::request_response::Event<Request, Response>> for NodeEvent {
 impl From<libp2p::kad::Event> for NodeEvent {
     fn from(event: libp2p::kad::Event) -> Self {
         NodeEvent::Kademlia(event)
-    }
-}
-
-impl From<mdns::Event> for NodeEvent {
-    fn from(event: mdns::Event) -> Self {
-        NodeEvent::Mdns(Box::new(event))
     }
 }
 

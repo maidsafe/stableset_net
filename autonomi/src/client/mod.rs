@@ -225,8 +225,7 @@ fn build_client_and_run_swarm(local: bool) -> (Network, mpsc::Receiver<NetworkEv
 
     // TODO: Re-export `Receiver<T>` from `ant-networking`. Else users need to keep their `tokio` dependency in sync.
     // TODO: Think about handling the mDNS error here.
-    let (network, event_receiver, swarm_driver) =
-        network_builder.build_client().expect("mdns to succeed");
+    let (network, event_receiver, swarm_driver) = network_builder.build_client();
 
     let _swarm_driver = ant_networking::time::spawn(swarm_driver.run());
     debug!("Client swarm driver is running");

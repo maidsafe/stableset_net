@@ -438,21 +438,27 @@ impl SwarmDriver {
                         // unless there are _specific_ errors (connection refused eg)
                         error!("Dial errors len : {:?}", errors.len());
                         let mut there_is_a_serious_issue = false;
+                        // Libp2p throws errors for all the listen addr (including private) of the remote peer even
+                        // though we try to dial just the global/public addr. This would mean that we get
+                        // MultiaddrNotSupported error for the private addr of the peer.
+                        //
+                        // Just a single MultiaddrNotSupported error is not a critical issue, but if all the listen
+                        // addrs of the peer are private, then it is a critical issue.
+                        let mut all_multiaddr_not_supported = true;
                         for (_addr, err) in errors {
-                            error!("OutgoingTransport error : {err:?}");
-
                             match err {
                                 TransportError::MultiaddrNotSupported(addr) => {
-                                    warn!("Multiaddr not supported : {addr:?}");
+                                    warn!("OutgoingConnectionError: Transport::MultiaddrNotSupported {addr:?}. This can be ignored if the peer has atleast one global address.");
                                     #[cfg(feature = "loud")]
                                     {
-                                        println!("Multiaddr not supported : {addr:?}");
+                                        warn!("OutgoingConnectionError: Transport::MultiaddrNotSupported {addr:?}. This can be ignored if the peer has atleast one global address.");
                                         println!("If this was your bootstrap peer, restart your node with a supported multiaddr");
                                     }
-                                    // if we can't dial a peer on a given address, we should remove it from the routing table
-                                    there_is_a_serious_issue = true
                                 }
                                 TransportError::Other(err) => {
+                                    error!("OutgoingConnectionError: Transport::Other {err:?}");
+
+                                    all_multiaddr_not_supported = false;
                                     let problematic_errors = [
                                         "ConnectionRefused",
                                         "HostUnreachable",
@@ -484,6 +490,10 @@ impl SwarmDriver {
                                     }
                                 }
                             }
+                        }
+                        if all_multiaddr_not_supported {
+                            warn!("All multiaddrs had MultiaddrNotSupported error for {failed_peer_id:?}. Marking it as a serious issue.");
+                            there_is_a_serious_issue = true;
                         }
                         there_is_a_serious_issue
                     }

@@ -190,18 +190,12 @@ impl BootstrapCacheStore {
             config.cache_file_path = bootstrap_cache_path;
         }
 
-        let mut store = Self::new(config)?;
+        let store = Self::new(config)?;
 
         // If it is the first node, clear the cache.
         if peers_arg.first {
             info!("First node in network, writing empty cache to disk");
             store.write()?;
-        }
-
-        // If local mode is enabled, return empty store (will use mDNS)
-        if peers_arg.local {
-            info!("Setting config to not write to cache, as 'local' mode is enabled");
-            store.config.disable_cache_writing = true;
         }
 
         Ok(store)

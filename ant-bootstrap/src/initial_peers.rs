@@ -54,8 +54,6 @@ pub struct PeersArgs {
     #[clap(long, conflicts_with = "first", value_delimiter = ',')]
     pub network_contacts_url: Vec<String>,
     /// Set to indicate this is a local network.
-    ///
-    /// This would use mDNS for peer discovery.
     #[clap(long, conflicts_with = "network_contacts_url", default_value = "false")]
     pub local: bool,
     /// Set to indicate this is a testnet.
@@ -116,12 +114,6 @@ impl PeersArgs {
             return Ok(bootstrap_addresses);
         }
 
-        // If local mode is enabled, return empty store (will use mDNS)
-        if self.local {
-            info!("Local mode enabled, using only local discovery.");
-            return Ok(vec![]);
-        }
-
         // Add addrs from arguments if present
         for addr in &self.addrs {
             if let Some(addr) = craft_valid_multiaddr(addr, false) {
@@ -177,7 +169,7 @@ impl PeersArgs {
         }
 
         // If we have a network contacts URL, fetch addrs from there.
-        if !self.network_contacts_url.is_empty() {
+        if !self.local && !self.network_contacts_url.is_empty() {
             info!(
                 "Fetching bootstrap address from network contacts URLs: {:?}",
                 self.network_contacts_url
@@ -204,7 +196,7 @@ impl PeersArgs {
             }
         }
 
-        if !self.disable_mainnet_contacts {
+        if !self.local && !self.disable_mainnet_contacts {
             let mut contacts_fetcher = ContactsFetcher::with_mainnet_endpoints()?;
             if let Some(count) = count {
                 contacts_fetcher.set_max_addrs(count);

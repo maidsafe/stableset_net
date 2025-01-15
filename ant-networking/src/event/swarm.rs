@@ -308,20 +308,20 @@ impl SwarmDriver {
                         self.swarm.add_external_address(address.clone());
 
                         // If we are local and the first node, add our own address(es) to cache
-                        if self.first {
-                            if let Some(bootstrap_cache) = self.bootstrap_cache.as_mut() {
-                                tracing::info!("Adding our own address to empty bootstrap cache as we are the first node");
-                                bootstrap_cache.add_addr(address.clone());
+                        // if self.first {
+                        if let Some(bootstrap_cache) = self.bootstrap_cache.as_mut() {
+                            tracing::info!("Adding our own address to empty bootstrap cache as we are the first node");
+                            bootstrap_cache.add_addr(address.clone());
 
-                                // save the cache to disk
-                                let mut bootstrap_cache = bootstrap_cache.clone();
-                                crate::time::spawn(async move {
-                                    if let Err(err) = bootstrap_cache.sync_and_flush_to_disk(true) {
-                                        error!("Failed to save bootstrap cache: {err}");
-                                    }
-                                });
-                            }
+                            // save the cache to disk
+                            let mut bootstrap_cache = bootstrap_cache.clone();
+                            crate::time::spawn(async move {
+                                if let Err(err) = bootstrap_cache.sync_and_flush_to_disk(true) {
+                                    error!("Failed to save bootstrap cache: {err}");
+                                }
+                            });
                         }
+                        // }
                     } else if let Some(external_add_manager) =
                         self.external_address_manager.as_mut()
                     {

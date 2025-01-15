@@ -88,7 +88,6 @@ pub struct NodeBuilder {
     evm_network: EvmNetwork,
     addr: SocketAddr,
     local: bool,
-    first: bool,
     root_dir: PathBuf,
     #[cfg(feature = "open-metrics")]
     /// Set to Some to enable the metrics server
@@ -102,14 +101,12 @@ pub struct NodeBuilder {
 impl NodeBuilder {
     /// Instantiate the builder. The initial peers can either be supplied via the `initial_peers` method
     /// or fetched from the bootstrap cache set using `bootstrap_cache` method.
-    #[expect(clippy::too_many_arguments)]
     pub fn new(
         identity_keypair: Keypair,
         evm_address: RewardsAddress,
         evm_network: EvmNetwork,
         addr: SocketAddr,
         local: bool,
-        first: bool,
         root_dir: PathBuf,
         #[cfg(feature = "upnp")] upnp: bool,
     ) -> Self {
@@ -121,7 +118,6 @@ impl NodeBuilder {
             evm_network,
             addr,
             local,
-            first,
             root_dir,
             #[cfg(feature = "open-metrics")]
             metrics_server_port: None,
@@ -165,8 +161,7 @@ impl NodeBuilder {
     ///
     /// Returns an error if there is a problem initializing the `SwarmDriver`.
     pub fn build_and_run(self) -> Result<RunningNode> {
-        let mut network_builder =
-            NetworkBuilder::new(self.identity_keypair, self.local, self.first);
+        let mut network_builder = NetworkBuilder::new(self.identity_keypair, self.local);
 
         #[cfg(feature = "open-metrics")]
         let metrics_recorder = if self.metrics_server_port.is_some() {

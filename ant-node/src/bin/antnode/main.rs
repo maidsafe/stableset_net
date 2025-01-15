@@ -277,8 +277,13 @@ fn main() -> Result<()> {
         init_logging(&opt, keypair.public().to_peer_id())?;
 
     let mut bootstrap_cache = BootstrapCacheStore::new_from_peers_args(&opt.peers, None)?;
-    // To create the file before startup if it doesn't exist.
-    bootstrap_cache.sync_and_flush_to_disk(true)?;
+    // If we are the first node, write initial cache to disk.
+    if opt.peers.first {
+        bootstrap_cache.write()?;
+    } else {
+        // Else we check/clean the file, write it back, and ensure its existence.
+        bootstrap_cache.sync_and_flush_to_disk(true)?;
+    }
 
     let msg = format!(
         "Running {} v{}",
@@ -313,7 +318,6 @@ fn main() -> Result<()> {
             evm_network,
             node_socket_addr,
             opt.peers.local,
-            opt.peers.first,
             root_dir,
             #[cfg(feature = "upnp")]
             opt.upnp,
@@ -709,7 +713,7 @@ fn start_new_node_process(retain_peer_id: bool, root_dir: PathBuf, port: u16) {
     info!("Original args are: {args:?}");
     info!("Current exe is: {current_exe:?}");
 
-    // Remove `--first` argument. If node is restarted, it is nt the first anymore.
+    // Remove `--first` argument. If node is restarted, it is not the first anymore.
     args.retain(|arg| arg != "--first");
 
     // Convert current exe path to string, log an error and return if it fails

@@ -45,6 +45,7 @@ impl AntNode {
         port = 0,
         initial_peers = vec![],
         local = false,
+        first = false,
         root_dir = None,
         home_network = false,
     ))]
@@ -57,6 +58,7 @@ impl AntNode {
         port: u16,
         initial_peers: Vec<String>,
         local: bool,
+        first: bool,
         root_dir: Option<String>,
         home_network: bool,
     ) -> PyResult<()> {
@@ -99,6 +101,7 @@ impl AntNode {
                 evm_network,
                 node_socket_addr,
                 local,
+                first,
                 root_dir.unwrap_or_else(|| PathBuf::from(".")),
                 #[cfg(feature = "upnp")]
                 false,

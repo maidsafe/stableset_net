@@ -138,7 +138,7 @@ impl PeersArgs {
             let cfg = if let Some(config) = config {
                 Some(config)
             } else {
-                BootstrapCacheConfig::default_config().ok()
+                BootstrapCacheConfig::default_config(self.local).ok()
             };
             if let Some(mut cfg) = cfg {
                 if let Some(file_path) = self.get_bootstrap_cache_path()? {

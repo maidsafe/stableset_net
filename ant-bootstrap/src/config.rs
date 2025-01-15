@@ -50,16 +50,15 @@ pub struct BootstrapCacheConfig {
 
 impl BootstrapCacheConfig {
     /// Creates a new BootstrapConfig with default settings
-    pub fn default_config() -> Result<Self> {
+    pub fn default_config(local: bool) -> Result<Self> {
+        let cache_file_path = if local {
+            default_cache_path_local()?
+        } else {
+            default_cache_path()?
+        };
         Ok(Self {
-            addr_expiry_duration: ADDR_EXPIRY_DURATION,
-            max_peers: MAX_PEERS,
-            max_addrs_per_peer: MAX_ADDRS_PER_PEER,
-            cache_file_path: default_cache_path()?,
-            disable_cache_writing: false,
-            min_cache_save_duration: MIN_BOOTSTRAP_CACHE_SAVE_INTERVAL,
-            max_cache_save_duration: MAX_BOOTSTRAP_CACHE_SAVE_INTERVAL,
-            cache_save_scaling_factor: 2,
+            cache_file_path,
+            ..Self::empty()
         })
     }
 
@@ -110,6 +109,16 @@ impl BootstrapCacheConfig {
 
 /// Returns the default path for the bootstrap cache file
 fn default_cache_path() -> Result<PathBuf> {
+    Ok(default_cache_dir()?.join(cache_file_name()))
+}
+/// Returns the default path for the bootstrap cache file that is used for
+/// local networks
+fn default_cache_path_local() -> Result<PathBuf> {
+    Ok(default_cache_dir()?.join(cache_file_name_local()))
+}
+
+/// Returns the default path for the bootstrap cache file
+fn default_cache_dir() -> Result<PathBuf> {
     let dir = dirs_next::data_dir()
         .ok_or_else(|| Error::CouldNotObtainDataDir)?
         .join("autonomi")
@@ -117,12 +126,18 @@ fn default_cache_path() -> Result<PathBuf> {
 
     std::fs::create_dir_all(&dir)?;
 
-    let path = dir.join(cache_file_name());
-
-    Ok(path)
+    Ok(dir)
 }
 
 /// Returns the name of the cache file
 pub fn cache_file_name() -> String {
     format!("bootstrap_cache_{}.json", crate::get_network_version())
+}
+
+/// Returns the name of the cache file for local networks
+pub fn cache_file_name_local() -> String {
+    format!(
+        "bootstrap_cache_local_{}.json",
+        crate::get_network_version()
+    )
 }

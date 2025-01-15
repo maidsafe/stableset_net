@@ -214,7 +214,7 @@ impl Client {
 fn build_client_and_run_swarm(local: bool) -> (Network, mpsc::Receiver<NetworkEvent>) {
     let mut network_builder = NetworkBuilder::new(Keypair::generate_ed25519(), local);
 
-    if let Ok(mut config) = BootstrapCacheConfig::default_config() {
+    if let Ok(mut config) = BootstrapCacheConfig::default_config(local) {
         if local {
             config.disable_cache_writing = true;
         }

@@ -269,6 +269,7 @@ pub struct NetworkBuilder {
     keypair: Keypair,
     listen_addr: Option<SocketAddr>,
     local: bool,
+    first: bool,
     #[cfg(feature = "open-metrics")]
     metrics_registries: Option<MetricsRegistries>,
     #[cfg(feature = "open-metrics")]
@@ -279,7 +280,7 @@ pub struct NetworkBuilder {
 }
 
 impl NetworkBuilder {
-    pub fn new(keypair: Keypair, local: bool) -> Self {
+    pub fn new(keypair: Keypair, local: bool, first: bool) -> Self {
         Self {
             bootstrap_cache: None,
             concurrency_limit: None,
@@ -287,6 +288,7 @@ impl NetworkBuilder {
             keypair,
             listen_addr: None,
             local,
+            first,
             #[cfg(feature = "open-metrics")]
             metrics_registries: None,
             #[cfg(feature = "open-metrics")]
@@ -700,6 +702,7 @@ impl NetworkBuilder {
             swarm,
             self_peer_id: peer_id,
             local: self.local,
+            first: self.first,
             is_client,
             is_behind_home_network: self.is_behind_home_network,
             #[cfg(feature = "open-metrics")]
@@ -796,6 +799,7 @@ pub struct SwarmDriver {
     pub(crate) self_peer_id: PeerId,
     /// When true, we don't filter our local addresses
     pub(crate) local: bool,
+    pub(crate) first: bool,
     pub(crate) is_client: bool,
     pub(crate) is_behind_home_network: bool,
     #[cfg(feature = "open-metrics")]

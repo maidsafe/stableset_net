@@ -13,7 +13,7 @@ mod rpc_service;
 mod subcommands;
 
 use crate::subcommands::EvmNetworkCommand;
-use ant_bootstrap::{BootstrapCacheConfig, BootstrapCacheStore, PeersArgs};
+use ant_bootstrap::{BootstrapCacheStore, PeersArgs};
 use ant_evm::{get_evm_network, EvmNetwork, RewardsAddress};
 use ant_logging::metrics::init_metrics;
 use ant_logging::{Level, LogFormat, LogOutputDest, ReloadHandle};
@@ -276,11 +276,8 @@ fn main() -> Result<()> {
     let (log_output_dest, log_reload_handle, _log_appender_guard) =
         init_logging(&opt, keypair.public().to_peer_id())?;
 
-    let rt = Runtime::new()?;
-    let mut bootstrap_cache = BootstrapCacheStore::new_from_peers_args(
-        &opt.peers,
-        Some(BootstrapCacheConfig::default_config()?),
-    )?;
+    let mut bootstrap_cache =
+        BootstrapCacheStore::new_from_peers_args(&opt.peers, None, opt.peers.local)?;
     // To create the file before startup if it doesn't exist.
     bootstrap_cache.sync_and_flush_to_disk(true)?;
 
@@ -305,6 +302,7 @@ fn main() -> Result<()> {
     // Create a tokio runtime per `run_node` attempt, this ensures
     // any spawned tasks are closed before we would attempt to run
     // another process with these args.
+    let rt = Runtime::new()?;
     if opt.peers.local {
         rt.spawn(init_metrics(std::process::id()));
     }
@@ -316,6 +314,7 @@ fn main() -> Result<()> {
             evm_network,
             node_socket_addr,
             opt.peers.local,
+            opt.peers.first,
             root_dir,
             #[cfg(feature = "upnp")]
             opt.upnp,

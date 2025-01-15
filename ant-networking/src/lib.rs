@@ -1325,7 +1325,7 @@ mod tests {
     #[tokio::test]
     async fn test_network_sign_verify() -> eyre::Result<()> {
         let (network, _, _) =
-            NetworkBuilder::new(Keypair::generate_ed25519(), false).build_client();
+            NetworkBuilder::new(Keypair::generate_ed25519(), false, false).build_client();
         let msg = b"test message";
         let sig = network.sign(msg)?;
         assert!(network.verify(msg, &sig));

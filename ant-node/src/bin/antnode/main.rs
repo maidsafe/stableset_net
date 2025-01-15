@@ -276,8 +276,7 @@ fn main() -> Result<()> {
     let (log_output_dest, log_reload_handle, _log_appender_guard) =
         init_logging(&opt, keypair.public().to_peer_id())?;
 
-    let mut bootstrap_cache =
-        BootstrapCacheStore::new_from_peers_args(&opt.peers, None, opt.peers.local)?;
+    let mut bootstrap_cache = BootstrapCacheStore::new_from_peers_args(&opt.peers, None)?;
     // To create the file before startup if it doesn't exist.
     bootstrap_cache.sync_and_flush_to_disk(true)?;
 

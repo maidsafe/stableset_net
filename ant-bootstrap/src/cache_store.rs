@@ -180,12 +180,11 @@ impl BootstrapCacheStore {
     pub fn new_from_peers_args(
         peers_arg: &PeersArgs,
         config: Option<BootstrapCacheConfig>,
-        local: bool,
     ) -> Result<Self> {
         let mut config = if let Some(cfg) = config {
             cfg
         } else {
-            BootstrapCacheConfig::default_config(local)?
+            BootstrapCacheConfig::default_config(peers_arg.local)?
         };
         if let Some(bootstrap_cache_path) = peers_arg.get_bootstrap_cache_path()? {
             config.cache_file_path = bootstrap_cache_path;

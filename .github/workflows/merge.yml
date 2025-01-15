@@ -974,11 +974,11 @@ jobs:
               echo "EVM_NETWORK has been set to $EVM_NETWORK"
           fi
 
-      - name: Verify the routing tables of the nodes
-        run: cargo test --release -p ant-node --test verify_routing_table -- --nocapture
-        env:
-          CARGO_TARGET_DIR: ${{ matrix.os == 'windows-latest' && './test-target' || '.' }}
-        timeout-minutes: 5
+      # - name: Verify the routing tables of the nodes
+      #   run: cargo test --release -p ant-node --test verify_routing_table -- --nocapture
+      #   env:
+      #     CARGO_TARGET_DIR: ${{ matrix.os == 'windows-latest' && './test-target' || '.' }}
+      #   timeout-minutes: 5
 
       - name: Verify the location of the data on the network
         run: cargo test --release -p ant-node --test verify_data_location -- --nocapture

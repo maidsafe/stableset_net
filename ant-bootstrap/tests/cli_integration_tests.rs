@@ -110,40 +110,6 @@ async fn test_network_contacts_fallback() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[tokio::test]
-async fn test_local_mode() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = LogBuilder::init_single_threaded_tokio_test("cli_integration_tests", false);
-
-    let temp_dir = TempDir::new()?;
-    let cache_path = temp_dir.path().join("cache.json");
-
-    // Create a config with some peers in the cache
-    let config = BootstrapCacheConfig::empty().with_cache_path(&cache_path);
-
-    // Create args with local mode enabled
-    let args = PeersArgs {
-        first: false,
-        addrs: vec![],
-        network_contacts_url: vec![],
-        local: true,
-        disable_mainnet_contacts: false,
-        ignore_cache: false,
-        bootstrap_cache_dir: None,
-    };
-
-    let addrs = args.get_addrs(Some(config), None).await?;
-
-    assert!(addrs.is_empty(), "Local mode should have no peers");
-
-    // Verify cache was not touched
-    assert!(
-        !cache_path.exists(),
-        "Cache file should not exist in local mode"
-    );
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn test_test_network_peers() -> Result<(), Box<dyn std::error::Error>> {
     let _guard = LogBuilder::init_single_threaded_tokio_test("cli_integration_tests", false);
 

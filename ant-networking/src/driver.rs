@@ -799,6 +799,7 @@ pub struct SwarmDriver {
     pub(crate) self_peer_id: PeerId,
     /// When true, we don't filter our local addresses
     pub(crate) local: bool,
+    /// When true, we will put our listening addresses in the bootstrap cache.
     pub(crate) first: bool,
     pub(crate) is_client: bool,
     pub(crate) is_behind_home_network: bool,

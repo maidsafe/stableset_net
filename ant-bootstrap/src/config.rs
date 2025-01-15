@@ -117,7 +117,7 @@ fn default_cache_path_local() -> Result<PathBuf> {
     Ok(default_cache_dir()?.join(cache_file_name_local()))
 }
 
-/// Returns the default path for the bootstrap cache file
+/// Returns the default dir that should contain the bootstrap cache file
 fn default_cache_dir() -> Result<PathBuf> {
     let dir = dirs_next::data_dir()
         .ok_or_else(|| Error::CouldNotObtainDataDir)?

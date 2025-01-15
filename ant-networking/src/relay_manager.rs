@@ -22,12 +22,16 @@ const MAX_CONCURRENT_RELAY_CONNECTIONS: usize = 4;
 const MAX_POTENTIAL_CANDIDATES: usize = 1000;
 
 /// We could get multiple incoming connections from the same peer through multiple relay servers, and only one of them
-/// would succeed. So we wait and collect all such connections peer 'from' peer, instead of just recording the
-///  success/failure for eachconnection.
+/// would succeed. So we wait and collect all such connections 'from' peer, instead of just recording the
+///  success/failure for each connection.
 const MAX_DURATION_TO_TRACK_INCOMING_CONNECTIONS_PER_PEER: std::time::Duration =
     std::time::Duration::from_secs(20);
 
+const RESERVATION_SCORE_ROLLING_WINDOW: usize = 100;
+
 /// The connections from a single peer through multiple relay servers.
+/// It is a vector of (relay server, connection id, time of connection, Option<success/failure>).
+/// A None value for success/failure means that the connection is still pending.
 type ConnectionsFromPeer = Vec<(PeerId, ConnectionId, SystemTime, Option<bool>)>;
 
 pub(crate) fn is_a_relayed_peer(addrs: &HashSet<Multiaddr>) -> bool {
@@ -60,32 +64,45 @@ struct RelayReservationHealth {
     /// just have a single one as well.
     /// This is a map of the 'from peer' to the multiple relay servers that the incoming connections are coming through.
     incoming_connections_from_remote_peer: BTreeMap<PeerId, ConnectionsFromPeer>,
+    /// A rolling window of reservation score per relay server.
     reservation_score: BTreeMap<PeerId, ReservationStat>,
 }
 
 #[derive(Debug, Default, Clone)]
 struct ReservationStat {
-    succeeded: usize,
-    error: usize,
+    stat: VecDeque<bool>,
 }
 
 impl ReservationStat {
+    fn record_value(&mut self, value: bool) {
+        self.stat.push_back(value);
+        if self.stat.len() > RESERVATION_SCORE_ROLLING_WINDOW {
+            self.stat.pop_front();
+        }
+    }
+
     fn success_rate(&self) -> f64 {
-        if self.succeeded + self.error == 0 {
+        let success = self.stat.iter().filter(|s| **s).count();
+        let error = self.stat.len() - success;
+
+        if success + error == 0 {
             0.0
         } else {
-            self.succeeded as f64 / (self.succeeded + self.error) as f64
+            success as f64 / (success + error) as f64
         }
     }
 
     fn is_faulty(&self) -> bool {
+        let success = self.stat.iter().filter(|s| **s).count();
+        let error = self.stat.len() - success;
+
         // Give the relay server a chance to prove itself
-        if self.succeeded + self.error < 30 {
+        if success + error < 30 {
             return false;
         }
 
-        // Still give the address a chance to prove itself
-        if self.succeeded + self.error < 100 {
+        // Still give the relay server a chance to prove itself
+        if error + error < 100 {
             return self.success_rate() < 0.5;
         }
 
@@ -502,11 +519,10 @@ impl RelayReservationHealth {
             };
 
             if elapsed < MAX_DURATION_TO_TRACK_INCOMING_CONNECTIONS_PER_PEER {
-                debug!("There is still an active incoming connection from {from_peer:?} that is waiting to be established. Skipping.");
                 continue;
             }
 
-            // if atleast one connection has been established, we can update the stats.
+            // if at least one connection has been established, we can update the stats.
             let mut connection_success = false;
             for (relay_server, connection_id, _, _) in connections
                 .iter()
@@ -517,21 +533,12 @@ impl RelayReservationHealth {
                 match self.reservation_score.entry(*relay_server) {
                     Entry::Occupied(mut entry) => {
                         let stat = entry.get_mut();
-
-                        let new_value = stat.succeeded.checked_add(1);
-                        if let Some(new_value) = new_value {
-                            stat.succeeded = new_value;
-                        } else {
-                            // roll over to not saturate the value. Else the success rate would keep decreasing.
-                            stat.succeeded = 1;
-                            stat.error = 0;
-                        }
+                        stat.record_value(true);
                     }
                     Entry::Vacant(entry) => {
-                        entry.insert(ReservationStat {
-                            succeeded: 1,
-                            error: 0,
-                        });
+                        let mut stat = ReservationStat::default();
+                        stat.record_value(true);
+                        entry.insert(stat);
                     }
                 }
             }
@@ -547,20 +554,12 @@ impl RelayReservationHealth {
                     match self.reservation_score.entry(*relay_server) {
                         Entry::Occupied(mut entry) => {
                             let stat = entry.get_mut();
-
-                            let new_value = stat.error.checked_add(1);
-                            if let Some(new_value) = new_value {
-                                stat.error = new_value;
-                            } else {
-                                stat.error = 1;
-                                stat.succeeded = 0;
-                            }
+                            stat.record_value(false);
                         }
                         Entry::Vacant(entry) => {
-                            entry.insert(ReservationStat {
-                                succeeded: 0,
-                                error: 1,
-                            });
+                            let mut stat = ReservationStat::default();
+                            stat.record_value(false);
+                            entry.insert(stat);
                         }
                     }
                 }
@@ -570,7 +569,6 @@ impl RelayReservationHealth {
         }
 
         for from_peer in to_remove {
-            debug!("Removing {from_peer:?} from the incoming_connections_from_remote_peer");
             self.incoming_connections_from_remote_peer
                 .remove(&from_peer);
         }

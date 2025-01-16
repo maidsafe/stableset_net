@@ -15,7 +15,7 @@ use libp2p::{
 use rand::Rng;
 use std::{
     collections::{btree_map::Entry, BTreeMap, HashMap, HashSet, VecDeque},
-    time::SystemTime,
+    time::{Instant, SystemTime},
 };
 
 const MAX_CONCURRENT_RELAY_CONNECTIONS: usize = 4;
@@ -227,14 +227,8 @@ impl RelayManager {
         &mut self,
         peer_id: &PeerId,
         swarm: &mut Swarm<NodeBehaviour>,
+        live_connected_peers: &BTreeMap<ConnectionId, (PeerId, Multiaddr, Instant)>,
     ) {
-        if tracing::level_enabled!(tracing::Level::DEBUG) {
-            let all_external_addresses = swarm.external_addresses().collect_vec();
-            let all_listeners = swarm.listeners().collect_vec();
-            debug!("All our listeners: {all_listeners:?}");
-            debug!("All our external addresses: {all_external_addresses:?}");
-        }
-
         match self.waiting_for_reservation.remove(peer_id) {
             Some(addr) => {
                 info!("Successfully made reservation with {peer_id:?} on {addr:?}. Adding the addr to external address.");
@@ -244,6 +238,16 @@ impl RelayManager {
             None => {
                 debug!("Made a reservation with a peer that we had not requested to");
             }
+        }
+
+        if self.connected_relay_servers.len() == MAX_CONCURRENT_RELAY_CONNECTIONS {
+            debug!("We have reached the maximum number of relay connections. Push new identify info to all connected peers");
+            swarm.behaviour_mut().identify.push(
+                live_connected_peers
+                    .values()
+                    .map(|(peer_id, _, _)| *peer_id)
+                    .unique(),
+            );
         }
     }
 
@@ -529,7 +533,7 @@ impl RelayReservationHealth {
                 .filter(|(_, _, _, result)| result.is_some_and(|succeeded| succeeded))
             {
                 connection_success = true;
-                debug!("Connection {connection_id:?} from {from_peer:?} through {relay_server:?} has been successful. Increasing the succces count");
+                debug!("Connection {connection_id:?} from {from_peer:?} through {relay_server:?} has been successful. Increasing the success count");
                 match self.reservation_score.entry(*relay_server) {
                     Entry::Occupied(mut entry) => {
                         let stat = entry.get_mut();

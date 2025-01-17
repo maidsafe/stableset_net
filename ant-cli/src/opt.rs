@@ -8,7 +8,7 @@
 
 use crate::commands::SubCmd;
 use ant_bootstrap::PeersArgs;
-use ant_logging::{LogFormat, LogOutputDest};
+use ant_logging::LogFormat;
 use clap::Parser;
 use clap_verbosity_flag::{OffLevel, Verbosity};
 use color_eyre::Result;

@@ -134,17 +134,6 @@ impl LogBuilder {
             self.print_updates_to_stdout,
         )?;
 
-        #[cfg(feature = "otlp")]
-        {
-            match std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
-                Ok(_) => layers.otlp_layer(self.default_logging_targets)?,
-                Err(_) => println!(
-                "The OTLP feature is enabled but the OTEL_EXPORTER_OTLP_ENDPOINT variable is not \
-                set, so traces will not be submitted."
-            ),
-            }
-        }
-
         if tracing_subscriber::registry()
             .with(layers.layers)
             .try_init()

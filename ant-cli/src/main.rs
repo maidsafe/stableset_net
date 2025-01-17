@@ -96,7 +96,7 @@ fn init_logging_and_metrics(opt: &Opt) -> Result<(ReloadHandle, Option<WorkerGua
         LevelFilter::Trace => Some(Level::TRACE),
     };
 
-    let targets = if let Some(level) = level {          
+    let targets = if let Some(level) = level {
         vec![
             ("ant_evm".to_string(), level),
             ("autonomi_cli".to_string(), level),

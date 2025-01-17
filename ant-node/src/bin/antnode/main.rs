@@ -532,7 +532,6 @@ fn init_logging(opt: &Opt, peer_id: PeerId) -> Result<(String, ReloadHandle, Opt
         LogOutputDestArg::Path(path) => LogOutputDest::Path(path.clone()),
     };
 
-    #[cfg(not(feature = "otlp"))]
     let (reload_handle, log_appender_guard) = {
         let mut log_builder = ant_logging::LogBuilder::new(logging_targets);
         log_builder.output_dest(output_dest.clone());
@@ -545,25 +544,6 @@ fn init_logging(opt: &Opt, peer_id: PeerId) -> Result<(String, ReloadHandle, Opt
         }
 
         log_builder.initialize()?
-    };
-
-    #[cfg(feature = "otlp")]
-    let (_rt, reload_handle, log_appender_guard) = {
-        // init logging in a separate runtime if we are sending traces to an opentelemetry server
-        let rt = Runtime::new()?;
-        let (reload_handle, log_appender_guard) = rt.block_on(async {
-            let mut log_builder = ant_logging::LogBuilder::new(logging_targets);
-            log_builder.output_dest(output_dest.clone());
-            log_builder.format(opt.log_format.unwrap_or(LogFormat::Default));
-            if let Some(files) = opt.max_log_files {
-                log_builder.max_log_files(files);
-            }
-            if let Some(files) = opt.max_archived_log_files {
-                log_builder.max_archived_log_files(files);
-            }
-            log_builder.initialize()
-        })?;
-        (rt, reload_handle, log_appender_guard)
     };
 
     Ok((output_dest.to_string(), reload_handle, log_appender_guard))

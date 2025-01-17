@@ -12,7 +12,11 @@ use libp2p::{
     core::transport::ListenerId, multiaddr::Protocol, swarm::ConnectionId, Multiaddr, PeerId,
     StreamProtocol, Swarm,
 };
+#[cfg(feature = "open-metrics")]
+use prometheus_client::metrics::gauge::Gauge;
 use rand::Rng;
+#[cfg(feature = "open-metrics")]
+use std::sync::atomic::AtomicU64;
 use std::{
     collections::{btree_map::Entry, BTreeMap, HashMap, HashSet, VecDeque},
     time::{Instant, SystemTime},
@@ -66,6 +70,9 @@ struct RelayReservationHealth {
     incoming_connections_from_remote_peer: BTreeMap<PeerId, ConnectionsFromPeer>,
     /// A rolling window of reservation score per relay server.
     reservation_score: BTreeMap<PeerId, ReservationStat>,
+    /// To track the avg health of all the reservations.
+    #[cfg(feature = "open-metrics")]
+    relay_reservation_health_metric: Option<Gauge<f64, AtomicU64>>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -91,23 +98,6 @@ impl ReservationStat {
             success as f64 / (success + error) as f64
         }
     }
-
-    fn is_faulty(&self) -> bool {
-        let success = self.stat.iter().filter(|s| **s).count();
-        let error = self.stat.len() - success;
-
-        // Give the relay server a chance to prove itself
-        if success + error < 30 {
-            return false;
-        }
-
-        // Still give the relay server a chance to prove itself
-        if error + error < 100 {
-            return self.success_rate() < 0.5;
-        }
-
-        self.success_rate() < 0.9
-    }
 }
 
 impl RelayManager {
@@ -120,6 +110,11 @@ impl RelayManager {
             relayed_listener_id_map: Default::default(),
             reservation_health: Default::default(),
         }
+    }
+
+    #[cfg(feature = "open-metrics")]
+    pub(crate) fn set_reservation_health_metrics(&mut self, gauge: Gauge<f64, AtomicU64>) {
+        self.reservation_health.relay_reservation_health_metric = Some(gauge);
     }
 
     /// Should we keep this peer alive? Closing a connection to that peer would remove that server from the listen addr.
@@ -164,8 +159,6 @@ impl RelayManager {
         swarm: &mut Swarm<NodeBehaviour>,
         bad_nodes: &BadNodes,
     ) {
-        self.remove_faulty_relay_servers(swarm);
-
         if self.connected_relay_servers.len() >= MAX_CONCURRENT_RELAY_CONNECTIONS
             || self.relay_server_candidates.is_empty()
         {
@@ -282,52 +275,6 @@ impl RelayManager {
                 self.waiting_for_reservation.len()
             )
         }
-    }
-
-    /// Remove the faulty relay server.
-    fn remove_faulty_relay_servers(&mut self, swarm: &mut Swarm<NodeBehaviour>) {
-        let faulty_relay_servers = self
-            .reservation_health
-            .reservation_score
-            .iter()
-            .filter(|(_, stat)| stat.is_faulty())
-            .map(|(peer_id, stat)| (*peer_id, stat.clone()))
-            .collect_vec();
-
-        for (relay_server, score) in faulty_relay_servers {
-            let Some(listener_id) =
-                self.relayed_listener_id_map
-                    .iter()
-                    .find_map(|(id, id_peer)| {
-                        if *id_peer == relay_server {
-                            Some(*id)
-                        } else {
-                            None
-                        }
-                    })
-            else {
-                error!("Could not find the listener id for the relay server {relay_server:?}");
-                continue;
-            };
-
-            info!(
-                "Removing faulty relay server: {relay_server:?} on {listener_id:?} with score: {}",
-                score.success_rate()
-            );
-            debug!("Removing faulty relay server {relay_server:?} on {listener_id:?}, {score:?}");
-
-            let result = swarm.remove_listener(listener_id);
-            info!("Result of removing listener: {result:?}");
-
-            self.on_listener_closed(&listener_id, swarm);
-
-            self.reservation_health
-                .reservation_score
-                .remove(&relay_server);
-        }
-
-        self.reservation_health
-            .cleanup_stats(&self.connected_relay_servers);
     }
 
     /// Track the incoming connections to monitor the health of a reservation.
@@ -577,22 +524,19 @@ impl RelayReservationHealth {
                 .remove(&from_peer);
         }
 
+        #[cfg(feature = "open-metrics")]
+        if let Some(metric) = &self.relay_reservation_health_metric {
+            // calculate avg health of all the reservations
+            let avg_health = self
+                .reservation_score
+                .values()
+                .map(|stat| stat.success_rate())
+                .sum::<f64>()
+                / self.reservation_score.len() as f64;
+            metric.set(avg_health);
+        }
+
         self.log_reservation_score();
-    }
-
-    /// Clean up the stats for relay servers that we are no longer connected to.
-    fn cleanup_stats(&mut self, connected_relay_servers: &BTreeMap<PeerId, Multiaddr>) {
-        let mut to_remove = Vec::new();
-        for (relay_server, _) in self.reservation_score.iter() {
-            if !connected_relay_servers.contains_key(relay_server) {
-                to_remove.push(*relay_server);
-            }
-        }
-
-        for relay_server in to_remove {
-            debug!("Removing {relay_server:?} from the reservation_score as we are no longer connected to it.");
-            self.reservation_score.remove(&relay_server);
-        }
     }
 
     fn log_reservation_score(&self) {

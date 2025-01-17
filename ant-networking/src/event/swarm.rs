@@ -69,7 +69,6 @@ impl SwarmDriver {
                             relay_manager.on_successful_reservation_by_client(
                                 &relay_peer_id,
                                 &mut self.swarm,
-                                &self.live_connected_peers,
                             );
                         }
                     } else {

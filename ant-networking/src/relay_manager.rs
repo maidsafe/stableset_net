@@ -7,7 +7,6 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::driver::{BadNodes, NodeBehaviour};
-use itertools::Itertools;
 use libp2p::{
     core::transport::ListenerId, multiaddr::Protocol, swarm::ConnectionId, Multiaddr, PeerId,
     StreamProtocol, Swarm,
@@ -19,7 +18,7 @@ use rand::Rng;
 use std::sync::atomic::AtomicU64;
 use std::{
     collections::{btree_map::Entry, BTreeMap, HashMap, HashSet, VecDeque},
-    time::{Instant, SystemTime},
+    time::SystemTime,
 };
 
 const MAX_CONCURRENT_RELAY_CONNECTIONS: usize = 4;
@@ -220,7 +219,6 @@ impl RelayManager {
         &mut self,
         peer_id: &PeerId,
         swarm: &mut Swarm<NodeBehaviour>,
-        live_connected_peers: &BTreeMap<ConnectionId, (PeerId, Multiaddr, Instant)>,
     ) {
         match self.waiting_for_reservation.remove(peer_id) {
             Some(addr) => {
@@ -235,12 +233,12 @@ impl RelayManager {
 
         if self.connected_relay_servers.len() == MAX_CONCURRENT_RELAY_CONNECTIONS {
             debug!("We have reached the maximum number of relay connections. Push new identify info to all connected peers");
-            swarm.behaviour_mut().identify.push(
-                live_connected_peers
-                    .values()
-                    .map(|(peer_id, _, _)| *peer_id)
-                    .unique(),
-            );
+            // send identify to all peers
+            let mut all_peers = HashSet::new();
+            for bucket in swarm.behaviour_mut().kademlia.kbuckets() {
+                all_peers.extend(bucket.iter().map(|entry| entry.node.key.preimage()));
+            }
+            swarm.behaviour_mut().identify.push(all_peers);
         }
     }
 

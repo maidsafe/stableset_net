@@ -44,7 +44,7 @@ use tracing_appender::non_blocking::WorkerGuard;
 
 #[derive(Debug, Clone)]
 pub enum LogOutputDestArg {
-    Stdout,
+    Stderr,
     DataDir,
     Path(PathBuf),
 }
@@ -52,7 +52,7 @@ pub enum LogOutputDestArg {
 impl std::fmt::Display for LogOutputDestArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LogOutputDestArg::Stdout => write!(f, "stdout"),
+            LogOutputDestArg::Stderr => write!(f, "stderr"),
             LogOutputDestArg::DataDir => write!(f, "data-dir"),
             LogOutputDestArg::Path(path) => write!(f, "{}", path.display()),
         }
@@ -61,7 +61,7 @@ impl std::fmt::Display for LogOutputDestArg {
 
 pub fn parse_log_output(val: &str) -> Result<LogOutputDestArg> {
     match val {
-        "stdout" => Ok(LogOutputDestArg::Stdout),
+        "stderr" => Ok(LogOutputDestArg::Stderr),
         "data-dir" => Ok(LogOutputDestArg::DataDir),
         // The path should be a directory, but we can't use something like `is_dir` to check
         // because the path doesn't need to exist. We can create it for the user.
@@ -524,7 +524,7 @@ fn init_logging(opt: &Opt, peer_id: PeerId) -> Result<(String, ReloadHandle, Opt
     ];
 
     let output_dest = match &opt.log_output_dest {
-        LogOutputDestArg::Stdout => LogOutputDest::Stdout,
+        LogOutputDestArg::Stderr => LogOutputDest::Stderr,
         LogOutputDestArg::DataDir => {
             let path = get_antnode_root_dir(peer_id)?.join("logs");
             LogOutputDest::Path(path)

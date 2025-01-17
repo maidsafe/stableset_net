@@ -109,16 +109,6 @@ impl TracingLayers {
         print_updates_to_stdout: bool,
     ) -> Result<ReloadHandle> {
         let layer = match output_dest {
-            LogOutputDest::Stdout => {
-                if print_updates_to_stdout {
-                    println!("Logging to stdout");
-                }
-                tracing_fmt::layer()
-                    .with_ansi(false)
-                    .with_target(false)
-                    .event_format(LogFormatter)
-                    .boxed()
-            }
             LogOutputDest::Stderr => tracing_fmt::layer()
                 .with_ansi(false)
                 .with_target(false)

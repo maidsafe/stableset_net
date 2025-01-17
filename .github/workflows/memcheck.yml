@@ -70,7 +70,7 @@ jobs:
         shell: bash
 
       - name: File upload
-        run: ./target/release/ant --log-output-dest=data-dir --local file upload --public "./the-test-data.zip" > ./upload_output 2>&1
+        run: ./target/release/ant --local file upload --public "./the-test-data.zip" > ./upload_output 2>&1
         env:
           ANT_LOG: "v"
         timeout-minutes: 15
@@ -98,7 +98,7 @@ jobs:
           ls -l $ANT_DATA_PATH/client_first/logs
           mkdir $ANT_DATA_PATH/client
           ls -l $ANT_DATA_PATH
-          ./target/release/ant --log-output-dest=data-dir --local file upload --public "./the-test-data.zip" > ./upload_output_second 2>&1
+          ./target/release/ant --local file upload --public "./the-test-data.zip" > ./upload_output_second 2>&1
           rg 'All chunks already exist on the network.' ./upload_output_second -c --stats
         env:
           ANT_LOG: "all"
@@ -150,7 +150,7 @@ jobs:
         if: always()
 
       - name: File Download
-        run: ./target/release/ant --log-output-dest=data-dir --local file download ${{ env.UPLOAD_ADDRESS }} ./downloaded_resources
+        run: ./target/release/ant --local file download ${{ env.UPLOAD_ADDRESS }} ./downloaded_resources
         env:
           ANT_LOG: "v"
         timeout-minutes: 2

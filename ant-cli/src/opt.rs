@@ -10,6 +10,7 @@ use crate::commands::SubCmd;
 use ant_bootstrap::PeersArgs;
 use ant_logging::{LogFormat, LogOutputDest};
 use clap::Parser;
+use clap_verbosity_flag::{OffLevel, Verbosity};
 use color_eyre::Result;
 use std::time::Duration;
 
@@ -39,20 +40,6 @@ pub(crate) struct Opt {
     #[clap(long, value_parser = LogFormat::parse_from_str, verbatim_doc_comment)]
     pub log_format: Option<LogFormat>,
 
-    /// Specify the logging output destination.
-    ///
-    /// Valid values are "stdout", "data-dir", or a custom path.
-    ///
-    /// `data-dir` is the default value.
-    ///
-    /// The data directory location is platform specific:
-    ///  - Linux: $HOME/.local/share/autonomi/client/logs
-    ///  - macOS: $HOME/Library/Application Support/autonomi/client/logs
-    ///  - Windows: C:\Users\<username>\AppData\Roaming\autonomi\client\logs
-    #[allow(rustdoc::invalid_html_tags)]
-    #[clap(long, value_parser = LogOutputDest::parse_from_str, verbatim_doc_comment, default_value = "data-dir")]
-    pub log_output_dest: LogOutputDest,
-
     /// Specify the network ID to use. This will allow you to run the CLI on a different network.
     ///
     /// By default, the network ID is set to 1, which represents the mainnet.
@@ -76,6 +63,9 @@ pub(crate) struct Opt {
     /// Print the network protocol version.
     #[clap(long)]
     pub protocol_version: bool,
+
+    #[clap(flatten)]
+    pub verbose: Verbosity<OffLevel>,
 
     /// Print version information.
     #[clap(long)]

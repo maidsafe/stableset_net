@@ -30,45 +30,13 @@ pub use tracing_core::Level;
 #[derive(Debug, Clone)]
 pub enum LogOutputDest {
     Stderr,
-    Stdout,
     Path(PathBuf),
-}
-
-impl LogOutputDest {
-    pub fn parse_from_str(val: &str) -> Result<Self> {
-        match val {
-            "stdout" => Ok(LogOutputDest::Stdout),
-            "data-dir" => {
-                // Get the current timestamp and format it to be human readable
-                let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
-
-                // Get the data directory path and append the timestamp to the log file name
-                let dir = match dirs_next::data_dir() {
-                    Some(dir) => dir
-                        .join("autonomi")
-                        .join("client")
-                        .join("logs")
-                        .join(format!("log_{timestamp}")),
-                    None => {
-                        return Err(Error::LoggingConfiguration(
-                            "could not obtain data directory path".to_string(),
-                        ))
-                    }
-                };
-                Ok(LogOutputDest::Path(dir))
-            }
-            // The path should be a directory, but we can't use something like `is_dir` to check
-            // because the path doesn't need to exist. We can create it for the user.
-            value => Ok(LogOutputDest::Path(PathBuf::from(value))),
-        }
-    }
 }
 
 impl std::fmt::Display for LogOutputDest {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             LogOutputDest::Stderr => write!(f, "stderr"),
-            LogOutputDest::Stdout => write!(f, "stdout"),
             LogOutputDest::Path(p) => write!(f, "{}", p.to_string_lossy()),
         }
     }
@@ -252,7 +220,7 @@ impl LogBuilder {
                     .join(format!("log_{timestamp}"));
                 LogOutputDest::Path(path)
             }
-            None => LogOutputDest::Stdout,
+            None => LogOutputDest::Stderr,
         };
 
         println!("Logging test at {test_file_name:?} to {output_dest:?}");

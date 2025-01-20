@@ -114,19 +114,6 @@ impl SwarmDriver {
                     .iter()
                     .any(|entry| entry.node.key.preimage() == &peer_id);
 
-                // // If the bucket contains any of a bootstrap node,
-                // // consider the bucket is not full and dial back
-                // // so that the bootstrap nodes can be replaced.
-                // if is_bucket_full {
-                //     if let Some(peers) = self.bootstrap_peers.get(&ilog2) {
-                //         if kbucket.iter().any(|entry| {
-                //             peers.contains(entry.node.key.preimage())
-                //         }) {
-                //             is_bucket_full = false;
-                //         }
-                //     }
-                // }
-
                 (is_bucket_full, already_present_in_rt, ilog2)
             } else {
                 return;
@@ -135,6 +122,8 @@ impl SwarmDriver {
         // If the peer is part already of the RT, try updating the addresses based on the new push info.
         // We don't have to dial it back.
         if already_present_in_rt {
+            debug!("Received identify for {peer_id:?} that is already part of the RT. Checking if the addresses {addrs:?} are new.");
+
             self.update_pre_existing_peer(peer_id, addrs.clone());
             return;
         }
@@ -147,9 +136,6 @@ impl SwarmDriver {
             if kbucket_full {
                 debug!("received identify for a full bucket {ilog2:?}, not dialing {peer_id:?} on {addrs:?}");
                 return;
-            } else if already_present_in_rt {
-                debug!("received identify for {peer_id:?} that is already part of the RT. Not dialing {peer_id:?} on {addrs:?}");
-                return;
             }
 
             info!(%peer_id, ?addrs, "received identify info from undialed peer for not full kbucket {ilog2:?}, dial back to confirm external accessible");
@@ -161,12 +147,10 @@ impl SwarmDriver {
             ) {
                 warn!(%peer_id, ?addrs, "dialing error: {err:?}");
             }
-
-            return;
-        }
-
-        // If we are not local, we care only for peers that we dialed and thus are reachable.
-        if self.local || has_dialed {
+        } else
+        // We care only for peers that we dialed and thus are reachable.
+        // Or if we are local, we can add the peer directly.
+        {
             // A bad node cannot establish a connection with us. So we can add it to the RT directly.
 
             // With the new bootstrap cache, the workload is distributed,

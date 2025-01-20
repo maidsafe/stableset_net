@@ -20,7 +20,6 @@ const MAINNET_CONTACTS: &[&str] = &[
     "http://159.223.246.45/bootstrap_cache.json",
     "http://139.59.201.153/bootstrap_cache.json",
     "http://139.59.200.27/bootstrap_cache.json",
-    "http://139.59.198.251/bootstrap_cache.json",
 ];
 
 /// The client fetch timeout

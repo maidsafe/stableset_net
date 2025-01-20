@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     path::{Path, PathBuf},
 };
 
@@ -34,7 +34,7 @@ pub type ArchiveAddr = XorName;
 /// to the network, of which the addresses are stored in this archive.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct PublicArchive {
-    map: HashMap<PathBuf, (DataAddr, Metadata)>,
+    map: BTreeMap<PathBuf, (DataAddr, Metadata)>,
 }
 
 impl PublicArchive {
@@ -42,7 +42,7 @@ impl PublicArchive {
     /// Note that this does not upload the archive to the network
     pub fn new() -> Self {
         Self {
-            map: HashMap::new(),
+            map: BTreeMap::new(),
         }
     }
 
@@ -92,7 +92,7 @@ impl PublicArchive {
     }
 
     /// Get the underlying map
-    pub fn map(&self) -> &HashMap<PathBuf, (DataAddr, Metadata)> {
+    pub fn map(&self) -> &BTreeMap<PathBuf, (DataAddr, Metadata)> {
         &self.map
     }
 

@@ -98,14 +98,14 @@ jobs:
           ls -l $ANT_DATA_PATH/client_first/logs
           mkdir $ANT_DATA_PATH/client
           ls -l $ANT_DATA_PATH
-          cp ./the-test-data.zip ./the-test-data_1.zip
-          ./target/release/ant --log-output-dest data-dir file_TYPE upload "" > ./second_upload 2>&1
-        enrelease-candidatev:
+          ./target/release/ant --log-output-dest=data-dir file upload --public "./the-test-data.zip" > ./upload_output_second 2>&1
+          rg 'Total cost: 0 AttoTokens' ./upload_output_second -c --stats
+        env:
           ANT_LOG: "all"
         timeout-minutes: 25
 
       - name: showing the second upload terminal output
-        run: cat second_upload
+        run: cat upload_output_second
         shell: bash
         if: always()
 
@@ -115,7 +115,7 @@ jobs:
       - name: Start the restart node again
         run: |
           ./target/release/antnode \
-            --root-dir-type PARESTART_TEST_NODE_DATA_PATH \
+            --root-dir $RESTART_TEST_NODE_DATA_PATH \
             --log-output-dest $RESTART_TEST_NODE_DATA_PATH \
             --local \
             --rewards-address "0x03B770D9cD32077cC0bF330c13C114a87643B124" &
@@ -162,6 +162,22 @@ jobs:
         timeout-minutes: 1
         continue-on-error: true
         run: pgrep antnode | wc -l
+        if: always()
+
+      - name: confirm opened FDs
+        shell: bash
+        timeout-minutes: 1
+        run: |
+          fd_cap="30"
+          pids=$(pgrep antnode)
+          for pid in $pids; do
+            fd_count=$(ls /proc/$pid/fd | wc -l)
+            echo "Process $pid - File Descriptors: $fd_count"
+            if (( $(echo "$fd_count > $fd_cap" | bc -l) )); then
+              echo "Process $pid holding FD exceeded threshold: $fd_cap"
+              exit 1
+            fi
+          done
         if: always()
 
       - name: Stop the local network and upload logs

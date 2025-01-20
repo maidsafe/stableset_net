@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     path::{Path, PathBuf},
 };
 
@@ -36,8 +36,6 @@ pub enum RenameError {
 /// Metadata for a file in an archive. Time values are UNIX timestamps.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Metadata {
-    /// When the file was (last) uploaded to the network.
-    pub uploaded: u64,
     /// File creation time on local file system. See [`std::fs::Metadata::created`] for details per OS.
     pub created: u64,
     /// Last file modification time taken from local file system. See [`std::fs::Metadata::modified`] for details per OS.
@@ -55,7 +53,6 @@ impl Metadata {
             .as_secs();
 
         Self {
-            uploaded: now,
             created: now,
             modified: now,
             size,
@@ -68,7 +65,7 @@ impl Metadata {
 /// The data maps are stored within this structure instead of uploading them to the network, keeping the data private.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct PrivateArchive {
-    map: HashMap<PathBuf, (DataMapChunk, Metadata)>,
+    map: BTreeMap<PathBuf, (DataMapChunk, Metadata)>,
 }
 
 impl PrivateArchive {
@@ -76,7 +73,7 @@ impl PrivateArchive {
     /// Note that this does not upload the archive to the network
     pub fn new() -> Self {
         Self {
-            map: HashMap::new(),
+            map: BTreeMap::new(),
         }
     }
 
@@ -130,7 +127,7 @@ impl PrivateArchive {
     }
 
     /// Get the underlying map
-    pub fn map(&self) -> &HashMap<PathBuf, (DataMapChunk, Metadata)> {
+    pub fn map(&self) -> &BTreeMap<PathBuf, (DataMapChunk, Metadata)> {
         &self.map
     }
 

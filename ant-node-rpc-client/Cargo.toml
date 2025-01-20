@@ -7,7 +7,7 @@ license = "GPL-3.0"
 name = "ant-node-rpc-client"
 readme = "README.md"
 repository = "https://github.com/maidsafe/autonomi"
-version = "0.6.40"
+version = "0.6.41"
 
 [[bin]]
 name = "antnode_rpc_client"
@@ -18,9 +18,9 @@ nightly = []
 
 [dependencies]
 ant-build-info = { path = "../ant-build-info", version = "0.1.23" }
-ant-logging = { path = "../ant-logging", version = "0.2.44" }
+ant-logging = { path = "../ant-logging", version = "0.2.45" }
 ant-protocol = { path = "../ant-protocol", version = "0.3.3", features=["rpc"] }
-ant-node = { path = "../ant-node", version = "0.3.3" }
+ant-node = { path = "../ant-node", version = "0.3.5" }
 ant-service-management = { path = "../ant-service-management", version = "0.4.7" }
 async-trait = "0.1"
 bls = { package = "blsttc", version = "8.0.1" }

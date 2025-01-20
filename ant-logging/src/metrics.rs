@@ -11,7 +11,7 @@ use std::time::Duration;
 use sysinfo::{self, Networks, Pid, System};
 use tracing::{debug, error};
 
-const UPDATE_INTERVAL: Duration = Duration::from_secs(15);
+const UPDATE_INTERVAL: Duration = Duration::from_secs(60);
 const TO_MB: u64 = 1_000_000;
 
 // The following Metrics are collected and logged
@@ -44,7 +44,7 @@ struct ProcessMetrics {
 // Obtains the system metrics every UPDATE_INTERVAL and logs it.
 // The function should be spawned as a task and should be re-run if our main process is restarted.
 pub async fn init_metrics(pid: u32) {
-    let mut sys = System::new_all();
+    let mut sys = System::new();
     let mut networks = Networks::new_with_refreshed_list();
     let pid = Pid::from_u32(pid);
 

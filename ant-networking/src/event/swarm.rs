@@ -10,6 +10,7 @@ use crate::{
     event::NodeEvent, multiaddr_get_ip, multiaddr_is_global, multiaddr_strip_p2p,
     relay_manager::is_a_relayed_peer, time::Instant, NetworkEvent, Result, SwarmDriver,
 };
+use ant_bootstrap::BootstrapCacheStore;
 use ant_protocol::version::{IDENTIFY_NODE_VERSION_STR, IDENTIFY_PROTOCOL_STR};
 #[cfg(feature = "open-metrics")]
 use libp2p::metrics::Recorder;
@@ -298,30 +299,39 @@ impl SwarmDriver {
                 if address.iter().last() != Some(Protocol::P2p(local_peer_id)) {
                     address.push(Protocol::P2p(local_peer_id));
                 }
+                tracing::info!("========> A");
 
                 // Trigger server mode if we're not a client and we should not add our own address if we're behind
                 // home network.
                 if !self.is_client && !self.is_behind_home_network {
+                    tracing::info!("========> B");
                     if self.local {
+                        tracing::info!("========> C");
                         // all addresses are effectively external here...
                         // this is needed for Kad Mode::Server
                         self.swarm.add_external_address(address.clone());
 
-                        // If we are local and the first node, add our own address(es) to cache
-                        // if self.first {
+                        // If we are local, add our own address(es) to cache
                         if let Some(bootstrap_cache) = self.bootstrap_cache.as_mut() {
-                            tracing::info!("Adding our own address to empty bootstrap cache as we are the first node");
-                            bootstrap_cache.add_addr(address.clone());
+                            tracing::info!(
+                                "Adding our own address to bootstrap cache for local network"
+                            );
 
-                            // save the cache to disk
-                            let mut bootstrap_cache = bootstrap_cache.clone();
-                            crate::time::spawn(async move {
-                                if let Err(err) = bootstrap_cache.sync_and_flush_to_disk(true) {
-                                    error!("Failed to save bootstrap cache: {err}");
-                                }
-                            });
+                            let config = bootstrap_cache.config().clone();
+                            let mut old_cache = bootstrap_cache.clone();
+
+                            if let Ok(new) = BootstrapCacheStore::new(config) {
+                                self.bootstrap_cache = Some(new);
+                                old_cache.add_addr(address.clone());
+
+                                // save the cache to disk
+                                crate::time::spawn(async move {
+                                    if let Err(err) = old_cache.sync_and_flush_to_disk(true) {
+                                        error!("Failed to save bootstrap cache: {err}");
+                                    }
+                                });
+                            }
                         }
-                        // }
                     } else if let Some(external_add_manager) =
                         self.external_address_manager.as_mut()
                     {

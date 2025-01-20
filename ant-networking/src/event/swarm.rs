@@ -205,6 +205,7 @@ impl SwarmDriver {
             } => {
                 event_string = "incoming";
                 debug!("IncomingConnection ({connection_id:?}) with local_addr: {local_addr:?} send_back_addr: {send_back_addr:?}");
+                #[cfg(feature = "open-metrics")]
                 if let Some(relay_manager) = self.relay_manager.as_mut() {
                     relay_manager.on_incoming_connection(
                         &connection_id,
@@ -229,6 +230,7 @@ impl SwarmDriver {
                             .on_established_incoming_connection(local_addr.clone());
                     }
                 }
+                #[cfg(feature = "open-metrics")]
                 if let Some(relay_manager) = self.relay_manager.as_mut() {
                     relay_manager.on_connection_established(&peer_id, &connection_id);
                 }
@@ -434,6 +436,7 @@ impl SwarmDriver {
                     external_addr_manager
                         .on_incoming_connection_error(local_addr.clone(), &mut self.swarm);
                 }
+                #[cfg(feature = "open-metrics")]
                 if let Some(relay_manager) = self.relay_manager.as_mut() {
                     relay_manager.on_incomming_connection_error(&send_back_addr, &connection_id);
                 }

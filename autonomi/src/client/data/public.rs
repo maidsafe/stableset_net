@@ -6,6 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use ant_protocol::storage::RetryStrategy;
 use bytes::Bytes;
 use libp2p::kad::Quorum;
 use std::collections::HashSet;
@@ -116,7 +117,7 @@ impl Client {
         debug!("Fetching chunk from network at: {key:?}");
         let get_cfg = GetRecordCfg {
             get_quorum: Quorum::One,
-            retry_strategy: None,
+            retry_strategy: Some(RetryStrategy::Balanced),
             target_record: None,
             expected_holders: HashSet::new(),
             is_register: false,

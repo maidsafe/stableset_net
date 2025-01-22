@@ -57,8 +57,8 @@ pub const CONNECT_TIMEOUT_SECS: u64 = 10;
 
 const CLIENT_EVENT_CHANNEL_SIZE: usize = 100;
 
-// Amount of peers to confirm into our routing table before we consider the client ready.
-pub use ant_protocol::CLOSE_GROUP_SIZE;
+// Threshold before we consider ourselves connected.
+const CLOSE_GROUP_SIZE: usize = 25;
 
 /// Represents a client for the Autonomi network.
 ///

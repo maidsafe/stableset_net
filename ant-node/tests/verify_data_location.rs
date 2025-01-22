@@ -90,7 +90,7 @@ async fn verify_data_location() -> Result<()> {
 
     let (client, wallet) = get_client_and_funded_wallet().await;
 
-    sleep(Duration::from_secs(10)).await;
+    tokio::time::sleep(Duration::from_secs(10)).await;
 
     store_chunks(&client, chunk_count, &wallet).await?;
 

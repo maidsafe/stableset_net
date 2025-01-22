@@ -74,8 +74,6 @@ The Autonomi network uses `quic` as the default transport protocol.
   networking layer, built atop libp2p which allows nodes and clients to communicate.
 - [Protocol](https://github.com/maidsafe/autonomi/blob/main/ant-protocol/README.md) The protocol
   used by the autonomi network.
-- [Registers](https://github.com/maidsafe/autonomi/blob/main/ant-registers/README.md) The
-  registers crate, used for the Register CRDT data type on the network.
 - [Bootstrap](https://github.com/maidsafe/autonomi/blob/main/ant-bootstrap/README.md)
   The network bootstrap cache or: how the network layer discovers bootstrap peers.
 - [Build Info](https://github.com/maidsafe/autonomi/blob/main/ant-build-info/README.md) Small
@@ -113,7 +111,7 @@ This creates a CSV file with the EVM network params in your data directory.
 cargo run --bin antctl -- local run --build --clean --rewards-address <YOUR_ETHEREUM_ADDRESS>
 ```
 
-The EVM Network parameters are loaded from the CSV file in your data directory automatically when the `local` option is passed to the `antctl` command.
+The EVM Network parameters are loaded from the CSV file in your data directory automatically when the `local` mode is enabled.
 
 ##### 4. Verify node status
 
@@ -141,117 +139,6 @@ Now to download the files again:
 ```bash
 cargo run --bin ant -- --local file download <addr> <dest_path>
 ```
-
-### Registers
-
-Registers are one of the network's data types. The workspace here has an example app demonstrating
-their use by two users to exchange text messages in a crude chat application.
-
-In the first terminal, using the registers example, Alice creates a register:
-
-```
-cargo run --example registers -- --local --user alice --reg-nickname myregister
-```
-
-Alice can now write a message to the register and see anything written by anyone else. For example
-she might enter the text "Hello, who's there?" which is written to the register and then shown as
-the "Latest value", in her terminal:
-
-```
-Register address: "50f4c9d55aa1f4fc19149a86e023cd189e509519788b4ad8625a1ce62932d1938cf4242e029cada768e7af0123a98c25973804d84ad397ca65cb89d6580d04ff07e5b196ea86f882b925be6ade06fc8d"
-Register owned by: PublicKey(0cf4..08a5)
-Register permissions: Permissions { anyone_can_write: true, writers: {PublicKey(0cf4..08a5)} }
-
-Current total number of items in Register: 0
-Latest value (more than one if concurrent writes were made):
---------------
---------------
-
-Enter a blank line to receive updates, or some text to be written.
-Hello, who's there?
-Writing msg (offline) to Register: 'Hello, who's there?'
-Syncing with SAFE in 2s...
-synced!
-
-Current total number of items in Register: 1
-Latest value (more than one if concurrent writes were made):
---------------
-[Alice]: Hello, who's there?
---------------
-
-Enter a blank line to receive updates, or some text to be written.
-
-```
-
-For anyone else to write to the same register they need to know its xor address, so to communicate
-with her friend Bob, Alice needs to find a way to send it to Bob. In her terminal, this is the
-value starting "50f4..." in the output above. This value will be different each time you run the
-example to create a register.
-
-Having received the xor address, in another terminal Bob can access the same register to see the
-message Alice has written, and he can write back by running this command with the address received
-from Alice. (Note that the command should all be on one line):
-
-```
-cargo run --example registers -- --local --user bob --reg-address 50f4c9d55aa1f4fc19149a86e023cd189e509519788b4ad8625a1ce62932d1938cf4242e029cada768e7af0123a98c25973804d84ad397ca65cb89d6580d04ff07e5b196ea86f882b925be6ade06fc8d
-```
-
-After retrieving the register and displaying the message from Alice, Bob can reply and at any time,
-Alice or Bob can send another message and see any new messages which have been written, or enter a
-blank line to poll for updates.
-
-Here's Bob writing from his terminal:
-
-```
-Latest value (more than one if concurrent writes were made):
---------------
-[Alice]: Hello, who's there?
---------------
-
-Enter a blank line to receive updates, or some text to be written.
-hi Alice, this is Bob!
-```
-
-Alice will see Bob's message when she either enters a blank line or writes another message herself.
-
-### Inspect a Register
-
-A second example, `register_inspect` allows you to view its structure and content. To use this with
-the above example you again provide the address of the register. For example:
-
-```
-cargo run --example register_inspect -- --local --reg-address 50f4c9d55aa1f4fc19149a86e023cd189e509519788b4ad8625a1ce62932d1938cf4242e029cada768e7af0123a98c25973804d84ad397ca65cb89d6580d04ff07e5b196ea86f882b925be6ade06fc8d
-```
-
-After printing a summary of the register, this example will display
-the structure of the register each time you press Enter, including the following:
-
-```
-Enter a blank line to print the latest register structure (or 'Q' <Enter> to quit)
-
-Syncing with SAFE...
-synced!
-======================
-Root (Latest) Node(s):
-[ 0] Node("4eadd9"..) Entry("[alice]: this is alice 3")
-[ 3] Node("f05112"..) Entry("[bob]: this is bob 3")
-======================
-Register Structure:
-(In general, earlier nodes are more indented)
-[ 0] Node("4eadd9"..) Entry("[alice]: this is alice 3")
-  [ 1] Node("f5afb2"..) Entry("[alice]: this is alice 2")
-    [ 2] Node("7693eb"..) Entry("[alice]: hello this is alice")
-[ 3] Node("f05112"..) Entry("[bob]: this is bob 3")
-  [ 4] Node("8c3cce"..) Entry("[bob]: this is bob 2")
-    [ 5] Node("c7f9fc"..) Entry("[bob]: this is bob 1")
-    [ 1] Node("f5afb2"..) Entry("[alice]: this is alice 2")
-      [ 2] Node("7693eb"..) Entry("[alice]: hello this is alice")
-======================
-```
-
-Each increase in indentation shows the children of the node above.
-The numbers in square brackets are just to make it easier to see
-where a node occurs more than once.
 
 ### RPC
 

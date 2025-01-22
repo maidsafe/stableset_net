@@ -19,7 +19,7 @@ def main(last_released_pr_number):
         raise Exception("The GITHUB_PAT_SAFE_NETWORK_PR_LIST environment variable must be set")
 
     g = Github(token)
-    repo = g.get_repo("maidsafe/safe_network")
+    repo = g.get_repo("maidsafe/autonomi")
 
     last_released_pr = repo.get_pull(last_released_pr_number)
     if not last_released_pr:
@@ -64,7 +64,7 @@ def main(last_released_pr_number):
         pr_number = pr["number"]
         closed_date = pr["closed_at"].date()
         breaking_text = "[BREAKING]" if pr["breaking"] else ""
-        print(f"{closed_date} [#{pr_number}](https://github.com/maidsafe/safe_network/pull/{pr_number}) -- {pr['title']} [@{pr['author']}] {breaking_text}")
+        print(f"{closed_date} [#{pr_number}](https://github.com/maidsafe/autonomi/pull/{pr_number}) -- {pr['title']} [@{pr['author']}] {breaking_text}")
 
     print()
     grouped_pulls = defaultdict(list)
@@ -98,7 +98,7 @@ def main(last_released_pr_number):
             pr_number = pr["number"]
             closed_date = pr["closed_at"].date()
             breaking_text = "[BREAKING]" if pr["breaking"] else ""
-            print(f"  {closed_date} [#{pr_number}](https://github.com/maidsafe/safe_network/pull/{pr_number}) -- {pr['title']} {breaking_text}")
+            print(f"  {closed_date} [#{pr_number}](https://github.com/maidsafe/autonomi/pull/{pr_number}) -- {pr['title']} {breaking_text}")
         print()
 
 

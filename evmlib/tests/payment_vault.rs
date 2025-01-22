@@ -122,7 +122,16 @@ async fn test_proxy_reachable_on_arb_sepolia() {
     let payment_vault = PaymentVaultHandler::new(*network.data_payments_address(), provider);
 
     let amount = payment_vault
-        .get_quote(vec![QuotingMetrics::default()])
+        .get_quote(vec![QuotingMetrics {
+            data_size: 0,
+            data_type: 0,
+            close_records_stored: 0,
+            max_records: 0,
+            received_payment_count: 0,
+            live_time: 0,
+            network_density: None,
+            network_size: None,
+        }])
         .await
         .unwrap();
 
@@ -136,6 +145,8 @@ async fn test_get_quote_on_arb_sepolia_test() {
     let payment_vault = PaymentVaultHandler::new(*network.data_payments_address(), provider);
 
     let quoting_metrics = QuotingMetrics {
+        data_type: 1, // a GraphEntry record
+        data_size: 100,
         close_records_stored: 10,
         max_records: 16 * 1024,
         received_payment_count: 0,
@@ -207,7 +218,17 @@ async fn test_verify_payment_on_local() {
     let payment_verifications: Vec<_> = quote_payments
         .into_iter()
         .map(|v| interface::IPaymentVault::PaymentVerification {
-            metrics: QuotingMetrics::default().into(),
+            metrics: QuotingMetrics {
+                data_size: 0,
+                data_type: 0,
+                close_records_stored: 0,
+                max_records: 0,
+                received_payment_count: 0,
+                live_time: 0,
+                network_density: None,
+                network_size: None,
+            }
+            .into(),
             rewardsAddress: v.1,
             quoteHash: v.0,
         })

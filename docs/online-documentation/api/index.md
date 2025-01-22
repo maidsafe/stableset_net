@@ -8,7 +8,7 @@ The [Autonomi Client API](autonomi-client/README.md) is the core library for int
 
 - Data storage and retrieval
 - Pointer management
-- Linked list operations
+- Graph operations
 - File system operations
 - Error handling
 

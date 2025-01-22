@@ -35,25 +35,15 @@
 //!
 //! # Data types
 //!
-//! This API gives access to two fundamental types on the network: chunks and
-//! registers.
+//! This API gives access to two fundamental types on the network: Chunks and GraphEntry.
 //!
 //! When we upload data, it's split into chunks using self-encryption, yielding
 //! a 'data map' allowing us to reconstruct the data again. Any two people that
 //! upload the exact same data will get the same data map, as all chunks are
 //! content-addressed and self-encryption is deterministic.
 //!
-//! Registers can keep small values pointing to data. This value can be updated
-//! and the history is kept. Multiple values can exist side by side in case of
-//! concurrency, but should converge to a single value eventually.
-//!
 //! # Features
 //!
-//! - `fs`: Up/download files and directories from filesystem
-//! - `registers`: Operate on register datatype
-//! - `vault`: Operate on Vault datatype
-//! - `full`: All of above
-//! - `local`: Discover local peers using mDNS. Useful for development.
 //! - `loud`: Print debug information to stdout
 
 // docs.rs generation will enable unstable `doc_cfg` feature
@@ -65,13 +55,24 @@ extern crate tracing;
 pub mod client;
 pub mod self_encryption;
 
+// The Network data types
+pub use client::data_types::chunk;
+pub use client::data_types::graph;
+pub use client::data_types::pointer;
+pub use client::data_types::scratchpad;
+
+/// The high-level data types
+pub use client::data;
+pub use client::files;
+pub use client::vault;
+
+// Re-exports of the evm types
 pub use ant_evm::utils::get_evm_network;
 pub use ant_evm::Amount;
 pub use ant_evm::EvmNetwork as Network;
 pub use ant_evm::EvmWallet as Wallet;
 pub use ant_evm::QuoteHash;
 pub use ant_evm::RewardsAddress;
-pub use ant_protocol::storage::{Chunk, ChunkAddress};
 
 #[doc(no_inline)] // Place this under 'Re-exports' in the docs.
 pub use bytes::Bytes;
@@ -80,8 +81,9 @@ pub use libp2p::Multiaddr;
 
 #[doc(inline)]
 pub use client::{
-    files::archive::Metadata, files::archive::PrivateArchive, files::archive_public::PublicArchive,
-    Client, ClientConfig,
+    data_types::chunk::Chunk, data_types::graph::GraphEntry, data_types::pointer::Pointer,
+    data_types::scratchpad::Scratchpad, files::archive_private::PrivateArchive,
+    files::archive_public::PublicArchive, files::Metadata, Client, ClientConfig,
 };
 
 #[cfg(feature = "extension-module")]

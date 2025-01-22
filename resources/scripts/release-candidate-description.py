@@ -64,7 +64,7 @@ def get_pr_list(pr_numbers):
         pr_number = pr["number"]
         closed_date = pr["closed_at"].date()
         breaking_text = "[BREAKING]" if pr["breaking"] else ""
-        markdown_lines.append(f"{closed_date} [#{pr_number}](https://github.com/maidsafe/safe_network/pull/{pr_number}) -- {pr['title']} [@{pr['author']}] {breaking_text}")
+        markdown_lines.append(f"{closed_date} [#{pr_number}](https://github.com/maidsafe/autonomi/pull/{pr_number}) -- {pr['title']} [@{pr['author']}] {breaking_text}")
     return markdown_lines
 
 

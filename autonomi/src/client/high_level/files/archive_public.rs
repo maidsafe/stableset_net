@@ -18,19 +18,21 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use xor_name::XorName;
 
-use super::archive::Metadata;
 use crate::{
     client::{
-        data::{CostError, DataAddr, GetError, PutError},
-        files::archive::RenameError,
+        high_level::{data::DataAddr, files::RenameError},
+        quote::CostError,
+        GetError, PutError,
     },
     Client,
 };
 
+use super::Metadata;
+
 /// The address of a public archive on the network. Points to an [`PublicArchive`].
 pub type ArchiveAddr = XorName;
 
-/// Public variant of [`crate::client::files::archive::PrivateArchive`]. Differs in that data maps of files are uploaded
+/// Public variant of [`crate::client::files::archive_private::PrivateArchive`]. Differs in that data maps of files are uploaded
 /// to the network, of which the addresses are stored in this archive.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct PublicArchive {
@@ -138,7 +140,7 @@ impl Client {
     /// Create simple archive containing `file.txt` pointing to random XOR name.
     ///
     /// ```no_run
-    /// # use autonomi::{Client, client::{data::DataAddr, files::{archive::Metadata, archive_public::{PublicArchive, ArchiveAddr}}}};
+    /// # use autonomi::{Client, client::{data::DataAddr, files::{Metadata, archive_public::{PublicArchive, ArchiveAddr}}}};
     /// # use std::path::PathBuf;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {

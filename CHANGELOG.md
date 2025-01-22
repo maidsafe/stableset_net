@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 *When editing this file, please respect a line length of 100.*
 
+## 2025-01-21
+
+### Client
+
+#### Changed
+
+- Use balanced retry strategy for downloading chunks. Sometimes it would be possible we wouldn't
+  find a chunk if we tried to retrieve it on the first attempt, so as with uploads, we will use a
+  balanced retry strategy for downloads. This should make the `ant file download` command more
+  robust.
+
+## 2025-01-20
+
+### Client
+
+#### Fixed
+
+- Remove unallocated static IP from the bootstrap mechanism. We have five static IP addresses
+  allocated to five hosts, each of which run nodes and a minimal web server. The web server makes a
+  list of peers available to nodes and clients to enable them to join the network. These static IP
+  addresses are hard-coded in the `antnode` and `ant` binaries. It was discovered we had accidentally
+  added six IPs and one of those was unallocated. Removing the unallocated IP should reduce the time
+  to connect to the network.
+
+### Network
+
+#### Changed
+
+- Reduce the frequency of metrics collection in the node's metrics server, from fifteen to sixty
+  seconds. This should reduce resource usage and improve performance.
+- Do not refresh all CPU information in the metrics collection process in the node's metrics server.
+  Again, this should reduce resource usage and improve performance.
+- Remove the 50% CPU usage safety measure. We added a safety measure to the node to cause the
+  process to terminate if the system's CPU usage exceeded 50% for five consecutive minutes. This was
+  to prevent cascading failures resulting from too much churn when a large node operator pulled the
+  plug on tens of thousands of nodes in a very short period of time. If other operators had
+  provisioned to max capacity and not left some buffer room for their own nodes, many other node
+  processes could die from the resulting churn. After an internal discussion, the decision was taken
+  to remove the safety measure.
+
 ## 2025-01-14
 
 ### Client

@@ -5,7 +5,7 @@ edition = "2021"
 homepage = "https://maidsafe.net"
 license = "GPL-3.0"
 name = "evmlib"
-repository = "https://github.com/maidsafe/safe_network"
+repository = "https://github.com/maidsafe/autonomi"
 version = "0.1.8"
 
 [features]

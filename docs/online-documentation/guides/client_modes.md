@@ -43,7 +43,7 @@ const client = await Client.connect({
 
 // Read operations
 const data = await client.dataGetPublic(address);
-const list = await client.linkedListGet(listAddress);
+const list = await client.GraphEntryGet(listAddress);
 ```
 
 ### Python
@@ -61,7 +61,7 @@ file = client.get_file(file_map, "output.txt")
 
 ## Upgrading to Read-Write Mode
 
-You can upgrade a read-only client to read-write mode by adding a wallet. This enables write operations like storing data or updating linked lists.
+You can upgrade a read-only client to read-write mode by adding a wallet. This enables write operations like storing data or updating graphs.
 
 ### Rust
 
@@ -127,7 +127,7 @@ address = client.store_bytes(b"Hello World")
 The following operations require a wallet (read-write mode):
 
 - Storing public data (`dataPutPublic`)
-- Creating/updating linked lists (`linkedListPut`)
+- Creating/updating graphs (`GraphEntryPut`)
 - Setting pointers (`pointerPut`)
 - Writing to vaults (`writeBytesToVault`)
 - Updating user data (`putUserDataToVault`)

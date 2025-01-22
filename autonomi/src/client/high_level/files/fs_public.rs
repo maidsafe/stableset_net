@@ -7,12 +7,12 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::archive_public::{ArchiveAddr, PublicArchive};
-use super::fs::*;
-use crate::client::data::DataAddr;
-use crate::client::files::archive::Metadata;
-use crate::client::files::get_relative_file_path_from_abs_file_and_folder_path;
-use crate::client::utils::process_tasks_with_max_concurrency;
+use super::{DownloadError, FileCostError, Metadata, UploadError};
+use crate::client::high_level::files::{
+    get_relative_file_path_from_abs_file_and_folder_path, FILE_UPLOAD_BATCH_SIZE,
+};
 use crate::client::Client;
+use crate::client::{high_level::data::DataAddr, utils::process_tasks_with_max_concurrency};
 use ant_evm::EvmWallet;
 use ant_networking::time::{Duration, SystemTime};
 use bytes::Bytes;

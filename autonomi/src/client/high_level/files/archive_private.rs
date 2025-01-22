@@ -15,50 +15,18 @@ use ant_networking::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::{
     client::{
-        data::{DataMapChunk, GetError, PutError},
-        payment::PaymentOption,
+        data_types::chunk::DataMapChunk, high_level::files::RenameError, payment::PaymentOption,
+        GetError, PutError,
     },
     Client,
 };
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
+
+use super::Metadata;
 
 /// Private archive data map, allowing access to the [`PrivateArchive`] data.
 pub type PrivateArchiveAccess = DataMapChunk;
-
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum RenameError {
-    #[error("File not found in archive: {0}")]
-    FileNotFound(PathBuf),
-}
-
-/// Metadata for a file in an archive. Time values are UNIX timestamps.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Metadata {
-    /// File creation time on local file system. See [`std::fs::Metadata::created`] for details per OS.
-    pub created: u64,
-    /// Last file modification time taken from local file system. See [`std::fs::Metadata::modified`] for details per OS.
-    pub modified: u64,
-    /// File size in bytes
-    pub size: u64,
-}
-
-impl Metadata {
-    /// Create a new metadata struct with the current time as uploaded, created and modified.
-    pub fn new_with_size(size: u64) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or(Duration::from_secs(0))
-            .as_secs();
-
-        Self {
-            created: now,
-            modified: now,
-            size,
-        }
-    }
-}
 
 /// Directory structure mapping filepaths to their data maps and metadata.
 ///

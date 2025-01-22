@@ -168,15 +168,6 @@ jobs:
         timeout-minutes: 25
         run: cargo test --release --package ant-logging
 
-      - name: Run register tests
-        timeout-minutes: 25
-        run: cargo test --release --package ant-registers
-        env:
-          # this will speed up PR merge flows, while giving us a modicum
-          # of proptesting
-          # we do many more runs on the nightly run
-          PROPTEST_CASES: 50
-
   e2e:
     if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
     name: E2E tests
@@ -276,104 +267,6 @@ jobs:
           ANT_LOG: "v"
         timeout-minutes: 5
 
-      - name: Generate register signing key
-        run: ./target/release/ant --log-output-dest=data-dir --local register generate-key
-
-      - name: Create register (writeable by owner)
-        run: ./target/release/ant --log-output-dest=data-dir --local register create baobao 123 > ./register_create_output 2>&1
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 10
-
-      - name: parse register address (unix)
-        if: matrix.os != 'windows-latest'
-        run: |
-          REGISTER_ADDRESS=$(rg "Register created at address: ([0-9a-f]*)" -o -r '$1' ./register_create_output)
-          echo "REGISTER_ADDRESS=$REGISTER_ADDRESS" >> $GITHUB_ENV
-        shell: bash
-
-      - name: parse register address (win)
-        if: matrix.os == 'windows-latest'
-        run: |
-          $REGISTER_ADDRESS = rg "Register created at address: ([0-9a-f]*)" -o -r '$1' ./register_create_output
-          echo "REGISTER_ADDRESS=$REGISTER_ADDRESS" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        shell: pwsh
-
-      - name: Get register
-        run: ./target/release/ant --log-output-dest=data-dir --local register get ${{ env.REGISTER_ADDRESS }}
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 5
-
-      - name: Edit register
-        run: ./target/release/ant --log-output-dest=data-dir --local register edit ${{ env.REGISTER_ADDRESS }} 456
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 10
-
-      - name: Get register (after edit)
-        run: ./target/release/ant --log-output-dest=data-dir --local register get ${{ env.REGISTER_ADDRESS }}
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 5
-
-      - name: Create Public Register (writeable by anyone)
-        run: ./target/release/ant --log-output-dest=data-dir --local register create bao 111 --public > ./register_public_create_output 2>&1
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 5
-
-      - name: parse public register address (unix)
-        if: matrix.os != 'windows-latest'
-        run: |
-          PUBLIC_REGISTER_ADDRESS=$(rg "Register created at address: ([0-9a-f]*)" -o -r '$1' ./register_public_create_output)
-          echo "PUBLIC_REGISTER_ADDRESS=$PUBLIC_REGISTER_ADDRESS" >> $GITHUB_ENV
-        shell: bash
-
-      - name: parse public register address (win)
-        if: matrix.os == 'windows-latest'
-        run: |
-          $PUBLIC_REGISTER_ADDRESS = rg "Register created at address: ([0-9a-f]*)" -o -r '$1' ./register_public_create_output
-          echo "PUBLIC_REGISTER_ADDRESS=$PUBLIC_REGISTER_ADDRESS" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        shell: pwsh
-
-      - name: Get Public Register (current key is the owner)
-        run: ./target/release/ant --log-output-dest=data-dir --local register get ${{ env.PUBLIC_REGISTER_ADDRESS }}
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 5
-
-      - name: Edit Public Register (current key is the owner)
-        run: ./target/release/ant --log-output-dest=data-dir --local register edit ${{ env.PUBLIC_REGISTER_ADDRESS }} 222
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 10
-
-      - name: Delete current register signing key
-        shell: bash
-        run: rm -rf ${{ matrix.ant_path }}/client
-
-      - name: Generate new register signing key
-        run: ./target/release/ant --log-output-dest data-dir register generate-key
-
-      - name: Get Public Register (new signing key is not the owner)
-        run: ./target/release/ant --log-output-dest data-dir --local register get ${{ env.PUBLIC_REGISTER_ADDRESS }}
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 2
-
-      - name: Edit Public Register (new signing key is not the owner)
-        run: ./target/release/ant --log-output-dest data-dir --local register edit ${{ env.PUBLIC_REGISTER_ADDRESS }} 333
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 10
-
-      - name: Get Public Register (new signing key is not the owner)
-        run: ./target/release/ant --log-output-dest data-dir --local register get ${{ env.PUBLIC_REGISTER_ADDRESS }}
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 2
-
       - name: create local user file
         run: echo random > random.txt
         env:
@@ -382,12 +275,6 @@ jobs:
 
       - name: file upload
         run: ./target/release/ant --log-output-dest data-dir --local file upload random.txt
-        env:
-          ANT_LOG: "v"
-        timeout-minutes: 2
-
-      - name: create a local register
-        run: ./target/release/ant --log-output-dest data-dir --local register create sample_new_register 1234
         env:
           ANT_LOG: "v"
         timeout-minutes: 2
@@ -412,7 +299,6 @@ jobs:
             dd if=/dev/urandom of=random_file_$i.bin bs=1M count=1 status=none
             ./target/release/ant --log-output-dest data-dir --local file upload random_file_$i.bin --public
             ./target/release/ant --log-output-dest data-dir --local file upload random_file_$i.bin
-            ./target/release/ant --log-output-dest data-dir --local register create $i random_file_$i.bin
           done
         env:
           ANT_LOG: "v"
@@ -431,7 +317,6 @@ jobs:
               # Run autonomi commands
               ./target/release/ant --log-output-dest data-dir --local file upload "random_file_$i.bin" --public
               ./target/release/ant --log-output-dest data-dir --local file upload "random_file_$i.bin"
-              ./target/release/ant --log-output-dest data-dir --local register create $i "random_file_$i.bin"
           }
         env:
           ANT_LOG: "v"
@@ -570,138 +455,6 @@ jobs:
           action: stop
           log_file_prefix: safe_test_logs_e2e
           platform: ${{ matrix.os }}
-
-  # transaction_test:
-  #   if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
-  #   name: transaction tests against network
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     matrix:
-  #       os: [ubuntu-latest, windows-latest, macos-latest]
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: Install Rust
-  #       uses: dtolnay/rust-toolchain@stable
-
-  #     - uses: Swatinem/rust-cache@v2
-
-  #     - name: Build binaries
-  #       run: cargo build --release --bin antnode
-  #       timeout-minutes: 30
-
-  #     - name: Build faucet binary
-  #       run: cargo build --release --bin faucet --features="gifting"
-  #       timeout-minutes: 30
-
-  #     - name: Start a local network
-  #       uses: maidsafe/ant-local-testnet-action@main
-  #       with:
-  #         action: start
-  #         interval: 2000
-  #         node-path: target/release/antnode
-  #         faucet-path: target/release/faucet
-  #         platform: ${{ matrix.os }}
-  #         build: true
-
-  #     - name: Check ANT_PEERS was set
-  #       shell: bash
-  #       run: |
-  #         if [[ -z "$ANT_PEERS" ]]; then
-  #           echo "The ANT_PEERS variable has not been set"
-  #           exit 1
-  #         else
-  #           echo "ANT_PEERS has been set to $ANT_PEERS"
-  #         fi
-
-  #     - name: execute the sequential transfers tests
-  #       run: cargo test --release -p ant-node --test sequential_transfers -- --nocapture --test-threads=1
-  #       env:
-  #         ANT_LOG: "all"
-  #         CARGO_TARGET_DIR: ${{ matrix.os == 'windows-latest' && './test-target' || '.' }}
-  #       timeout-minutes: 25
-
-  #     - name: execute the storage payment tests
-  #       run: cargo test --release -p ant-node --test storage_payments -- --nocapture --test-threads=1
-  #       env:
-  #         ANT_LOG: "all"
-  #         CARGO_TARGET_DIR: ${{ matrix.os == 'windows-latest' && './test-target' || '.' }}
-  #       timeout-minutes: 25
-
-  #     - name: Stop the local network and upload logs
-  #       if: always()
-  #       uses: maidsafe/ant-local-testnet-action@main
-  #       with:
-  #         action: stop
-  #         log_file_prefix: safe_test_logs_transaction
-  #         platform: ${{ matrix.os }}
-
-  # # runs with increased node count
-  # transaction_simulation:
-  #   if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
-  #   name: transaction simulation
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     matrix:
-  #       os: [ ubuntu-latest, windows-latest, macos-latest ]
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: Install Rust
-  #       uses: dtolnay/rust-toolchain@stable
-
-  #     - uses: Swatinem/rust-cache@v2
-
-  #     - name: Build binaries
-  #       run: cargo build --release --bin antnode
-  #       timeout-minutes: 30
-
-  #     - name: Build faucet binary
-  #       run: cargo build --release --bin faucet --features="gifting"
-  #       timeout-minutes: 30
-
-  #     - name: Build testing executable
-  #       run: cargo test --release -p ant-node --test transaction_simulation --no-run
-  #       env:
-  #         # only set the target dir for windows to bypass the linker issue.
-  #         # happens if we build the node manager via testnet action
-  #         CARGO_TARGET_DIR: ${{ matrix.os == 'windows-latest' && './test-target' || '.' }}
-  #       timeout-minutes: 30
-
-  #     - name: Start a local network
-  #       uses: maidsafe/ant-local-testnet-action@main
-  #       with:
-  #         action: start
-  #         interval: 2000
-  #         node-count: 50
-  #         node-path: target/release/antnode
-  #         faucet-path: target/release/faucet
-  #         platform: ${{ matrix.os }}
-  #         build: true
-
-  #     - name: Check ANT_PEERS was set
-  #       shell: bash
-  #       run: |
-  #         if [[ -z "$ANT_PEERS" ]]; then
-  #           echo "The ANT_PEERS variable has not been set"
-  #           exit 1
-  #         else
-  #           echo "ANT_PEERS has been set to $ANT_PEERS"
-  #         fi
-
-  #     - name: execute the transaction simulation
-  #       run: cargo test --release -p ant-node --test transaction_simulation -- --nocapture
-  #       env:
-  #         CARGO_TARGET_DIR: ${{ matrix.os == 'windows-latest' && './test-target' || '.' }}
-  #       timeout-minutes: 25
-
-  #     - name: Stop the local network and upload logs
-  #       if: always()
-  #       uses: maidsafe/ant-local-testnet-action@main
-  #       with:
-  #         action: stop
-  #         log_file_prefix: safe_test_logs_transaction_simulation
-  #         platform: ${{ matrix.os }}
 
   # token_distribution_test:
   #   if: "!startsWith(github.event.head_commit.message, 'chore(release):')"

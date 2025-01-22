@@ -184,8 +184,6 @@ The Ant Node provides a comprehensive API for running and managing nodes in the 
         match event {
             NodeEvent::ConnectedToNetwork => println!("Connected to network"),
             NodeEvent::ChunkStored(addr) => println!("Chunk stored: {}", addr),
-            NodeEvent::RegisterCreated(addr) => println!("Register created: {}", addr),
-            NodeEvent::RegisterEdited(addr) => println!("Register edited: {}", addr),
             NodeEvent::RewardReceived(amount, addr) => {
                 println!("Reward received: {} at {}", amount, addr)
             }

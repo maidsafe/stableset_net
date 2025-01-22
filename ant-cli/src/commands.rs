@@ -7,7 +7,6 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 mod file;
-mod register;
 mod vault;
 mod wallet;
 
@@ -21,12 +20,6 @@ pub enum SubCmd {
     File {
         #[command(subcommand)]
         command: FileCmd,
-    },
-
-    /// Operations related to register management.
-    Register {
-        #[command(subcommand)]
-        command: RegisterCmd,
     },
 
     /// Operations related to vault management.
@@ -72,61 +65,6 @@ pub enum FileCmd {
 }
 
 #[derive(Subcommand, Debug)]
-pub enum RegisterCmd {
-    /// Generate a new register key.
-    GenerateKey {
-        /// Overwrite existing key if it exists
-        /// Warning: overwriting the existing key will result in loss of access to any existing registers created using that key
-        #[arg(short, long)]
-        overwrite: bool,
-    },
-
-    /// Estimate cost to register a name.
-    Cost {
-        /// The name to register.
-        name: String,
-    },
-
-    /// Create a new register with the given name and value.
-    Create {
-        /// The name of the register.
-        name: String,
-        /// The value to store in the register.
-        value: String,
-        /// Create the register with public write access.
-        #[arg(long, default_value = "false")]
-        public: bool,
-    },
-
-    /// Edit an existing register.
-    Edit {
-        /// Use the name of the register instead of the address
-        /// Note that only the owner of the register can use this shorthand as the address can be generated from the name and register key.
-        #[arg(short, long)]
-        name: bool,
-        /// The address of the register
-        /// With the name option on the address will be used as a name
-        address: String,
-        /// The new value to store in the register.
-        value: String,
-    },
-
-    /// Get the value of a register.
-    Get {
-        /// Use the name of the register instead of the address
-        /// Note that only the owner of the register can use this shorthand as the address can be generated from the name and register key.
-        #[arg(short, long)]
-        name: bool,
-        /// The address of the register
-        /// With the name option on the address will be used as a name
-        address: String,
-    },
-
-    /// List previous registers
-    List,
-}
-
-#[derive(Subcommand, Debug)]
 pub enum VaultCmd {
     /// Estimate cost to create a vault.
     Cost,
@@ -140,7 +78,7 @@ pub enum VaultCmd {
     /// You need to have your original `SECRET_KEY` to load the vault.
     Load,
 
-    /// Sync vault with the network, including registers and files.
+    /// Sync vault with the network, safeguarding local user data.
     /// Loads existing user data from the network and merges it with your local user data.
     /// Pushes your local user data to the network.
     Sync {
@@ -194,22 +132,6 @@ pub async fn handle_subcommand(opt: Opt) -> Result<()> {
                 file::download(&addr, &dest_file, peers.await?).await
             }
             FileCmd::List => file::list(),
-        },
-        Some(SubCmd::Register { command }) => match command {
-            RegisterCmd::GenerateKey { overwrite } => register::generate_key(overwrite),
-            RegisterCmd::Cost { name } => register::cost(&name, peers.await?).await,
-            RegisterCmd::Create {
-                name,
-                value,
-                public,
-            } => register::create(&name, &value, public, peers.await?).await,
-            RegisterCmd::Edit {
-                address,
-                name,
-                value,
-            } => register::edit(address, name, &value, peers.await?).await,
-            RegisterCmd::Get { address, name } => register::get(address, name, peers.await?).await,
-            RegisterCmd::List => register::list(),
         },
         Some(SubCmd::Vault { command }) => match command {
             VaultCmd::Cost => vault::cost(peers.await?).await,

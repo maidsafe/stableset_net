@@ -8,7 +8,7 @@ export interface PaymentOption {
     wallet: string;
 }
 
-export interface LinkedListOptions {
+export interface GraphEntryOptions {
     owner: PublicKey;
     counter: number;
     target: string;

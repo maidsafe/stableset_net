@@ -48,9 +48,9 @@ use tokio::sync::mpsc;
 use walkdir::{DirEntry, WalkDir};
 use xor_name::XorName;
 
-// A transaction record is at the size of 4KB roughly.
+// A GraphEntry record is at the size of 4KB roughly.
 // Given chunk record is maxed at size of 4MB.
-// During Beta phase, it's almost one transaction per chunk,
+// During Beta phase, it's almost one GraphEntry per chunk,
 // which makes the average record size is around 2MB.
 // Given we are targeting node size to be 32GB,
 // this shall allow around 16K records.
@@ -714,6 +714,8 @@ impl NodeRecordStore {
     pub(crate) fn quoting_metrics(
         &self,
         key: &Key,
+        data_type: u32,
+        data_size: usize,
         network_size: Option<u64>,
     ) -> (QuotingMetrics, bool) {
         let records_stored = self.records.len();
@@ -725,6 +727,8 @@ impl NodeRecordStore {
         };
 
         let mut quoting_metrics = QuotingMetrics {
+            data_type,
+            data_size,
             close_records_stored: records_stored,
             max_records: self.config.max_records,
             received_payment_count: self.received_payment_count,
@@ -929,29 +933,7 @@ impl RecordStore for NodeRecordStore {
 
 /// A place holder RecordStore impl for the client that does nothing
 #[derive(Default, Debug)]
-pub struct ClientRecordStore {
-    empty_record_addresses: HashMap<Key, (NetworkAddress, ValidationType)>,
-}
-
-impl ClientRecordStore {
-    pub(crate) fn contains(&self, _key: &Key) -> bool {
-        false
-    }
-
-    pub(crate) fn record_addresses(&self) -> HashMap<NetworkAddress, ValidationType> {
-        HashMap::new()
-    }
-
-    pub(crate) fn record_addresses_ref(&self) -> &HashMap<Key, (NetworkAddress, ValidationType)> {
-        &self.empty_record_addresses
-    }
-
-    pub(crate) fn put_verified(&mut self, _r: Record, _record_type: ValidationType) -> Result<()> {
-        Ok(())
-    }
-
-    pub(crate) fn mark_as_stored(&mut self, _r: Key, _t: ValidationType) {}
-}
+pub struct ClientRecordStore {}
 
 impl RecordStore for ClientRecordStore {
     type RecordsIter<'a> = vec::IntoIter<Cow<'a, Record>>;

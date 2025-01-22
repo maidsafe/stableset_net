@@ -6,14 +6,10 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-// TODO: Remove this once the registers are removed
-#![expect(deprecated)]
-#![allow(clippy::mutable_key_type)]
-
 mod common;
 
 use ant_logging::LogBuilder;
-use ant_networking::{sleep, sort_peers_by_key};
+use ant_networking::sort_peers_by_key;
 use ant_protocol::{
     antnode_proto::{NodeInfoRequest, RecordAddressesRequest},
     NetworkAddress, PrettyPrintRecordKey, CLOSE_GROUP_SIZE,
@@ -62,9 +58,6 @@ const CHURN_COUNT: u8 = 20;
 /// Default number of chunks that should be PUT to the network.
 /// It can be overridden by setting the 'CHUNK_COUNT' env var.
 const CHUNK_COUNT: usize = 5;
-/// Default number of registers that should be PUT to the network.
-/// It can be overridden by setting the 'REGISTER_COUNT' env var.
-const REGISTER_COUNT: usize = 5;
 
 type NodeIndex = usize;
 type RecordHolders = HashMap<RecordKey, HashSet<NodeIndex>>;
@@ -84,17 +77,12 @@ async fn verify_data_location() -> Result<()> {
     } else {
         CHUNK_COUNT
     };
-    let register_count = if let Ok(str) = std::env::var("REGISTER_COUNT") {
-        str.parse::<usize>()?
-    } else {
-        REGISTER_COUNT
-    };
     println!(
-        "Performing data location verification with a churn count of {churn_count} and n_chunks {chunk_count}, n_registers {register_count}\nIt will take approx {:?}",
+        "Performing data location verification with a churn count of {churn_count} and n_chunks {chunk_count}\nIt will take approx {:?}",
         VERIFICATION_DELAY*churn_count as u32
     );
     info!(
-        "Performing data location verification with a churn count of {churn_count} and n_chunks {chunk_count}, n_registers {register_count}\nIt will take approx {:?}",
+        "Performing data location verification with a churn count of {churn_count} and n_chunks {chunk_count}\nIt will take approx {:?}",
         VERIFICATION_DELAY*churn_count as u32
     );
     let node_rpc_address = get_all_rpc_addresses(true)?;
@@ -105,7 +93,6 @@ async fn verify_data_location() -> Result<()> {
     sleep(Duration::from_secs(10)).await;
 
     store_chunks(&client, chunk_count, &wallet).await?;
-    store_registers(&client, register_count, &wallet).await?;
 
     // Verify data location initially
     verify_location(&all_peers, &node_rpc_address).await?;
@@ -376,63 +363,5 @@ async fn store_chunks(
     // to make sure the last chunk was stored
     tokio::time::sleep(Duration::from_secs(10)).await;
 
-    Ok(())
-}
-
-async fn store_registers(
-    client: &Client,
-    register_count: usize,
-    wallet: &evmlib::wallet::Wallet,
-) -> Result<()> {
-    let start = Instant::now();
-
-    let mut uploaded_registers_count = 0;
-    loop {
-        if uploaded_registers_count >= register_count {
-            break;
-        }
-        // Owner key of the register.
-        let key = bls::SecretKey::random();
-
-        // Create a register with the value [1, 2, 3, 4]
-        let rand_name: String = rand::thread_rng()
-            .sample_iter(&rand::distributions::Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect();
-        let register = client
-            .register_create(
-                Some(vec![1, 2, 3, 4].into()),
-                &rand_name,
-                key.clone(),
-                wallet,
-            )
-            .await?;
-
-        println!("Created Register at {:?}", register.address());
-        debug!("Created Register at {:?}", register.address());
-        sleep(Duration::from_secs(5)).await;
-
-        // Update the register with the value [5, 6, 7, 8]
-        client
-            .register_update(register.clone(), vec![5, 6, 7, 8].into(), key)
-            .await?;
-
-        println!("Updated Register at {:?}", register.address());
-        debug!("Updated Register at {:?}", register.address());
-
-        uploaded_registers_count += 1;
-    }
-    println!(
-        "{register_count:?} Registers were stored in {:?}",
-        start.elapsed()
-    );
-    info!(
-        "{register_count:?} Registers were stored in {:?}",
-        start.elapsed()
-    );
-
-    // to make sure the last register was stored
-    sleep(Duration::from_secs(10)).await;
     Ok(())
 }

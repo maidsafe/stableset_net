@@ -28,7 +28,7 @@ use prometheus_client::{
 use sysinfo::{Pid, ProcessRefreshKind, System};
 use tokio::time::Duration;
 
-const UPDATE_INTERVAL: Duration = Duration::from_secs(15);
+const UPDATE_INTERVAL: Duration = Duration::from_secs(60);
 const TO_MB: u64 = 1_000_000;
 
 /// The shared recorders that are used to record metrics.
@@ -246,7 +246,7 @@ impl NetworkMetricsRecorder {
 
         let pid = Pid::from_u32(std::process::id());
         let process_refresh_kind = ProcessRefreshKind::everything().without_disk_usage();
-        let mut system = System::new_all();
+        let mut system = System::new();
         let physical_core_count = system.physical_core_count();
 
         tokio::spawn(async move {

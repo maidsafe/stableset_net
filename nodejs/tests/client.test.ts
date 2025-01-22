@@ -7,18 +7,18 @@ describe('Client', () => {
         });
     });
 
-    describe('linkedListOperations', () => {
-        it('should throw not implemented error for linkedListGet', async () => {
+    describe('GraphEntryOperations', () => {
+        it('should throw not implemented error for GraphEntryGet', async () => {
             const client = await Client.connect({ peers: [] }).catch(() => null);
             if (!client) return;
-            await expect(client.linkedListGet('address')).rejects.toThrow('Not implemented');
+            await expect(client.GraphEntryGet('address')).rejects.toThrow('Not implemented');
         });
 
-        it('should throw not implemented error for linkedListPut', async () => {
+        it('should throw not implemented error for GraphEntryPut', async () => {
             const client = await Client.connect({ peers: [] }).catch(() => null);
             if (!client) return;
             await expect(
-                client.linkedListPut(
+                client.GraphEntryPut(
                     {
                         owner: 'owner',
                         counter: 0,

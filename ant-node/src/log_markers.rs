@@ -39,19 +39,15 @@ pub enum Marker<'a> {
 
     /// Valid non-existing Chunk record PUT from the network received and stored
     ValidChunkRecordPutFromNetwork(&'a PrettyPrintRecordKey<'a>),
-    /// Valid non-existing Register record PUT from the network received and stored
-    ValidRegisterRecordPutFromNetwork(&'a PrettyPrintRecordKey<'a>),
-    /// Valid non-existing Spend record PUT from the network received and stored
-    ValidTransactionRecordPutFromNetwork(&'a PrettyPrintRecordKey<'a>),
+    /// Valid non-existing GraphEntry record PUT from the network received and stored
+    ValidGraphEntryRecordPutFromNetwork(&'a PrettyPrintRecordKey<'a>),
     /// Valid Scratchpad record PUT from the network received and stored
     ValidScratchpadRecordPutFromNetwork(&'a PrettyPrintRecordKey<'a>),
 
     /// Valid paid to us and royalty paid chunk stored
     ValidPaidChunkPutFromClient(&'a PrettyPrintRecordKey<'a>),
-    /// Valid paid to us and royalty paid register stored
-    ValidPaidRegisterPutFromClient(&'a PrettyPrintRecordKey<'a>),
-    /// Valid transaction stored
-    ValidTransactionPutFromClient(&'a PrettyPrintRecordKey<'a>),
+    /// Valid GraphEntry stored
+    ValidGraphEntryPutFromClient(&'a PrettyPrintRecordKey<'a>),
     /// Valid scratchpad stored
     ValidScratchpadRecordPutFromClient(&'a PrettyPrintRecordKey<'a>),
 

@@ -70,7 +70,7 @@ Key characteristics:
 2. **Latest Version Publishing**
    ```rust
    // Point to latest version while maintaining history
-   let history = client.create_linked_list().await?;
+   let history = client.create_graph_entry().await?;
    let latest = client.create_pointer(history.address()).await?;
    ```
 
@@ -81,62 +81,37 @@ Key characteristics:
    let redirect_pointer = client.create_pointer(data_pointer.address()).await?;
    ```
 
-### 3. LinkedList
+### 3. GraphEntry
 
-LinkedLists in Autonomi are powerful structures that can form transaction chains or decentralized Directed Acyclic Graphs (DAGs) on the network. They provide both historical tracking and CRDT-like properties.
+Graphs in Autonomi are powerful structures of connected data on the network. They provide both historical tracking and CRDT-like properties.
 
 ```rust
-// Create a new linked list
-let list = client.create_linked_list().await?;
+// Create a new graph entry, signed with a secret key
+let graph_content = [42u8; 32]; // 32 bytes of content
+let graph_entry = GraphEntry::new(
+    public_key,         // Graph entry address and owner
+    vec![parent_pks],   // Parent graph entries
+    graph_content,      // 32 bytes graph content
+    vec![],             // Optional outputs (links to other graph entries)
+    &secret_key         // Secret key for signing
+);
 
-// Append items to create history
-client.append_to_list(list.address(), item1).await?;
-client.append_to_list(list.address(), item2).await?;
+// Calculate the cost to create a graph entry
+let cost = client.graph_entry_cost(secret_key).await?;
 
-// Read list contents including history
-let items = client.get_list(list.address()).await?;
+// Store the entry in the network
+client.graph_entry_put(graph_entry, &wallet).await?;
 
-// Check for forks
-let forks = client.detect_forks(list.address()).await?;
+// Retrieve the entry from the network
+let retrieved_entry = client.graph_entry_get(graph_entry.address()).await?;
 ```
 
 Key characteristics:
-- Decentralized DAG structure
-- Fork detection and handling
-- Transaction chain support
+- Decentralized Graph structure
+- Each entry is signed by a unique key (sk) and addressed at that key (pk)
 - CRDT-like conflict resolution
-- Version history tracking
-- Support for value transfer (cryptocurrency-like)
-
-#### DAG Properties
-1. **Fork Detection**
-   ```rust
-   // Detect and handle forks in the list
-   match client.detect_forks(list.address()).await? {
-       Fork::None => proceed_with_updates(),
-       Fork::Detected(branches) => resolve_conflict(branches),
-   }
-   ```
-
-2. **Transaction Chains**
-   ```rust
-   // Create a transaction chain
-   let transaction = Transaction {
-       previous: Some(last_tx_hash),
-       amount: 100,
-       recipient: address,
-   };
-   client.append_to_list(chain.address(), transaction).await?;
-   ```
-
-3. **History Tracking**
-   ```rust
-   // Get full history of changes
-   let history = client.get_list_history(list.address()).await?;
-   for entry in history {
-       println!("Version {}: {:?}", entry.version, entry.data);
-   }
-   ```
+- Graph Traversal
+- Can be used for value transfer (cryptocurrency-like)
 
 ### 4. ScratchPad
 
@@ -250,9 +225,9 @@ client.get_file(file_map, "output.dat").await?;
 
 #### Directories
 
-Directories use linked lists and pointers to maintain a mutable collection of entries:
+Directories use graphs and pointers to maintain a mutable collection of entries:
 
-- LinkedList stores directory entries
+- GraphEntry stores directory entries
 - Pointer maintains current directory state
 - Hierarchical structure support
 
@@ -281,7 +256,7 @@ let tree = client.list_recursive(root.address()).await?;
    - Version tracking built-in
 
 3. **Collections**
-   - Use linked lists for ordered data
+   - Use graphs for linked data
    - Efficient for append operations
    - Good for logs and sequences
 
@@ -295,7 +270,7 @@ let tree = client.list_recursive(root.address()).await?;
 1. **Choose the Right Type**
    - Chunks for immutable data
    - Pointers for mutable references
-   - LinkedLists for collections
+   - GraphEntry for collections
    - ScratchPads for temporary storage
 
 2. **Efficient Data Structures**
@@ -341,5 +316,5 @@ let tree = client.list_recursive(root.address()).await?;
    - Solution: Use version checking
 
 3. **Performance**
-   - LinkedList traversal costs
+   - GraphEntry traversal costs
    - Solution: Use appropriate data structures for access patterns

@@ -7,13 +7,11 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 #![allow(clippy::mutable_key_type)] // for the Bytes in NetworkAddress
 
+use crate::error::{NetworkError, Result};
 use crate::record_store::{ClientRecordStore, NodeRecordStore};
 use ant_evm::{QuotingMetrics, U256};
 use ant_protocol::{storage::ValidationType, NetworkAddress};
-use libp2p::kad::{
-    store::{RecordStore, Result},
-    ProviderRecord, Record, RecordKey,
-};
+use libp2p::kad::{store::RecordStore, ProviderRecord, Record, RecordKey};
 use std::{borrow::Cow, collections::HashMap};
 
 pub enum UnifiedRecordStore {
@@ -32,7 +30,7 @@ impl RecordStore for UnifiedRecordStore {
         }
     }
 
-    fn put(&mut self, r: Record) -> Result<()> {
+    fn put(&mut self, r: Record) -> libp2p::kad::store::Result<()> {
         match self {
             Self::Client(store) => store.put(r),
             Self::Node(store) => store.put(r),
@@ -53,7 +51,7 @@ impl RecordStore for UnifiedRecordStore {
         }
     }
 
-    fn add_provider(&mut self, record: ProviderRecord) -> Result<()> {
+    fn add_provider(&mut self, record: ProviderRecord) -> libp2p::kad::store::Result<()> {
         match self {
             Self::Client(store) => store.add_provider(record),
             Self::Node(store) => store.add_provider(record),
@@ -83,32 +81,48 @@ impl RecordStore for UnifiedRecordStore {
 }
 
 impl UnifiedRecordStore {
-    pub(crate) fn contains(&self, key: &RecordKey) -> bool {
+    pub(crate) fn contains(&self, key: &RecordKey) -> Result<bool> {
         match self {
-            Self::Client(store) => store.contains(key),
-            Self::Node(store) => store.contains(key),
+            Self::Client(_) => {
+                error!("Calling 'contains' at Client. This should not happen");
+                Err(NetworkError::OperationNotAllowedOnClientRecordStore)
+            }
+            Self::Node(store) => Ok(store.contains(key)),
         }
     }
 
-    pub(crate) fn record_addresses(&self) -> HashMap<NetworkAddress, ValidationType> {
+    pub(crate) fn record_addresses(&self) -> Result<HashMap<NetworkAddress, ValidationType>> {
         match self {
-            Self::Client(store) => store.record_addresses(),
-            Self::Node(store) => store.record_addresses(),
+            Self::Client(_) => {
+                error!("Calling record_addresses at Client. This should not happen");
+                Err(NetworkError::OperationNotAllowedOnClientRecordStore)
+            }
+            Self::Node(store) => Ok(store.record_addresses()),
         }
     }
 
     pub(crate) fn record_addresses_ref(
         &self,
-    ) -> &HashMap<RecordKey, (NetworkAddress, ValidationType)> {
+    ) -> Result<&HashMap<RecordKey, (NetworkAddress, ValidationType)>> {
         match self {
-            Self::Client(store) => store.record_addresses_ref(),
-            Self::Node(store) => store.record_addresses_ref(),
+            Self::Client(_) => {
+                error!("Calling record_addresses_ref at Client. This should not happen");
+                Err(NetworkError::OperationNotAllowedOnClientRecordStore)
+            }
+            Self::Node(store) => Ok(store.record_addresses_ref()),
         }
     }
 
-    pub(crate) fn put_verified(&mut self, r: Record, record_type: ValidationType) -> Result<()> {
+    pub(crate) fn put_verified(
+        &mut self,
+        r: Record,
+        record_type: ValidationType,
+    ) -> libp2p::kad::store::Result<()> {
         match self {
-            Self::Client(store) => store.put_verified(r, record_type),
+            Self::Client(_) => {
+                error!("Calling put_verified at Client. This should not happen");
+                Ok(())
+            }
             Self::Node(store) => store.put_verified(r, record_type),
         }
     }
@@ -118,52 +132,53 @@ impl UnifiedRecordStore {
     pub(crate) fn quoting_metrics(
         &self,
         key: &RecordKey,
+        data_type: u32,
+        data_size: usize,
         network_size: Option<u64>,
-    ) -> (QuotingMetrics, bool) {
+    ) -> Result<(QuotingMetrics, bool)> {
         match self {
             Self::Client(_) => {
-                warn!("Calling quoting metrics calculation at Client. This should not happen");
-                Default::default()
+                error!("Calling quoting_metrics at Client. This should not happen");
+                Err(NetworkError::OperationNotAllowedOnClientRecordStore)
             }
-            Self::Node(store) => store.quoting_metrics(key, network_size),
+            Self::Node(store) => Ok(store.quoting_metrics(key, data_type, data_size, network_size)),
         }
     }
 
     pub(crate) fn payment_received(&mut self) {
         match self {
             Self::Client(_) => {
-                warn!("Calling payment_received at Client. This should not happen");
+                error!("Calling payment_received at Client. This should not happen");
             }
             Self::Node(store) => store.payment_received(),
         }
     }
 
-    pub(crate) fn get_farthest_replication_distance(&self) -> Option<U256> {
+    pub(crate) fn get_farthest_replication_distance(&self) -> Result<Option<U256>> {
         match self {
-            Self::Client(_store) => {
-                warn!("Calling get_distance_range at Client. This should not happen");
-                None
+            Self::Client(_) => {
+                error!(
+                    "Calling get_farthest_replication_distance at Client. This should not happen"
+                );
+                Err(NetworkError::OperationNotAllowedOnClientRecordStore)
             }
-            Self::Node(store) => store.get_responsible_distance_range(),
+            Self::Node(store) => Ok(store.get_responsible_distance_range()),
         }
     }
 
     pub(crate) fn set_distance_range(&mut self, distance: U256) {
         match self {
-            Self::Client(_store) => {
-                warn!("Calling set_distance_range at Client. This should not happen");
+            Self::Client(_) => {
+                error!("Calling set_distance_range at Client. This should not happen");
             }
             Self::Node(store) => store.set_responsible_distance_range(distance),
         }
     }
 
-    pub(crate) fn get_farthest(&self) -> Option<RecordKey> {
+    pub(crate) fn get_farthest(&self) -> Result<Option<RecordKey>> {
         match self {
-            Self::Client(_store) => {
-                warn!("Calling get_farthest at Client. This should not happen");
-                None
-            }
-            Self::Node(store) => store.get_farthest(),
+            Self::Client(_) => Err(NetworkError::OperationNotAllowedOnClientRecordStore),
+            Self::Node(store) => Ok(store.get_farthest()),
         }
     }
 
@@ -172,7 +187,9 @@ impl UnifiedRecordStore {
     /// (to be done after writes are finalised)
     pub(crate) fn mark_as_stored(&mut self, k: RecordKey, record_type: ValidationType) {
         match self {
-            Self::Client(store) => store.mark_as_stored(k, record_type),
+            Self::Client(_) => {
+                error!("Calling mark_as_stored at Client. This should not happen");
+            }
             Self::Node(store) => store.mark_as_stored(k, record_type),
         };
     }
@@ -180,7 +197,7 @@ impl UnifiedRecordStore {
     pub(crate) fn cleanup_irrelevant_records(&mut self) {
         match self {
             Self::Client(_store) => {
-                warn!("Calling cleanup_irrelevant_records at Client. This should not happen");
+                error!("Calling cleanup_irrelevant_records at Client. This should not happen");
             }
             Self::Node(store) => store.cleanup_irrelevant_records(),
         }

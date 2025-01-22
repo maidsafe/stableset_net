@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::{data::CostError, Client};
+use super::Client;
 use crate::client::rate_limiter::RateLimiter;
 use ant_evm::payment_vault::get_market_price;
 use ant_evm::{Amount, EvmNetwork, PaymentQuote, QuotePayment, QuotingMetrics};
@@ -52,15 +52,35 @@ impl StoreQuote {
     }
 }
 
+/// Errors that can occur during the cost calculation.
+#[derive(Debug, thiserror::Error)]
+pub enum CostError {
+    #[error("Failed to self-encrypt data.")]
+    SelfEncryption(#[from] crate::self_encryption::Error),
+    #[error("Could not get store quote for: {0:?} after several retries")]
+    CouldNotGetStoreQuote(XorName),
+    #[error("Could not get store costs: {0:?}")]
+    CouldNotGetStoreCosts(NetworkError),
+    #[error("Not enough node quotes for {0:?}, got: {1:?} and need at least {2:?}")]
+    NotEnoughNodeQuotes(XorName, usize, usize),
+    #[error("Failed to serialize {0}")]
+    Serialization(String),
+    #[error("Market price error: {0:?}")]
+    MarketPriceError(#[from] ant_evm::payment_vault::error::Error),
+}
+
 impl Client {
     pub async fn get_store_quotes(
         &self,
-        content_addrs: impl Iterator<Item = XorName>,
+        data_type: u32,
+        content_addrs: impl Iterator<Item = (XorName, usize)>,
     ) -> Result<StoreQuote, CostError> {
         // get all quotes from nodes
         let futures: Vec<_> = content_addrs
             .into_iter()
-            .map(|content_addr| fetch_store_quote_with_retries(&self.network, content_addr))
+            .map(|(content_addr, data_size)| {
+                fetch_store_quote_with_retries(&self.network, content_addr, data_type, data_size)
+            })
             .collect();
 
         let raw_quotes_per_addr = futures::future::try_join_all(futures).await?;
@@ -78,7 +98,7 @@ impl Client {
 
             // FIXME: find better way to deal with paid content addrs and feedback to the user
             // assume that content addr is already paid for and uploaded
-            if raw_quotes.is_empty() {
+            if raw_quotes.len() <= CLOSE_GROUP_SIZE / 2 {
                 debug!("content_addr: {content_addr} is already paid for. No need to fetch market price.");
                 continue;
             }
@@ -149,10 +169,14 @@ impl Client {
 async fn fetch_store_quote(
     network: &Network,
     content_addr: XorName,
+    data_type: u32,
+    data_size: usize,
 ) -> Result<Vec<(PeerId, PaymentQuote)>, NetworkError> {
     network
         .get_store_quote_from_network(
             NetworkAddress::from_chunk_address(ChunkAddress::new(content_addr)),
+            data_type,
+            data_size,
             vec![],
         )
         .await
@@ -162,11 +186,13 @@ async fn fetch_store_quote(
 async fn fetch_store_quote_with_retries(
     network: &Network,
     content_addr: XorName,
+    data_type: u32,
+    data_size: usize,
 ) -> Result<(XorName, Vec<(PeerId, PaymentQuote)>), CostError> {
     let mut retries = 0;
 
     loop {
-        match fetch_store_quote(network, content_addr).await {
+        match fetch_store_quote(network, content_addr, data_type, data_size).await {
             Ok(quote) => {
                 if quote.len() < CLOSE_GROUP_SIZE {
                     retries += 1;

@@ -23,7 +23,7 @@ use ant_protocol::{
 use libp2p::{
     kad::{
         store::{Error as StoreError, RecordStore},
-        KBucketDistance as Distance, Quorum, Record, RecordKey,
+        KBucketDistance as Distance, Quorum, Record, RecordKey, K_VALUE,
     },
     Multiaddr, PeerId,
 };
@@ -72,7 +72,7 @@ pub enum LocalSwarmCmd {
     /// In case the range is too narrow, returns at lease CLOSE_GROUP_SIZE peers.
     GetReplicateCandidates {
         data_addr: NetworkAddress,
-        sender: oneshot::Sender<Vec<PeerId>>,
+        sender: oneshot::Sender<Result<Vec<PeerId>>>,
     },
     // Returns up to K_VALUE peers from all the k-buckets from the local Routing Table.
     // And our PeerId as well.
@@ -88,11 +88,11 @@ pub enum LocalSwarmCmd {
     /// Check if the local RecordStore contains the provided key
     RecordStoreHasKey {
         key: RecordKey,
-        sender: oneshot::Sender<bool>,
+        sender: oneshot::Sender<Result<bool>>,
     },
     /// Get the Addresses of all the Records held locally
     GetAllLocalRecordAddresses {
-        sender: oneshot::Sender<HashMap<NetworkAddress, ValidationType>>,
+        sender: oneshot::Sender<Result<HashMap<NetworkAddress, ValidationType>>>,
     },
     /// Get data from the local RecordStore
     GetLocalRecord {
@@ -103,7 +103,9 @@ pub enum LocalSwarmCmd {
     /// Returns the quoting metrics and whether the record at `key` is already stored locally
     GetLocalQuotingMetrics {
         key: RecordKey,
-        sender: oneshot::Sender<(QuotingMetrics, bool)>,
+        data_type: u32,
+        data_size: usize,
+        sender: oneshot::Sender<Result<(QuotingMetrics, bool)>>,
     },
     /// Notify the node received a payment.
     PaymentReceived,
@@ -150,6 +152,15 @@ pub enum LocalSwarmCmd {
     /// Add a network density sample
     AddNetworkDensitySample {
         distance: Distance,
+    },
+    /// Send peer scores (collected from storage challenge) to replication_fetcher
+    NotifyPeerScores {
+        peer_scores: Vec<(PeerId, bool)>,
+    },
+    /// Add fresh replicate records into replication_fetcher
+    AddFreshReplicateRecords {
+        holder: NetworkAddress,
+        keys: Vec<(NetworkAddress, ValidationType)>,
     },
 }
 
@@ -309,6 +320,15 @@ impl Debug for LocalSwarmCmd {
             }
             LocalSwarmCmd::AddNetworkDensitySample { distance } => {
                 write!(f, "LocalSwarmCmd::AddNetworkDensitySample({distance:?})")
+            }
+            LocalSwarmCmd::NotifyPeerScores { peer_scores } => {
+                write!(f, "LocalSwarmCmd::NotifyPeerScores({peer_scores:?})")
+            }
+            LocalSwarmCmd::AddFreshReplicateRecords { holder, keys } => {
+                write!(
+                    f,
+                    "LocalSwarmCmd::AddFreshReplicateRecords({holder:?}, {keys:?})"
+                )
             }
         }
     }
@@ -575,7 +595,12 @@ impl SwarmDriver {
                 cmd_string = "TriggerIntervalReplication";
                 self.try_interval_replication()?;
             }
-            LocalSwarmCmd::GetLocalQuotingMetrics { key, sender } => {
+            LocalSwarmCmd::GetLocalQuotingMetrics {
+                key,
+                data_type,
+                data_size,
+                sender,
+            } => {
                 cmd_string = "GetLocalQuotingMetrics";
                 let (
                     _index,
@@ -586,13 +611,23 @@ impl SwarmDriver {
                 ) = self.kbuckets_status();
                 let estimated_network_size =
                     Self::estimate_network_size(peers_in_non_full_buckets, num_of_full_buckets);
-                let (quoting_metrics, is_already_stored) = self
+                let (quoting_metrics, is_already_stored) = match self
                     .swarm
                     .behaviour_mut()
                     .kademlia
                     .store_mut()
-                    .quoting_metrics(&key, Some(estimated_network_size as u64));
-
+                    .quoting_metrics(
+                        &key,
+                        data_type,
+                        data_size,
+                        Some(estimated_network_size as u64),
+                    ) {
+                    Ok(res) => res,
+                    Err(err) => {
+                        let _res = sender.send(Err(err));
+                        return Ok(());
+                    }
+                };
                 self.record_metrics(Marker::QuotingMetrics {
                     quoting_metrics: &quoting_metrics,
                 });
@@ -631,7 +666,7 @@ impl SwarmDriver {
                         .retain(|peer_addr| key_address.distance(peer_addr) < boundary_distance);
                 }
 
-                let _res = sender.send((quoting_metrics, is_already_stored));
+                let _res = sender.send(Ok((quoting_metrics, is_already_stored)));
             }
             LocalSwarmCmd::PaymentReceived => {
                 cmd_string = "PaymentReceived";
@@ -702,7 +737,7 @@ impl SwarmDriver {
                             .behaviour_mut()
                             .kademlia
                             .store_mut()
-                            .get_farthest();
+                            .get_farthest()?;
                         self.replication_fetcher.set_farthest_on_full(farthest);
                     }
                     Err(_) => {
@@ -730,7 +765,7 @@ impl SwarmDriver {
                     .behaviour_mut()
                     .kademlia
                     .store_mut()
-                    .get_farthest_replication_distance()
+                    .get_farthest_replication_distance()?
                 {
                     self.replication_fetcher
                         .set_replication_distance_range(distance);
@@ -920,6 +955,14 @@ impl SwarmDriver {
                 cmd_string = "AddNetworkDensitySample";
                 self.network_density_samples.add(distance);
             }
+            LocalSwarmCmd::NotifyPeerScores { peer_scores } => {
+                cmd_string = "NotifyPeerScores";
+                self.replication_fetcher.add_peer_scores(peer_scores);
+            }
+            LocalSwarmCmd::AddFreshReplicateRecords { holder, keys } => {
+                cmd_string = "AddFreshReplicateRecords";
+                let _ = self.add_keys_to_replication_fetcher(holder, keys, true);
+            }
         }
 
         self.log_handling(cmd_string.to_string(), start.elapsed());
@@ -1048,7 +1091,7 @@ impl SwarmDriver {
         self.last_replication = Some(Instant::now());
 
         let self_addr = NetworkAddress::from_peer(self.self_peer_id);
-        let mut replicate_targets = self.get_replicate_candidates(&self_addr);
+        let mut replicate_targets = self.get_replicate_candidates(&self_addr)?;
 
         let now = Instant::now();
         self.replication_targets
@@ -1064,7 +1107,7 @@ impl SwarmDriver {
             .behaviour_mut()
             .kademlia
             .store_mut()
-            .record_addresses_ref()
+            .record_addresses_ref()?
             .values()
             .cloned()
             .collect();
@@ -1095,11 +1138,22 @@ impl SwarmDriver {
     }
 
     // Replies with in-range replicate candidates
-    // Fall back to CLOSE_GROUP_SIZE peers if range is too narrow.
+    // Fall back to expected_candidates peers if range is too narrow.
     // Note that:
-    //   * For general replication, replicate candidates shall be the closest to self
+    //   * For general replication, replicate candidates shall be closest to self, but with wider range
     //   * For replicate fresh records, the replicate candidates shall be the closest to data
-    pub(crate) fn get_replicate_candidates(&mut self, target: &NetworkAddress) -> Vec<PeerId> {
+
+    pub(crate) fn get_replicate_candidates(
+        &mut self,
+        target: &NetworkAddress,
+    ) -> Result<Vec<PeerId>> {
+        let is_periodic_replicate = target.as_peer_id().is_some();
+        let expected_candidates = if is_periodic_replicate {
+            CLOSE_GROUP_SIZE + 4
+        } else {
+            CLOSE_GROUP_SIZE
+        };
+
         // get closest peers from buckets, sorted by increasing distance to the target
         let kbucket_key = target.as_kbucket_key();
         let closest_k_peers: Vec<PeerId> = self
@@ -1109,6 +1163,7 @@ impl SwarmDriver {
             .get_closest_local_peers(&kbucket_key)
             // Map KBucketKey<PeerId> to PeerId.
             .map(|key| key.into_preimage())
+            .take(K_VALUE.get())
             .collect();
 
         if let Some(responsible_range) = self
@@ -1116,21 +1171,21 @@ impl SwarmDriver {
             .behaviour_mut()
             .kademlia
             .store_mut()
-            .get_farthest_replication_distance()
+            .get_farthest_replication_distance()?
         {
             let peers_in_range = get_peers_in_range(&closest_k_peers, target, responsible_range);
 
-            if peers_in_range.len() >= CLOSE_GROUP_SIZE {
-                return peers_in_range;
+            if peers_in_range.len() >= expected_candidates {
+                return Ok(peers_in_range);
             }
         }
 
-        // In case the range is too narrow, fall back to at least CLOSE_GROUP_SIZE peers.
-        closest_k_peers
+        // In case the range is too narrow, fall back to at least expected_candidates peers.
+        Ok(closest_k_peers
             .iter()
-            .take(CLOSE_GROUP_SIZE)
+            .take(expected_candidates)
             .cloned()
-            .collect()
+            .collect())
     }
 }
 

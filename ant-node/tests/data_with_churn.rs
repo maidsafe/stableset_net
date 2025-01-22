@@ -6,9 +6,6 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-// TODO: Remove this once the registers are removed
-#![expect(deprecated)]
-
 mod common;
 
 use crate::common::{
@@ -33,14 +30,12 @@ use tempfile::tempdir;
 use test_utils::gen_random_data;
 use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, trace, warn};
-use xor_name::XorName;
 
 const TOKENS_TO_TRANSFER: usize = 10000000;
 
 const EXTRA_CHURN_COUNT: u32 = 5;
 const CHURN_CYCLES: u32 = 2;
 const CHUNK_CREATION_RATIO_TO_CHURN: u32 = 15;
-const REGISTER_CREATION_RATIO_TO_CHURN: u32 = 15;
 
 static DATA_SIZE: LazyLock<usize> = LazyLock::new(|| *MAX_CHUNK_SIZE / 3);
 
@@ -101,7 +96,7 @@ async fn data_availability_during_churn() -> Result<()> {
     // Create a cross thread usize for tracking churned nodes
     let churn_count = Arc::new(RwLock::new(0_usize));
 
-    // Allow to disable Registers data creation/checks, storing and querying only Chunks during churn.
+    // Storing and querying only Chunks during churn.
     // Default to be not carry out chunks only during churn.
     let chunks_only = std::env::var("CHUNKS_ONLY").is_ok();
 
@@ -123,21 +118,6 @@ async fn data_availability_during_churn() -> Result<()> {
 
     // Shared bucket where we keep track of content created/stored on the network
     let content = ContentList::default();
-
-    // Spawn a task to create Registers at random locations,
-    // at a higher frequency than the churning events
-    let create_register_handle = if !chunks_only {
-        let register_wallet = transfer_to_new_wallet(&main_wallet, TOKENS_TO_TRANSFER).await?;
-        let create_register_handle = create_registers_task(
-            client.clone(),
-            register_wallet,
-            Arc::clone(&content),
-            churn_period,
-        );
-        Some(create_register_handle)
-    } else {
-        None
-    };
 
     println!("Uploading some chunks before carry out node churning");
     info!("Uploading some chunks before carry out node churning");
@@ -186,11 +166,6 @@ async fn data_availability_during_churn() -> Result<()> {
     while start_time.elapsed() < test_duration {
         if store_chunks_handle.is_finished() {
             bail!("Store chunks task has finished before the test duration. Probably due to an error.");
-        }
-        if let Some(handle) = &create_register_handle {
-            if handle.is_finished() {
-                bail!("Create registers task has finished before the test duration. Probably due to an error.");
-            }
         }
 
         let failed = failures.read().await;
@@ -265,61 +240,6 @@ async fn data_availability_during_churn() -> Result<()> {
 
     println!("Test passed after running for {:?}.", start_time.elapsed());
     Ok(())
-}
-
-// Spawns a task which periodically creates Registers at random locations.
-fn create_registers_task(
-    client: Client,
-    wallet: Wallet,
-    content: ContentList,
-    churn_period: Duration,
-) -> JoinHandle<Result<()>> {
-    let handle: JoinHandle<Result<()>> = tokio::spawn(async move {
-        // Create Registers at a higher frequency than the churning events
-        let delay = churn_period / REGISTER_CREATION_RATIO_TO_CHURN;
-
-        loop {
-            let owner = Client::register_generate_key();
-            let random_name = XorName(rand::random()).to_string();
-            let random_data = gen_random_data(*DATA_SIZE);
-
-            sleep(delay).await;
-
-            let mut retries = 1;
-            loop {
-                match client
-                    .register_create(
-                        Some(random_data.clone()),
-                        &random_name,
-                        owner.clone(),
-                        &wallet,
-                    )
-                    .await
-                {
-                    Ok(register) => {
-                        let addr = register.address();
-                        println!("Created new Register ({addr:?}) after a delay of: {delay:?}");
-                        content
-                            .write()
-                            .await
-                            .push_back(NetworkAddress::RegisterAddress(*addr));
-                        break;
-                    }
-                    Err(err) => {
-                        println!("Failed to create register: {err:?}. Retrying ...");
-                        error!("Failed to create register: {err:?}. Retrying ...");
-                        if retries >= 3 {
-                            println!("Failed to create register after 3 retries: {err}");
-                            error!("Failed to create register after 3 retries: {err}");
-                            bail!("Failed to create register after 3 retries: {err}");
-                        }
-                        retries += 1;
-                    }
-                }
-            }
-        }
-    });
-    handle
 }
 
 // Spawns a task which periodically stores Chunks at random locations.
@@ -540,10 +460,6 @@ async fn final_retry_query_content(
 
 async fn query_content(client: &Client, net_addr: &NetworkAddress) -> Result<()> {
     match net_addr {
-        NetworkAddress::RegisterAddress(addr) => {
-            let _ = client.register_get(*addr).await?;
-            Ok(())
-        }
         NetworkAddress::ChunkAddress(addr) => {
             client.data_get_public(*addr.xorname()).await?;
             Ok(())

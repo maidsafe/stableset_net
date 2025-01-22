@@ -6,9 +6,9 @@ It runs on Linux, macOS and Windows.
 
 ## Installation
 
-The latest version can be installed via [safeup](https://github.com/maidsafe/safeup):
+The latest version can be installed via [antup](https://github.com/maidsafe/antup):
 ```
-safeup antctl
+antup antctl
 ```
 
 A binary can also be obtained for your platform from the releases in this repository.
@@ -356,7 +356,7 @@ faucet             -                                                    RUNNING 
 
 So by default, 25 node processes have been launched, along with a faucet. The faucet dispenses tokens for use when uploading files. We can now run `safe` commands against the local network.
 
-The most common scenario for using a local network is for development, but you can also use it to exercise a lot of features locally. For more details, please see the 'Using a Local Network' section of the [main README](https://github.com/maidsafe/safe_network/tree/node-man-readme?tab=readme-ov-file#using-a-local-network).
+The most common scenario for using a local network is for development, but you can also use it to exercise a lot of features locally. For more details, please see the 'Using a Local Network' section of the [main README](../README.md#using-a-local-network).
 
 Once you've finished, run `antctl local kill` to dispose the local network.
 
@@ -366,9 +366,9 @@ Sometimes it will be necessary to run the integration tests in a local setup. Th
 
 The tests can be run from a VM, which is provided by a `Vagrantfile` in the `ant_node_manager` crate directory. The machine is defined to use libvirt rather than Virtualbox, so an installation of that is required, but that is beyond the scope of this document.
 
-Assuming that you did have an installation of libvirt, you can get the VM by running `vagrant up`. Once the machine is available, run `vagrant ssh` to get a shell session inside it. For running the tests, switch to the root user using `sudo su -`. As part of the provisioning process, the current `safe_network` code is copied to the root user's home directory. To run the tests:
+Assuming that you did have an installation of libvirt, you can get the VM by running `vagrant up`. Once the machine is available, run `vagrant ssh` to get a shell session inside it. For running the tests, switch to the root user using `sudo su -`. As part of the provisioning process, the current `autonomi` code is copied to the root user's home directory. To run the tests:
 ```
-cd safe_network
+cd autonomi
 just node-man-integration-tests
 ```
 

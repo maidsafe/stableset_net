@@ -199,7 +199,6 @@ See the `examples/` directory for complete examples:
 - `autonomi_pointers.py`: Working with pointers
 - `autonomi_vault.py`: Vault operations
 - `autonomi_private_data.py`: Private data handling
-- `autonomi_data_registers.py`: Using data registers
 - `autonomi_private_encryption.py`: Data encryption
 - `autonomi_advanced.py`: Advanced usage scenarios
 

@@ -7,7 +7,6 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::{NetworkAddress, PrettyPrintRecordKey};
-use ant_registers::RegisterAddress;
 use libp2p::kad::store;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -33,21 +32,8 @@ pub enum Error {
     #[error("Chunk does not exist {0:?}")]
     ChunkDoesNotExist(NetworkAddress),
 
-    // ---------- Register Errors
-    #[error("Register not found: {0}")]
-    RegisterNotFound(Box<RegisterAddress>),
-    #[error("The Register was already created by another owner: {0:?}")]
-    RegisterAlreadyClaimed(bls::PublicKey),
-    #[error("Peer {holder:?} cannot find Record {key:?}")]
-    RegisterRecordNotFound {
-        /// Holder that being contacted
-        holder: Box<NetworkAddress>,
-        /// Key of the missing record
-        key: Box<NetworkAddress>,
-    },
-
     // ---------- Scratchpad errors
-    /// The provided String can't be deserialized as a RegisterAddress
+    /// The provided String can't be deserialized as a ScratchpadAddress
     #[error("Failed to deserialize hex ScratchpadAddress")]
     ScratchpadHexDeserializeFailed,
     /// The provided SecretyKey failed to decrypt the data

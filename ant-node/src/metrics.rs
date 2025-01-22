@@ -156,16 +156,7 @@ impl NodeMetricsRecorder {
                     .inc();
             }
 
-            Marker::ValidRegisterRecordPutFromNetwork(_) => {
-                let _ = self
-                    .put_record_ok
-                    .get_or_create(&PutRecordOk {
-                        record_type: DataTypes::Register,
-                    })
-                    .inc();
-            }
-
-            Marker::ValidTransactionRecordPutFromNetwork(_) => {
+            Marker::ValidGraphEntryRecordPutFromNetwork(_) => {
                 let _ = self
                     .put_record_ok
                     .get_or_create(&PutRecordOk {

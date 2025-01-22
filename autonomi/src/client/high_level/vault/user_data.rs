@@ -8,18 +8,17 @@
 
 use std::collections::HashMap;
 
-use crate::client::data::GetError;
-use crate::client::data::PutError;
-use crate::client::files::archive::PrivateArchiveAccess;
-use crate::client::files::archive_public::ArchiveAddr;
+use crate::client::high_level::files::archive_private::PrivateArchiveAccess;
+use crate::client::high_level::files::archive_public::ArchiveAddr;
 use crate::client::payment::PaymentOption;
-use crate::client::vault::VaultError;
-use crate::client::vault::{app_name_to_vault_content_type, VaultContentType, VaultSecretKey};
 use crate::client::Client;
+use crate::client::{GetError, PutError};
 use ant_evm::AttoTokens;
 use ant_protocol::Bytes;
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
+
+use super::{app_name_to_vault_content_type, VaultContentType, VaultError, VaultSecretKey};
 
 /// Vault content type for UserDataVault
 pub static USER_DATA_VAULT_CONTENT_IDENTIFIER: LazyLock<VaultContentType> =

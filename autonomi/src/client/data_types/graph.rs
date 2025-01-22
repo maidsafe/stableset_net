@@ -6,26 +6,23 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::client::data::PayError;
+use crate::client::payment::PayError;
+use crate::client::quote::CostError;
 use crate::client::Client;
 use crate::client::ClientEvent;
 use crate::client::UploadSummary;
 
-use ant_evm::Amount;
-use ant_evm::AttoTokens;
-pub use ant_protocol::storage::GraphEntry;
-use ant_protocol::storage::GraphEntryAddress;
-pub use bls::SecretKey;
-
-use ant_evm::{EvmWallet, EvmWalletError};
+use ant_evm::{Amount, AttoTokens, EvmWallet, EvmWalletError};
 use ant_networking::{GetRecordCfg, NetworkError, PutRecordCfg, VerificationKind};
+use ant_protocol::storage::GraphEntryAddress;
 use ant_protocol::{
     storage::{try_serialize_record, DataTypes, RecordKind, RetryStrategy},
     NetworkAddress,
 };
 use libp2p::kad::{Quorum, Record};
 
-use super::data::CostError;
+pub use ant_protocol::storage::GraphEntry;
+pub use bls::SecretKey;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GraphError {
@@ -48,39 +45,44 @@ pub enum GraphError {
 }
 
 impl Client {
-    /// Fetches a Transaction from the network.
-    pub async fn transaction_get(
+    /// Fetches a GraphEntry from the network.
+    pub async fn graph_entry_get(
         &self,
         address: GraphEntryAddress,
     ) -> Result<Vec<GraphEntry>, GraphError> {
-        let transactions = self.network.get_graph_entry(address).await?;
+        let graph_entries = self.network.get_graph_entry(address).await?;
 
-        Ok(transactions)
+        Ok(graph_entries)
     }
 
-    pub async fn transaction_put(
+    /// Puts a GraphEntry to the network.
+    pub async fn graph_entry_put(
         &self,
-        transaction: GraphEntry,
+        entry: GraphEntry,
         wallet: &EvmWallet,
     ) -> Result<(), GraphError> {
-        let address = transaction.address();
+        let address = entry.address();
 
-        // pay for the transaction
+        // pay for the graph entry
         let xor_name = address.xorname();
-        debug!("Paying for transaction at address: {address:?}");
+        debug!("Paying for graph entry at address: {address:?}");
         let (payment_proofs, skipped_payments) = self
-            .pay(std::iter::once(*xor_name), wallet)
+            .pay(
+                DataTypes::GraphEntry.get_index(),
+                std::iter::once((*xor_name, entry.bytes_for_signature().len())),
+                wallet,
+            )
             .await
             .inspect_err(|err| {
-                error!("Failed to pay for transaction at address: {address:?} : {err}")
+                error!("Failed to pay for graph entry at address: {address:?} : {err}")
             })?;
 
-        // make sure the transaction was paid for
+        // make sure the graph entry was paid for
         let (proof, price) = match payment_proofs.get(xor_name) {
             Some((proof, price)) => (proof, price),
             None => {
-                // transaction was skipped, meaning it was already paid for
-                error!("Transaction at address: {address:?} was already paid for");
+                // graph entry was skipped, meaning it was already paid for
+                error!("GraphEntry at address: {address:?} was already paid for");
                 return Err(GraphError::AlreadyExists(address));
             }
         };
@@ -90,7 +92,7 @@ impl Client {
         let record = Record {
             key: NetworkAddress::from_graph_entry_address(address).to_record_key(),
             value: try_serialize_record(
-                &(proof, &transaction),
+                &(proof, &entry),
                 RecordKind::DataWithPayment(DataTypes::GraphEntry),
             )
             .map_err(|_| GraphError::Serialization)?
@@ -103,7 +105,6 @@ impl Client {
             retry_strategy: Some(RetryStrategy::default()),
             target_record: None,
             expected_holders: Default::default(),
-            is_register: false,
         };
         let put_cfg = PutRecordCfg {
             put_quorum: Quorum::All,
@@ -113,12 +114,12 @@ impl Client {
         };
 
         // put the record to the network
-        debug!("Storing transaction at address {address:?} to the network");
+        debug!("Storing GraphEntry at address {address:?} to the network");
         self.network
             .put_record(record, &put_cfg)
             .await
             .inspect_err(|err| {
-                error!("Failed to put record - transaction {address:?} to the network: {err}")
+                error!("Failed to put record - GraphEntry {address:?} to the network: {err}")
             })?;
 
         // send client event
@@ -136,14 +137,20 @@ impl Client {
         Ok(())
     }
 
-    /// Get the cost to create a transaction
-    pub async fn transaction_cost(&self, key: SecretKey) -> Result<AttoTokens, GraphError> {
+    /// Get the cost to create a GraphEntry
+    pub async fn graph_entry_cost(&self, key: SecretKey) -> Result<AttoTokens, GraphError> {
         let pk = key.public_key();
-        trace!("Getting cost for transaction of {pk:?}");
+        trace!("Getting cost for GraphEntry of {pk:?}");
 
         let address = GraphEntryAddress::from_owner(pk);
         let xor = *address.xorname();
-        let store_quote = self.get_store_quotes(std::iter::once(xor)).await?;
+        // TODO: define default size of GraphEntry
+        let store_quote = self
+            .get_store_quotes(
+                DataTypes::GraphEntry.get_index(),
+                std::iter::once((xor, 512)),
+            )
+            .await?;
         let total_cost = AttoTokens::from_atto(
             store_quote
                 .0
@@ -151,7 +158,7 @@ impl Client {
                 .map(|quote| quote.price())
                 .sum::<Amount>(),
         );
-        debug!("Calculated the cost to create transaction of {pk:?} is {total_cost}");
+        debug!("Calculated the cost to create GraphEntry of {pk:?} is {total_cost}");
         Ok(total_cost)
     }
 }

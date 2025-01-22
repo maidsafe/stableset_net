@@ -22,7 +22,7 @@ pub struct GraphEntry {
     pub owner: PublicKey,
     pub parents: Vec<PublicKey>,
     pub content: GraphContent,
-    pub outputs: Option<Vec<(PublicKey, GraphContent)>>,
+    pub outputs: Vec<(PublicKey, GraphContent)>,
     /// signs the above 4 fields with the owners key
     pub signature: Signature,
 }
@@ -33,7 +33,7 @@ impl GraphEntry {
         owner: PublicKey,
         parents: Vec<PublicKey>,
         content: GraphContent,
-        outputs: Option<Vec<(PublicKey, GraphContent)>>,
+        outputs: Vec<(PublicKey, GraphContent)>,
         signing_key: &SecretKey,
     ) -> Self {
         let signature = signing_key.sign(Self::bytes_to_sign(&owner, &parents, &content, &outputs));
@@ -51,7 +51,7 @@ impl GraphEntry {
         owner: PublicKey,
         parents: Vec<PublicKey>,
         content: GraphContent,
-        outputs: Option<Vec<(PublicKey, GraphContent)>>,
+        outputs: Vec<(PublicKey, GraphContent)>,
         signature: Signature,
     ) -> Self {
         Self {
@@ -68,7 +68,7 @@ impl GraphEntry {
         owner: &PublicKey,
         parents: &[PublicKey],
         content: &[u8],
-        outputs: &Option<Vec<(PublicKey, GraphContent)>>,
+        outputs: &[(PublicKey, GraphContent)],
     ) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&owner.to_bytes());
@@ -83,14 +83,12 @@ impl GraphEntry {
         bytes.extend_from_slice("content".as_bytes());
         bytes.extend_from_slice(content);
         bytes.extend_from_slice("outputs".as_bytes());
-        if let Some(outputs) = outputs {
-            bytes.extend_from_slice(
-                &outputs
-                    .iter()
-                    .flat_map(|(p, c)| [&p.to_bytes(), c.as_slice()].concat())
-                    .collect::<Vec<_>>(),
-            );
-        }
+        bytes.extend_from_slice(
+            &outputs
+                .iter()
+                .flat_map(|(p, c)| [&p.to_bytes(), c.as_slice()].concat())
+                .collect::<Vec<_>>(),
+        );
         bytes
     }
 

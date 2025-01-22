@@ -536,6 +536,10 @@ impl Node {
                     quotes_verification(&network, quotes).await;
                 });
             }
+            NetworkEvent::FreshReplicateToFetch { holder, keys } => {
+                event_header = "FreshReplicateToFetch";
+                self.fresh_replicate_to_fetch(holder, keys);
+            }
         }
 
         trace!(
@@ -570,6 +574,8 @@ impl Node {
         let resp: QueryResponse = match query {
             Query::GetStoreQuote {
                 key,
+                data_type,
+                data_size,
                 nonce,
                 difficulty,
             } => {
@@ -577,8 +583,9 @@ impl Node {
                 let record_key = key.to_record_key();
                 let self_id = network.peer_id();
 
-                let maybe_quoting_metrics =
-                    network.get_local_quoting_metrics(record_key.clone()).await;
+                let maybe_quoting_metrics = network
+                    .get_local_quoting_metrics(record_key.clone(), data_type, data_size)
+                    .await;
 
                 let storage_proofs = if let Some(nonce) = nonce {
                     Self::respond_x_closest_record_proof(
@@ -625,24 +632,6 @@ impl Node {
                         }
                     }
                 }
-            }
-            Query::GetRegisterRecord { requester, key } => {
-                debug!("Got GetRegisterRecord from {requester:?} regarding {key:?} ");
-
-                let our_address = NetworkAddress::from_peer(network.peer_id());
-                let mut result = Err(ProtocolError::RegisterRecordNotFound {
-                    holder: Box::new(our_address.clone()),
-                    key: Box::new(key.clone()),
-                });
-                let record_key = key.as_record_key();
-
-                if let Some(record_key) = record_key {
-                    if let Ok(Some(record)) = network.get_local_record(&record_key).await {
-                        result = Ok((our_address, Bytes::from(record.value)));
-                    }
-                }
-
-                QueryResponse::GetRegisterRecord(result)
             }
             Query::GetReplicatedRecord { requester, key } => {
                 debug!("Got GetReplicatedRecord from {requester:?} regarding {key:?}");
@@ -933,19 +922,25 @@ impl Node {
             });
         }
 
+        let mut peer_scores = vec![];
         while let Some(res) = tasks.join_next().await {
             match res {
                 Ok((peer_id, score)) => {
-                    if score < MIN_ACCEPTABLE_HEALTHY_SCORE {
+                    let is_healthy = score < MIN_ACCEPTABLE_HEALTHY_SCORE;
+                    if !is_healthy {
                         info!("Peer {peer_id:?} failed storage challenge with low score {score}/{MIN_ACCEPTABLE_HEALTHY_SCORE}.");
                         // TODO: shall the challenge failure immediately triggers the node to be removed?
                         network.record_node_issues(peer_id, NodeIssue::FailedChunkProofCheck);
                     }
+                    peer_scores.push((peer_id, is_healthy));
                 }
                 Err(e) => {
                     info!("StorageChallenge task completed with error {e:?}");
                 }
             }
+        }
+        if !peer_scores.is_empty() {
+            network.notify_peer_scores(peer_scores);
         }
 
         info!(

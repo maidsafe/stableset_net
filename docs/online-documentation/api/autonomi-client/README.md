@@ -186,32 +186,32 @@ Mutable references with version tracking:
     println!("Version: {}", metadata.version);
     ```
 
-### 3. LinkedList
+### 3. GraphEntry
 
-Decentralized DAG structures for transaction chains:
+Decentralized Graph structures for linked data:
 
 === "Node.js"
     ```typescript
-    import { LinkedList } from 'autonomi';
+    import { GraphEntry } from 'autonomi';
 
-    // Create a new linked list
-    const list = await client.createLinkedList();
+    // Create a new graph
+    const entry = await client.createGraphEntry();
 
     // Append items
-    await client.appendToList(list.address, item1);
-    await client.appendToList(list.address, item2);
+    await client.appendToGraph(entry.address, item1);
+    await client.appendToGraph(entry.address, item2);
 
-    // Read list contents
-    const items = await client.getList(list.address);
+    // Read graph contents
+    const items = await client.getGraph(entry.address);
 
-    // Get list history
-    const history = await client.getListHistory(list.address);
+    // Get graph history
+    const history = await client.getGraphHistory(entry.address);
     for (const entry of history) {
         console.log(`Version ${entry.version}: ${entry.data}`);
     }
 
     // Check for forks
-    const forks = await client.detectForks(list.address);
+    const forks = await client.detectForks(entry.address);
     if (!forks) {
         console.log('No forks detected');
     } else {
@@ -221,56 +221,42 @@ Decentralized DAG structures for transaction chains:
 
 === "Python"
     ```python
-    from autonomi import LinkedList
+    from autonomi import GraphEntry
 
-    # Create a new linked list
-    list = client.create_linked_list()
+    # Create a new graph
+    entry = client.create_graph_entry()
 
     # Append items
-    client.append_to_list(list.address, item1)
-    client.append_to_list(list.address, item2)
+    client.append_to_graph(entry.address, item1)
+    client.append_to_graph(entry.address, item2)
 
     # Read list contents
-    items = client.get_list(list.address)
+    items = client.get_graph(entry.address)
 
-    # Get list history
-    history = client.get_list_history(list.address)
+    # Get graph history
+    history = client.get_graph_history(entry.address)
     for entry in history:
         print(f"Version {entry.version}: {entry.data}")
-
-    # Check for forks
-    forks = client.detect_forks(list.address)
-    if not forks:
-        print("No forks detected")
-    else:
-        handle_forks(forks.branches)
     ```
 
 === "Rust"
     ```rust
-    use autonomi::LinkedList;
+    use autonomi::GraphEntry;
 
-    // Create a new linked list
-    let list = client.create_linked_list().await?;
+    // Create a new graph
+    let entry = client.create_graph_entry().await?;
 
     // Append items
-    client.append_to_list(list.address(), item1).await?;
-    client.append_to_list(list.address(), item2).await?;
+    client.append_to_graph(entry.address(), item1).await?;
+    client.append_to_graph(entry.address(), item2).await?;
 
-    // Read list contents
-    let items = client.get_list(list.address()).await?;
+    // Read graph contents
+    let items = client.get_graph(entry.address()).await?;
 
-    // Get list history
-    let history = client.get_list_history(list.address()).await?;
+    // Get graph history
+    let history = client.get_graph_history(entry.address()).await?;
     for entry in history {
         println!("Version {}: {:?}", entry.version, entry.data);
-    }
-
-    // Check for forks
-    let forks = client.detect_forks(list.address()).await?;
-    match forks {
-        Fork::None => println!("No forks detected"),
-        Fork::Detected(branches) => handle_forks(branches),
     }
     ```
 
@@ -467,7 +453,7 @@ Each language provides appropriate error handling mechanisms:
 
 === "Rust"
     ```rust
-    use autonomi::error::{ChunkError, PointerError, ListError, ScratchPadError};
+    use autonomi::error::{ChunkError, PointerError, GraphError, ScratchPadError};
 
     // Handle chunk operations
     match client.get_chunk(address).await {
@@ -591,7 +577,7 @@ Each language provides appropriate error handling mechanisms:
 1. **Data Type Selection**
    - Use Chunks for immutable data
    - Use Pointers for mutable references
-   - Use LinkedLists for ordered collections
+   - Use GraphEntrys for ordered collections
    - Use ScratchPads for temporary data
 
 2. **Error Handling**

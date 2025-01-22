@@ -2,8 +2,8 @@
 #![allow(non_local_definitions)]
 
 use crate::client::{
-    data::DataMapChunk,
-    files::{archive::PrivateArchiveAccess, archive_public::ArchiveAddr},
+    chunk::DataMapChunk,
+    files::{archive_private::PrivateArchiveAccess, archive_public::ArchiveAddr},
     payment::PaymentOption as RustPaymentOption,
     vault::{UserData, VaultSecretKey as RustVaultSecretKey},
     Client as RustClient,
@@ -190,11 +190,13 @@ impl Client {
         target: &PyPointerTarget,
         key: &PySecretKey,
         wallet: &Wallet,
-    ) -> PyResult<()> {
+    ) -> PyResult<PyPointerAddress> {
         let rt = tokio::runtime::Runtime::new().expect("Could not start tokio runtime");
         let pointer = RustPointer::new(owner.inner, counter, target.inner.clone(), &key.inner);
-        rt.block_on(self.inner.pointer_put(pointer, &wallet.inner))
-            .map_err(|e| PyValueError::new_err(format!("Failed to put pointer: {e}")))
+        let addr = rt
+            .block_on(self.inner.pointer_put(pointer, &wallet.inner))
+            .map_err(|e| PyValueError::new_err(format!("Failed to put pointer: {e}")))?;
+        Ok(PyPointerAddress { inner: addr })
     }
 
     fn pointer_cost(&self, key: &PySecretKey) -> PyResult<String> {

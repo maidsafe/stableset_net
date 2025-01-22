@@ -1,4 +1,4 @@
-from autonomi_client import Client, Wallet, RegisterSecretKey, VaultSecretKey, UserData
+from autonomi_client import Client, Wallet, VaultSecretKey, UserData
 
 def external_signer_example(client: Client, data: bytes):
     # Get quotes for storing data
@@ -32,12 +32,6 @@ def main():
     print(f"Private data access: {private_access}")
     private_data = client.data_get(private_access)
     print(f"Retrieved private data: {private_data}")
-    
-    # Create register
-    reg_addr = client.register_create(b"Initial value", "my_register", wallet)
-    print(f"Created register at: {reg_addr}")
-    reg_values = client.register_get(reg_addr)
-    print(f"Register values: {reg_values}")
     
     # Upload file/directory
     file_addr = client.file_upload_public("./test_data", wallet)

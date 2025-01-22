@@ -9,8 +9,8 @@
 use super::get_progress_bar;
 use autonomi::{
     client::{
-        address::str_to_addr,
-        files::{archive::PrivateArchiveAccess, archive_public::ArchiveAddr},
+        address::str_to_addr, files::archive_private::PrivateArchiveAccess,
+        files::archive_public::ArchiveAddr,
     },
     Client,
 };

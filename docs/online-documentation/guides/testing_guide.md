@@ -27,21 +27,21 @@ cargo install cargo-test
 ### Node.js Example
 
 ```typescript
-import { Client, LinkedList } from '@autonomi/client';
+import { Client, GraphEntry } from '@autonomi/client';
 
-describe('LinkedList Operations', () => {
+describe('GraphEntry Operations', () => {
   let client: Client;
 
   beforeEach(() => {
     client = new Client();
   });
 
-  test('should store and retrieve linked list', async () => {
-    const list = new LinkedList();
+  test('should store and retrieve graph', async () => {
+    const list = new GraphEntry();
     list.append("test data");
     
-    const address = await client.linkedListPut(list);
-    const retrieved = await client.linkedListGet(address);
+    const address = await client.GraphEntryPut(list);
+    const retrieved = await client.GraphEntryGet(address);
     
     expect(retrieved.toString()).toBe("test data");
   });
@@ -52,18 +52,18 @@ describe('LinkedList Operations', () => {
 
 ```python
 import pytest
-from autonomi import Client, LinkedList
+from autonomi import Client, GraphEntry
 
 @pytest.mark.asyncio
-async def test_linked_list_operations():
+async def test_graph_entry_operations():
     client = Client()
     
     # Create and store list
-    list_obj = LinkedList()
-    list_obj.append("test data")
+    entry_obj = GraphEntry()
+    entry_obj.append("test data")
     
-    address = await client.linked_list_put(list_obj)
-    retrieved = await client.linked_list_get(address)
+    address = await client.graph_entry_put(entry_obj)
+    retrieved = await client.graph_entry_get(address)
     
     assert str(retrieved) == "test data"
 ```
@@ -76,14 +76,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_linked_list_operations() {
+    fn test_graph_entry_operations() {
         let client = Client::new();
         
-        let mut list = LinkedList::new();
-        list.append("test data");
-        
-        let address = client.linked_list_put(&list).unwrap();
-        let retrieved = client.linked_list_get(&address).unwrap();
+        let mut entry = GraphEntry::new();
+        entry.append("test data");
+
+        let address = client.graph_entry_put(&entry).unwrap();
+        let retrieved = client.graph_entry_get(&address).unwrap();
         
         assert_eq!(retrieved.to_string(), "test data");
     }

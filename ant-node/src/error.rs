@@ -22,9 +22,6 @@ pub enum Error {
     #[error("Protocol error {0}")]
     Protocol(#[from] ant_protocol::Error),
 
-    #[error("Register error {0}")]
-    Register(#[from] ant_registers::Error),
-
     #[error("Transfers Error {0}")]
     Transfers(#[from] ant_evm::EvmError),
 

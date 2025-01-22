@@ -23,14 +23,6 @@ ant [OPTIONS] <COMMAND>
 
 [Reference : File](#file-operations)
 
-### Register [Deprecated]
-- `register generate-key [--overwrite]`
-- `register cost <name>`
-- `register create <name> <value> [--public]`
-- `register edit [--name] <address> <value>`
-- `register get [--name] <address>`
-- `register list`
-
 ### Vault
 - `vault cost`
 - `vault create`

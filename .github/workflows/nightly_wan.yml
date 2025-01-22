@@ -90,30 +90,6 @@ jobs:
           ANT_LOG: "all"
         timeout-minutes: 2
 
-      - name: Start a client to create a register
-        run: |
-          set -e
-          cargo run --bin safe --release -- --log-output-dest=data-dir register create -n baobao
-        env:
-          ANT_LOG: "all"
-        timeout-minutes: 2
-
-      - name: Start a client to get a register
-        run: |
-          set -e
-          cargo run --bin safe --release -- --log-output-dest=data-dir register get -n baobao
-        env:
-          ANT_LOG: "all"
-        timeout-minutes: 2
-
-      - name: Start a client to edit a register
-        run: |
-          set -e
-          cargo run --bin safe --release -- --log-output-dest=data-dir register edit -n baobao wood
-        env:
-          ANT_LOG: "all"
-        timeout-minutes: 2
-
       # - name: Fetch network logs
       #   uses: maidsafe/sn-testnet-control-action/fetch-logs@main
       #   with:
@@ -146,99 +122,6 @@ jobs:
           SLACK_INCOMING_WEBHOOK: ${{ secrets.SLACK_GH_ACTIONS_WEBHOOK_URL }}
           SLACK_MESSAGE: "Please check the logs for the run at ${{ env.WORKFLOW_URL }}/${{ github.run_id }}"
           SLACK_TITLE: "Nightly E2E Test Run Failed"
-
-  # transaction_test:
-  #   name: Spend tests against network
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     matrix:
-  #       os: [ubuntu-latest]
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: Install Rust
-  #       uses: dtolnay/rust-toolchain@stable
-
-  #     - uses: Swatinem/rust-cache@v2
-  #       continue-on-error: true
-
-  #     - name: setup testnet-deploy
-  #       uses: maidsafe/sn-testnet-control-action/init-testnet-deploy@main
-  #       with:
-  #         ansible-vault-password: ${{ secrets.SN_TESTNET_ANSIBLE_VAULT_PASSWORD }}
-  #         aws-access-key-id: ${{ secrets.SN_TESTNET_AWS_ACCESS_KEY_ID }}
-  #         aws-access-key-secret: ${{ secrets.SN_TESTNET_AWS_SECRET_ACCESS_KEY }}
-  #         aws-region: eu-west-2
-  #         do-token: ${{ secrets.SN_TESTNET_DO_PAT }}
-  #         ssh-secret-key: ${{ secrets.SN_TESTNET_SSH_KEY }}
-
-  #     - name: launch ${{ env.NETWORK_NAME }}
-  #       uses: maidsafe/sn-testnet-control-action/launch-network@main
-  #       with:
-  #         ansible-forks: ${{ env.ANSIBLE_FORKS }}
-  #         beta-encryption-key: ${{ env.DEFAULT_PAYMENT_FORWARD_SK }}
-  #         environment-type: development
-  #         faucet-version: ${{ env.FAUCET_VERSION }}
-  #         log-format: json
-  #         network-name: ${{ env.NETWORK_NAME }}
-  #         network-contacts-file-name: ${{ env.NETWORK_CONTACTS_FILE_NAME }}
-  #         provider: digital-ocean
-  #         safe-network-branch: main
-  #         safe-network-user: maidsafe
-
-  #     - name: Check env variables
-  #       shell: bash
-  #       run: |
-  #         echo "Peer is $ANT_PEERS"
-  #         echo "Deployment inventory is $SN_INVENTORY"
-
-  #     - name: execute the sequential transfers test
-  #       run: cargo test --release -p ant-node --test sequential_transfers -- --nocapture --test-threads=1
-  #       env:
-  #         ANT_LOG: "all"
-  #       timeout-minutes: 45
-
-  #     - name: execute the storage payment tests
-  #       run: cargo test --release -p ant-node --test storage_payments -- --nocapture --test-threads=1
-  #       env:
-  #         ANT_LOG: "all"
-  #       timeout-minutes: 45
-
-  #     - name: Small wait to allow reward receipt
-  #       run: sleep 30
-  #       timeout-minutes: 1
-
-  #     - name: Fetch network logs
-  #       uses: ermineJose/sn-testnet-control-action/fetch-logs@feat-add_fetch-logs-action
-  #       with:
-  #         re-attempts: 3
-  #         rust-log: debug
-  #         provider: digital-ocean
-  #         testnet-name: ${{ env.NETWORK_NAME }}
-
-  #     - name: Upload local logs
-  #       if: always()
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: local_logs_NightlySpendTest
-  #         path: |
-  #           ~/.local/share/autonomi/node/*/logs/*.log*
-  #           ~/.local/share/autonomi/*/*/*.log*
-  #           ~/.local/share/autonomi/autonomi/logs/*/*.log*
-
-  #     - name: destroy network
-  #       uses: maidsafe/sn-testnet-control-action/destroy-network@main
-  #       with:
-  #         network-name: ${{ env.NETWORK_NAME }}
-  #         provider: digital-ocean
-
-  #     - name: post notification to slack on failure
-  #       if: ${{ failure() }}
-  #       uses: bryannice/gitactions-slack-notification@2.0.0
-  #       env:
-  #         SLACK_INCOMING_WEBHOOK: ${{ secrets.SLACK_GH_ACTIONS_WEBHOOK_URL }}
-  #         SLACK_MESSAGE: "Please check the logs for the run at ${{ env.WORKFLOW_URL }}/${{ github.run_id }}"
-  #         SLACK_TITLE: "Nightly Spend Test Run Failed"
 
   # churn:
   #   name: Network churning tests

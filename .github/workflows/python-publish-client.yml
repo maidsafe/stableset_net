@@ -178,7 +178,6 @@ jobs:
               "ant-node-manager",
               "ant-node-rpc-client",
               "ant-protocol",
-              "ant-registers",
               "ant-service-management",
               "ant-token-supplies",
               "autonomi",

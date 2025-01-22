@@ -11,7 +11,6 @@ mod chunk_proof;
 mod cmd;
 mod node_id;
 mod query;
-mod register;
 mod response;
 
 pub use self::{
@@ -19,7 +18,6 @@ pub use self::{
     cmd::Cmd,
     node_id::NodeId,
     query::Query,
-    register::RegisterCmd,
     response::{CmdResponse, QueryResponse},
 };
 

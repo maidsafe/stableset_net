@@ -46,7 +46,22 @@ impl SwarmDriver {
                                 channel: MsgResponder::FromPeer(channel),
                             });
 
-                            self.add_keys_to_replication_fetcher(holder, keys);
+                            self.add_keys_to_replication_fetcher(holder, keys, false)?;
+                        }
+                        Request::Cmd(ant_protocol::messages::Cmd::FreshReplicate {
+                            holder,
+                            keys,
+                        }) => {
+                            let response = Response::Cmd(
+                                ant_protocol::messages::CmdResponse::FreshReplicate(Ok(())),
+                            );
+
+                            self.queue_network_swarm_cmd(NetworkSwarmCmd::SendResponse {
+                                resp: response,
+                                channel: MsgResponder::FromPeer(channel),
+                            });
+
+                            self.send_event(NetworkEvent::FreshReplicateToFetch { holder, keys });
                         }
                         Request::Cmd(ant_protocol::messages::Cmd::PeerConsideredAsBad {
                             detected_by,
@@ -156,20 +171,21 @@ impl SwarmDriver {
         Ok(())
     }
 
-    fn add_keys_to_replication_fetcher(
+    pub(crate) fn add_keys_to_replication_fetcher(
         &mut self,
         sender: NetworkAddress,
         incoming_keys: Vec<(NetworkAddress, ValidationType)>,
-    ) {
+        is_fresh_replicate: bool,
+    ) -> Result<(), NetworkError> {
         let holder = if let Some(peer_id) = sender.as_peer_id() {
             peer_id
         } else {
             warn!("Replication list sender is not a peer_id {sender:?}");
-            return;
+            return Ok(());
         };
 
         debug!(
-            "Received replication list from {holder:?} of {} keys",
+            "Received replication list from {holder:?} of {} keys is_fresh_replicate {is_fresh_replicate:?}",
             incoming_keys.len()
         );
 
@@ -178,27 +194,36 @@ impl SwarmDriver {
         let closest_k_peers = self.get_closest_k_value_local_peers();
         if !closest_k_peers.contains(&holder) || holder == self.self_peer_id {
             debug!("Holder {holder:?} is self or not in replication range.");
-            return;
+            return Ok(());
         }
 
         // On receive a replication_list from a close_group peer, we undertake:
         //   1, For those keys that we don't have:
         //        fetch them if close enough to us
-        //   2, For those transactions that we have that differ in the hash, we fetch the other version
+        //   2, For those GraphEntry that we have that differ in the hash, we fetch the other version
         //         and update our local copy.
         let all_keys = self
             .swarm
             .behaviour_mut()
             .kademlia
             .store_mut()
-            .record_addresses_ref();
-        let keys_to_fetch = self
-            .replication_fetcher
-            .add_keys(holder, incoming_keys, all_keys);
+            .record_addresses_ref()?;
+        let keys_to_fetch = self.replication_fetcher.add_keys(
+            holder,
+            incoming_keys,
+            all_keys,
+            is_fresh_replicate,
+            closest_k_peers
+                .iter()
+                .map(|peer_id| NetworkAddress::from_peer(*peer_id))
+                .collect(),
+        );
         if keys_to_fetch.is_empty() {
             debug!("no waiting keys to fetch from the network");
         } else {
             self.send_event(NetworkEvent::KeysToFetchForReplication(keys_to_fetch));
         }
+
+        Ok(())
     }
 }

@@ -113,56 +113,6 @@ Errors related to pointer operations.
     }
     ```
 
-### ListError
-
-Errors related to linked list operations.
-
-=== "Node.js"
-    ```typescript
-    class ListError extends Error {
-        static NotFound: typeof ListError;
-        static InvalidIndex: typeof ListError;
-        static ForkDetected: typeof ListError;
-    }
-
-    try {
-        const item = await client.getListItem(address, index);
-    } catch (error) {
-        if (error instanceof ListError.InvalidIndex) {
-            // Handle invalid index
-        }
-    }
-    ```
-
-=== "Python"
-    ```python
-    class ListError(Exception):
-        class NotFound(ListError): pass
-        class InvalidIndex(ListError): pass
-        class ForkDetected(ListError): pass
-
-    try:
-        item = client.get_list_item(address, index)
-    except ListError.InvalidIndex:
-        # Handle invalid index
-        pass
-    ```
-
-=== "Rust"
-    ```rust
-    pub enum ListError {
-        NotFound,
-        InvalidIndex,
-        ForkDetected,
-    }
-
-    match client.get_list_item(address, index).await {
-        Ok(item) => { /* Process item */ }
-        Err(ListError::InvalidIndex) => { /* Handle invalid index */ }
-        Err(e) => { /* Handle other errors */ }
-    }
-    ```
-
 ## Error Handling Patterns
 
 ### Retry Logic

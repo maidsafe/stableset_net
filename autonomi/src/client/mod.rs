@@ -9,20 +9,31 @@
 // Optionally enable nightly `doc_cfg`. Allows items to be annotated, e.g.: "Available on crate feature X only".
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+/// The 4 basic Network data types.
+/// - Chunk
+/// - GraphEntry
+/// - Pointer
+/// - Scratchpad
+pub mod data_types;
+pub use data_types::chunk;
+pub use data_types::graph;
+pub use data_types::pointer;
+pub use data_types::scratchpad;
+
+/// High-level types built on top of the basic Network data types.
+/// Includes data, files and personnal data vaults
+mod high_level;
+pub use high_level::data;
+pub use high_level::files;
+pub use high_level::vault;
+
 pub mod address;
 pub mod payment;
 pub mod quote;
 
-pub mod data;
-pub mod files;
-pub mod graph;
-pub mod pointer;
-
 #[cfg(feature = "external-signer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "external-signer")))]
 pub mod external_signer;
-pub mod registers;
-pub mod vault;
 
 // private module with utility functions
 mod rate_limiter;
@@ -31,9 +42,13 @@ mod utils;
 use ant_bootstrap::{BootstrapCacheConfig, BootstrapCacheStore, PeersArgs};
 pub use ant_evm::Amount;
 use ant_evm::EvmNetwork;
-use ant_networking::{interval, multiaddr_is_global, Network, NetworkBuilder, NetworkEvent};
-use ant_protocol::version::IDENTIFY_PROTOCOL_STR;
+use ant_networking::{
+    interval, multiaddr_is_global, Network, NetworkBuilder, NetworkError, NetworkEvent,
+};
+use ant_protocol::{version::IDENTIFY_PROTOCOL_STR, NetworkAddress};
 use libp2p::{identity::Keypair, Multiaddr};
+use payment::PayError;
+use quote::CostError;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 
@@ -106,6 +121,44 @@ pub enum ConnectError {
     /// An error occurred while bootstrapping the client.
     #[error("Failed to bootstrap the client: {0}")]
     Bootstrap(#[from] ant_bootstrap::Error),
+}
+
+/// Errors that can occur during the put operation.
+#[derive(Debug, thiserror::Error)]
+pub enum PutError {
+    #[error("Failed to self-encrypt data.")]
+    SelfEncryption(#[from] crate::self_encryption::Error),
+    #[error("A network error occurred.")]
+    Network(#[from] NetworkError),
+    #[error("Error occurred during cost estimation.")]
+    CostError(#[from] CostError),
+    #[error("Error occurred during payment.")]
+    PayError(#[from] PayError),
+    #[error("Serialization error: {0}")]
+    Serialization(String),
+    #[error("A wallet error occurred.")]
+    Wallet(#[from] ant_evm::EvmError),
+    #[error("The owner key does not match the client's public key")]
+    ScratchpadBadOwner,
+    #[error("Payment unexpectedly invalid for {0:?}")]
+    PaymentUnexpectedlyInvalid(NetworkAddress),
+    #[error("The payment proof contains no payees.")]
+    PayeesMissing,
+}
+
+/// Errors that can occur during the get operation.
+#[derive(Debug, thiserror::Error)]
+pub enum GetError {
+    #[error("Could not deserialize data map.")]
+    InvalidDataMap(rmp_serde::decode::Error),
+    #[error("Failed to decrypt data.")]
+    Decryption(crate::self_encryption::Error),
+    #[error("Failed to deserialize")]
+    Deserialization(#[from] rmp_serde::decode::Error),
+    #[error("General networking error: {0:?}")]
+    Network(#[from] NetworkError),
+    #[error("General protocol error: {0:?}")]
+    Protocol(#[from] ant_protocol::Error),
 }
 
 impl Client {

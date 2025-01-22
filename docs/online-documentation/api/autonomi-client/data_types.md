@@ -127,13 +127,13 @@ A mutable reference to data in the network.
     }
     ```
 
-## LinkedList
+## GraphEntry
 
-A decentralized DAG structure for ordered data.
+A decentralized Graph structure for linked data.
 
 === "Node.js"
     ```typescript
-    interface LinkedList<T> {
+    interface GraphEntry<T> {
         readonly address: Address;
         readonly length: number;
         append(item: T): void;
@@ -144,7 +144,7 @@ A decentralized DAG structure for ordered data.
 
 === "Python"
     ```python
-    class LinkedList(Generic[T]):
+    class GraphEntry(Generic[T]):
         @property
         def address(self) -> Address: ...
         @property
@@ -156,12 +156,12 @@ A decentralized DAG structure for ordered data.
 
 === "Rust"
     ```rust
-    pub struct LinkedList<T> {
+    pub struct GraphEntry<T> {
         pub address: Address,
         pub length: usize,
     }
 
-    impl<T> LinkedList<T> {
+    impl<T> GraphEntry<T> {
         pub fn append(&mut self, item: T);
         pub fn get(&self, index: usize) -> Option<&T>;
         pub fn to_vec(&self) -> Vec<T>;

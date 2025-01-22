@@ -7,6 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::{error::Result, node::Node};
+use ant_evm::ProofOfPayment;
 use ant_networking::{GetRecordCfg, Network};
 use ant_protocol::{
     messages::{Cmd, Query, QueryResponse, Request, Response},
@@ -75,9 +76,6 @@ impl Node {
                         retry_strategy: None,
                         target_record: None,
                         expected_holders: Default::default(),
-                        // This is for replication, which doesn't have target_recrod to verify with.
-                        // Hence value of the flag actually doesn't matter.
-                        is_register: false,
                     };
                     match node.network().get_record_from_network(key, &get_cfg).await {
                         Ok(record) => record,
@@ -107,6 +105,7 @@ impl Node {
         &self,
         paid_key: RecordKey,
         record_type: ValidationType,
+        payment: Option<ProofOfPayment>,
     ) {
         let network = self.network().clone();
 
@@ -160,11 +159,11 @@ impl Node {
 
             let our_peer_id = network.peer_id();
             let our_address = NetworkAddress::from_peer(our_peer_id);
-            let keys = vec![(data_addr, record_type.clone())];
+            let keys = vec![(data_addr, record_type.clone(), payment)];
 
             for peer_id in replicate_candidates {
                 debug!("Replicating fresh record {pretty_key:?} to {peer_id:?}");
-                let request = Request::Cmd(Cmd::Replicate {
+                let request = Request::Cmd(Cmd::FreshReplicate {
                     holder: our_address.clone(),
                     keys: keys.clone(),
                 });
@@ -175,6 +174,63 @@ impl Node {
                 "Completed replicate fresh record {pretty_key:?} on store, in {:?}",
                 start.elapsed()
             );
+        });
+    }
+
+    // To fetch a received fresh record replication
+    pub(crate) fn fresh_replicate_to_fetch(
+        &self,
+        holder: NetworkAddress,
+        keys: Vec<(NetworkAddress, ValidationType, Option<ProofOfPayment>)>,
+    ) {
+        let node = self.clone();
+        let _handle = spawn(async move {
+            let mut new_keys = vec![];
+            for (addr, val_type, payment) in keys {
+                if let Some(payment) = payment {
+                    // Payment must be valid
+                    match node
+                        .payment_for_us_exists_and_is_still_valid(&addr, payment)
+                        .await
+                    {
+                        Ok(_) => {}
+                        Err(err) => {
+                            info!("ProofOfPayment of {addr:?} is invalid with error {err:?}");
+                            continue;
+                        }
+                    }
+                } else {
+                    // Must have existing copy
+                    match node
+                        .validate_key_and_existence(&addr, &addr.to_record_key())
+                        .await
+                    {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            info!(
+                                "Received a fresh update against a non-existing record of {addr:?}"
+                            );
+                            continue;
+                        }
+                        Err(err) => {
+                            info!("Failed to verify the local existence of {addr:?} with error {err:?}");
+                            continue;
+                        }
+                    }
+                }
+                new_keys.push((addr, val_type));
+            }
+
+            if !new_keys.is_empty() {
+                // Adding to the replication_fetcher for the rate_limit purpose,
+                // instead of fetching directly. To reduce potential choking risk.
+                info!(
+                    "Adding {} fresh records from {holder:?} to the replication_fetcher",
+                    new_keys.len()
+                );
+                node.network()
+                    .add_fresh_records_to_the_replication_fetcher(holder, new_keys);
+            }
         });
     }
 }

@@ -10,7 +10,7 @@ use bls::PublicKey;
 use serde::{Deserialize, Serialize};
 use xor_name::XorName;
 
-/// Address of a transaction, is derived from the owner's public key
+/// Address of a GraphEntry, is derived from the owner's unique public key
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub struct GraphEntryAddress(pub XorName);
 
@@ -34,6 +34,6 @@ impl GraphEntryAddress {
 
 impl std::fmt::Debug for GraphEntryAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TransactionAddress({})", &self.to_hex()[0..6])
+        write!(f, "GraphEntryAddress({})", &self.to_hex()[0..6])
     }
 }

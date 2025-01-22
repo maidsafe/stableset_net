@@ -396,25 +396,25 @@ impl SwarmDriver {
                     Self::send_record_after_checking_target(senders, peer_record.record, &cfg)?;
                 } else {
                     debug!("For record {pretty_key:?} task {query_id:?}, fetch completed with split record");
-                    let mut accumulated_transactions = BTreeSet::new();
+                    let mut accumulated_graph_entries = BTreeSet::new();
                     for (record, _) in result_map.values() {
                         match get_graph_entry_from_record(record) {
-                            Ok(transactions) => {
-                                accumulated_transactions.extend(transactions);
+                            Ok(graph_entries) => {
+                                accumulated_graph_entries.extend(graph_entries);
                             }
                             Err(_) => {
                                 continue;
                             }
                         }
                     }
-                    if !accumulated_transactions.is_empty() {
-                        info!("For record {pretty_key:?} task {query_id:?}, found split record for a transaction, accumulated and sending them as a single record");
-                        let accumulated_transactions = accumulated_transactions
+                    if !accumulated_graph_entries.is_empty() {
+                        info!("For record {pretty_key:?} task {query_id:?}, found split record for a GraphEntry, accumulated and sending them as a single record");
+                        let accumulated_graph_entries = accumulated_graph_entries
                             .into_iter()
                             .collect::<Vec<GraphEntry>>();
 
                         let bytes = try_serialize_record(
-                            &accumulated_transactions,
+                            &accumulated_graph_entries,
                             RecordKind::DataOnly(DataTypes::GraphEntry),
                         )?;
 

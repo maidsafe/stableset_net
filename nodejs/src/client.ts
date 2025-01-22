@@ -1,4 +1,4 @@
-import { NetworkConfig, PaymentOption, LinkedListOptions, PointerOptions, VaultOptions, UserData } from './types';
+import { NetworkConfig, PaymentOption, GraphEntryOptions, PointerOptions, VaultOptions, UserData } from './types';
 
 export class Client {
     private nativeClient: any; // Will be replaced with actual native binding type
@@ -23,18 +23,18 @@ export class Client {
         throw new Error('Not implemented');
     }
 
-    // Linked List Operations
-    async linkedListGet(address: string): Promise<any[]> {
+    // Graph Operations
+    async graphEntryGet(address: string): Promise<any[]> {
         // TODO: Implement native binding call
         throw new Error('Not implemented');
     }
 
-    async linkedListPut(options: LinkedListOptions, payment: PaymentOption): Promise<void> {
+    async graphEntryPut(options: GraphEntryOptions, payment: PaymentOption): Promise<void> {
         // TODO: Implement native binding call
         throw new Error('Not implemented');
     }
 
-    async linkedListCost(key: string): Promise<string> {
+    async graphEntryCost(key: string): Promise<string> {
         // TODO: Implement native binding call
         throw new Error('Not implemented');
     }

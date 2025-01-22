@@ -246,8 +246,6 @@ pub enum SubCmd {
         #[clap(long)]
         version: Option<String>,
     },
-    #[clap(subcommand)]
-    Auditor(AuditorSubCmd),
     /// Get node reward balances.
     #[clap(name = "balance")]
     Balance {
@@ -444,110 +442,6 @@ pub enum SubCmd {
         /// The name of the service to upgrade
         #[clap(long, conflicts_with = "peer_id")]
         service_name: Vec<String>,
-        /// Provide a binary to upgrade to using a URL.
-        ///
-        /// The binary must be inside a zip or gzipped tar archive.
-        ///
-        /// This can be useful for testing scenarios.
-        #[clap(long, conflicts_with = "version")]
-        url: Option<String>,
-        /// Upgrade to a specific version rather than the latest version.
-        ///
-        /// The version number should be in the form X.Y.Z, with no 'v' prefix.
-        #[clap(long)]
-        version: Option<String>,
-    },
-}
-
-/// Manage the Auditor service.
-#[derive(Subcommand, Debug)]
-pub enum AuditorSubCmd {
-    /// Add an auditor service to collect and verify Spends from the network.
-    ///
-    /// By default, the latest sn_auditor binary will be downloaded; however, it is possible to
-    /// provide a binary either by specifying a URL, a local path, or a specific version number.
-    ///
-    /// This command must run as the root/administrative user.
-    #[clap(name = "add")]
-    Add {
-        /// Secret encryption key of the beta rewards to decypher
-        /// discord usernames of the beta participants
-        #[clap(short = 'k', long, value_name = "hex_secret_key")]
-        beta_encryption_key: Option<String>,
-        /// Provide environment variables for the auditor service.
-        ///
-        /// Useful to set log levels. Variables should be comma separated without spaces.
-        ///
-        /// Example: --env ANT_LOG=all,RUST_LOG=libp2p=debug
-        #[clap(name = "env", long, use_value_delimiter = true, value_parser = parse_environment_variables)]
-        env_variables: Option<Vec<(String, String)>>,
-        /// Provide the path for the log directory for the auditor.
-        ///
-        /// If not provided, the default location /var/log/auditor.
-        #[clap(long, verbatim_doc_comment)]
-        log_dir_path: Option<PathBuf>,
-        /// Provide a path for the auditor binary to be used by the service.
-        ///
-        /// Useful for creating the auditor service using a custom built binary.
-        #[clap(long)]
-        path: Option<PathBuf>,
-        #[command(flatten)]
-        peers: Box<PeersArgs>,
-        /// Provide a auditor binary using a URL.
-        ///
-        /// The binary must be inside a zip or gzipped tar archive.
-        ///
-        /// This option can be used to test a auditor binary that has been built from a forked
-        /// branch and uploaded somewhere. A typical use case would be for a developer who launches
-        /// a testnet to test some changes they have on a fork.
-        #[clap(long, conflicts_with = "version")]
-        url: Option<String>,
-        /// Provide a specific version of the auditor to be installed.
-        ///
-        /// The version number should be in the form X.Y.Z, with no 'v' prefix.
-        ///
-        /// The binary will be downloaded.
-        #[clap(long)]
-        version: Option<String>,
-    },
-    /// Start the auditor service.
-    ///
-    /// This command must run as the root/administrative user.
-    #[clap(name = "start")]
-    Start {},
-    /// Stop the auditor service.
-    ///
-    /// This command must run as the root/administrative user.
-    #[clap(name = "stop")]
-    Stop {},
-    /// Upgrade the Auditor.
-    ///
-    /// The running auditor will be stopped, its binary will be replaced, then it will be started
-    /// again.
-    ///
-    /// This command must run as the root/administrative user.
-    #[clap(name = "upgrade")]
-    Upgrade {
-        /// Set this flag to upgrade the auditor without starting it.
-        ///
-        /// Can be useful for testing scenarios.
-        #[clap(long)]
-        do_not_start: bool,
-        /// Set this flag to force the upgrade command to replace binaries without comparing any
-        /// version numbers.
-        ///
-        /// Required if we want to downgrade, or for testing purposes.
-        #[clap(long)]
-        force: bool,
-        /// Provide environment variables for the auditor service.
-        ///
-        /// Values set when the service was added will be overridden.
-        ///
-        /// Useful to set log levels. Variables should be comma separated without spaces.
-        ///
-        /// Example: --env ANT_LOG=all,RUST_LOG=libp2p=debug
-        #[clap(name = "env", long, use_value_delimiter = true, value_parser = parse_environment_variables)]
-        env_variables: Option<Vec<(String, String)>>,
         /// Provide a binary to upgrade to using a URL.
         ///
         /// The binary must be inside a zip or gzipped tar archive.
@@ -787,7 +681,7 @@ pub enum LocalSubCmd {
     Join {
         /// Set to build the antnode and faucet binaries.
         ///
-        /// This option requires the command run from the root of the safe_network repository.
+        /// This option requires the command run from the root of the autonomi repository.
         #[clap(long)]
         build: bool,
         /// The number of nodes to run.
@@ -883,7 +777,7 @@ pub enum LocalSubCmd {
     Run {
         /// Set to build the antnode and faucet binaries.
         ///
-        /// This option requires the command run from the root of the safe_network repository.
+        /// This option requires the command run from the root of the autonomi repository.
         #[clap(long)]
         build: bool,
         /// Set to remove the client data directory and kill any existing local network.
@@ -1087,38 +981,6 @@ async fn main() -> Result<()> {
             )
             .await?;
             Ok(())
-        }
-        Some(SubCmd::Auditor(AuditorSubCmd::Add {
-            beta_encryption_key,
-            env_variables,
-            log_dir_path,
-            path,
-            peers,
-            url,
-            version,
-        })) => {
-            cmd::auditor::add(
-                beta_encryption_key,
-                env_variables,
-                log_dir_path,
-                *peers,
-                path,
-                url,
-                version,
-                verbosity,
-            )
-            .await
-        }
-        Some(SubCmd::Auditor(AuditorSubCmd::Start {})) => cmd::auditor::start(verbosity).await,
-        Some(SubCmd::Auditor(AuditorSubCmd::Stop {})) => cmd::auditor::stop(verbosity).await,
-        Some(SubCmd::Auditor(AuditorSubCmd::Upgrade {
-            do_not_start,
-            force,
-            env_variables,
-            url,
-            version,
-        })) => {
-            cmd::auditor::upgrade(do_not_start, force, env_variables, url, version, verbosity).await
         }
         Some(SubCmd::Balance {
             peer_id: peer_ids,
@@ -1364,18 +1226,18 @@ fn parse_environment_variables(env_var: &str) -> Result<(String, String)> {
 async fn configure_winsw(verbosity: VerbosityLevel) -> Result<()> {
     use ant_node_manager::config::get_node_manager_path;
 
-    // If the node manager was installed using `safeup`, it would have put the winsw.exe binary at
+    // If the node manager was installed using `antup`, it would have put the winsw.exe binary at
     // `C:\Users\<username>\autonomi\winsw.exe`, sitting it alongside the other safe-related binaries.
     //
     // However, if the node manager has been obtained by other means, we can put winsw.exe
     // alongside the directory where the services are defined. This prevents creation of what would
     // seem like a random `autonomi` directory in the user's home directory.
-    let safeup_winsw_path = dirs_next::home_dir()
+    let antup_winsw_path = dirs_next::home_dir()
         .ok_or_else(|| eyre!("Could not obtain user home directory"))?
         .join("autonomi")
         .join("winsw.exe");
-    if safeup_winsw_path.exists() {
-        ant_node_manager::helpers::configure_winsw(&safeup_winsw_path, verbosity).await?;
+    if antup_winsw_path.exists() {
+        ant_node_manager::helpers::configure_winsw(&antup_winsw_path, verbosity).await?;
     } else {
         ant_node_manager::helpers::configure_winsw(
             &get_node_manager_path()?.join("winsw.exe"),

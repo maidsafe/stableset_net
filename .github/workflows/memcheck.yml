@@ -162,6 +162,22 @@ jobs:
         run: pgrep antnode | wc -l
         if: always()
 
+      - name: confirm opened FDs
+        shell: bash
+        timeout-minutes: 1
+        run: |
+          fd_cap="30"
+          pids=$(pgrep antnode)
+          for pid in $pids; do
+            fd_count=$(ls /proc/$pid/fd | wc -l)
+            echo "Process $pid - File Descriptors: $fd_count"
+            if (( $(echo "$fd_count > $fd_cap" | bc -l) )); then
+              echo "Process $pid holding FD exceeded threshold: $fd_cap"
+              exit 1
+            fi
+          done
+        if: always()
+
       - name: Stop the local network and upload logs
         if: always()
         uses: maidsafe/ant-local-testnet-action@main

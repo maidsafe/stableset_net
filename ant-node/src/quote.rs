@@ -24,7 +24,6 @@ impl Node {
         let content = match address {
             NetworkAddress::ChunkAddress(addr) => *addr.xorname(),
             NetworkAddress::GraphEntryAddress(addr) => *addr.xorname(),
-            NetworkAddress::RegisterAddress(addr) => addr.xorname(),
             NetworkAddress::ScratchpadAddress(addr) => addr.xorname(),
             NetworkAddress::PointerAddress(addr) => *addr.xorname(),
             NetworkAddress::PeerId(_) | NetworkAddress::RecordKey(_) => XorName::default(),
@@ -62,7 +61,6 @@ pub(crate) fn verify_quote_for_storecost(
     let content = match address {
         NetworkAddress::ChunkAddress(addr) => *addr.xorname(),
         NetworkAddress::GraphEntryAddress(addr) => *addr.xorname(),
-        NetworkAddress::RegisterAddress(addr) => addr.xorname(),
         NetworkAddress::ScratchpadAddress(addr) => addr.xorname(),
         NetworkAddress::PointerAddress(addr) => *addr.xorname(),
         NetworkAddress::PeerId(_) | NetworkAddress::RecordKey(_) => XorName::default(),

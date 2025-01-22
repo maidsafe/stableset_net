@@ -1,19 +1,15 @@
-use crate::client::data::PayError;
-use crate::client::Client;
-use tracing::{debug, error, trace};
-
+use crate::client::{payment::PayError, quote::CostError, Client};
 use ant_evm::{Amount, AttoTokens, EvmWallet, EvmWalletError};
 use ant_networking::{GetRecordCfg, NetworkError, PutRecordCfg, VerificationKind};
 use ant_protocol::{
-    storage::{
-        try_serialize_record, DataTypes, Pointer, PointerAddress, RecordKind, RetryStrategy,
-    },
+    storage::{try_serialize_record, DataTypes, PointerAddress, RecordKind, RetryStrategy},
     NetworkAddress,
 };
 use bls::SecretKey;
 use libp2p::kad::{Quorum, Record};
+use tracing::{debug, error, trace};
 
-use super::data::CostError;
+pub use ant_protocol::storage::Pointer;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PointerError {
@@ -56,14 +52,19 @@ impl Client {
         &self,
         pointer: Pointer,
         wallet: &EvmWallet,
-    ) -> Result<(), PointerError> {
+    ) -> Result<PointerAddress, PointerError> {
         let address = pointer.network_address();
 
         // pay for the pointer storage
         let xor_name = *address.xorname();
         debug!("Paying for pointer at address: {address:?}");
         let (payment_proofs, _skipped_payments) = self
-            .pay(std::iter::once(xor_name), wallet)
+            // TODO: define Pointer default size for pricing
+            .pay(
+                DataTypes::Pointer.get_index(),
+                std::iter::once((xor_name, 128)),
+                wallet,
+            )
             .await
             .inspect_err(|err| {
                 error!("Failed to pay for pointer at address: {address:?} : {err}")
@@ -97,7 +98,6 @@ impl Client {
             retry_strategy: Some(RetryStrategy::default()),
             target_record: None,
             expected_holders: Default::default(),
-            is_register: false,
         };
 
         let put_cfg = PutRecordCfg {
@@ -116,7 +116,7 @@ impl Client {
                 error!("Failed to put record - pointer {address:?} to the network: {err}")
             })?;
 
-        Ok(())
+        Ok(address)
     }
 
     /// Calculate the cost of storing a pointer
@@ -126,7 +126,10 @@ impl Client {
 
         let address = PointerAddress::from_owner(pk);
         let xor = *address.xorname();
-        let store_quote = self.get_store_quotes(std::iter::once(xor)).await?;
+        // TODO: define default size of Pointer
+        let store_quote = self
+            .get_store_quotes(DataTypes::Pointer.get_index(), std::iter::once((xor, 128)))
+            .await?;
         let total_cost = AttoTokens::from_atto(
             store_quote
                 .0

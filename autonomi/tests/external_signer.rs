@@ -4,8 +4,9 @@ use alloy::network::TransactionBuilder;
 use alloy::providers::Provider;
 use ant_evm::{QuoteHash, TxHash};
 use ant_logging::LogBuilder;
+use ant_protocol::storage::DataTypes;
 use autonomi::client::external_signer::encrypt_data;
-use autonomi::client::files::archive::{Metadata, PrivateArchive};
+use autonomi::client::files::{archive_private::PrivateArchive, Metadata};
 use autonomi::client::payment::{receipt_from_store_quotes, Receipt};
 use autonomi::client::quote::StoreQuote;
 use autonomi::client::vault::user_data::USER_DATA_VAULT_CONTENT_IDENTIFIER;
@@ -23,22 +24,29 @@ async fn pay_for_data(client: &Client, wallet: &Wallet, data: Bytes) -> eyre::Re
     let (data_map_chunk, chunks) = encrypt_data(data)?;
 
     let map_xor_name = *data_map_chunk.address().xorname();
-    let mut xor_names = vec![map_xor_name];
+    let mut xor_names = vec![(map_xor_name, data_map_chunk.serialised_size())];
 
     for chunk in chunks {
-        xor_names.push(*chunk.name());
+        xor_names.push((*chunk.name(), chunk.serialised_size()));
     }
 
-    pay_for_content_addresses(client, wallet, xor_names.into_iter()).await
+    pay_for_content_addresses(
+        client,
+        wallet,
+        DataTypes::Chunk.get_index(),
+        xor_names.into_iter(),
+    )
+    .await
 }
 
 async fn pay_for_content_addresses(
     client: &Client,
     wallet: &Wallet,
-    content_addrs: impl Iterator<Item = XorName> + Clone,
+    data_types: u32,
+    content_addrs: impl Iterator<Item = (XorName, usize)> + Clone,
 ) -> eyre::Result<Receipt> {
     let (quotes, quote_payments, _free_chunks) = client
-        .get_quotes_for_content_addresses(content_addrs)
+        .get_quotes_for_content_addresses(data_types, content_addrs)
         .await?;
 
     // Form quotes payment transaction data
@@ -141,19 +149,24 @@ async fn external_signer_put() -> eyre::Result<()> {
     );
 
     let (scratch, is_new) = client
-        .get_or_create_scratchpad(&vault_key, *USER_DATA_VAULT_CONTENT_IDENTIFIER)
+        .get_or_create_scratchpad(&vault_key.public_key(), *USER_DATA_VAULT_CONTENT_IDENTIFIER)
         .await?;
 
     assert!(is_new, "Scratchpad is not new");
 
     let scratch_addresses = if is_new {
-        vec![scratch.xorname()]
+        vec![(scratch.xorname(), scratch.payload_size())]
     } else {
         vec![]
     };
 
-    let receipt =
-        pay_for_content_addresses(&client, &wallet, scratch_addresses.into_iter()).await?;
+    let receipt = pay_for_content_addresses(
+        &client,
+        &wallet,
+        DataTypes::Scratchpad.get_index(),
+        scratch_addresses.into_iter(),
+    )
+    .await?;
 
     sleep(Duration::from_secs(5)).await;
 

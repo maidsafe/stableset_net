@@ -16,7 +16,6 @@ rpc = ["tonic", "prost"]
 [dependencies]
 ant-build-info = { path = "../ant-build-info", version = "0.1.23" }
 ant-evm = { path = "../ant-evm", version = "0.1.8" }
-ant-registers = { path = "../ant-registers", version = "0.4.7" }
 bls = { package = "blsttc", version = "8.0.1" }
 bytes = { version = "1.0.1", features = ["serde"] }
 color-eyre = "0.6.3"

@@ -17,8 +17,8 @@ fi
 check_and_install_safe() {
   if ! command -v safe &> /dev/null; then
     echo "'safe' command not found. Installing..."
-    curl -sSL https://raw.githubusercontent.com/maidsafe/safeup/main/install.sh | sudo bash
-    safeup client
+    curl -sSL https://raw.githubusercontent.com/maidsafe/antup/main/install.sh | sudo bash
+    antup client
   else
     echo "'safe' command is already installed."
   fi

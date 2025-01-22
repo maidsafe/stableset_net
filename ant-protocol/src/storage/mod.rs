@@ -29,8 +29,6 @@ pub use self::{
     scratchpad::Scratchpad,
 };
 
-pub use ant_registers::RegisterAddress;
-
 /// A strategy that translates into a configuration for exponential backoff.
 /// The first retry is done after 2 seconds, after which the backoff is roughly doubled each time.
 /// The interval does not go beyond 32 seconds. So the intervals increase from 2 to 4, to 8, to 16, to 32 seconds and

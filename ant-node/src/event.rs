@@ -9,10 +9,7 @@
 use crate::error::{Error, Result};
 
 use ant_evm::AttoTokens;
-use ant_protocol::{
-    storage::{ChunkAddress, RegisterAddress},
-    NetworkAddress,
-};
+use ant_protocol::{storage::ChunkAddress, NetworkAddress};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
@@ -61,10 +58,6 @@ pub enum NodeEvent {
     ConnectedToNetwork,
     /// A Chunk has been stored in local storage
     ChunkStored(ChunkAddress),
-    /// A Register has been created in local storage
-    RegisterCreated(RegisterAddress),
-    /// A Register edit operation has been applied in local storage
-    RegisterEdited(RegisterAddress),
     /// A new reward was received
     RewardReceived(AttoTokens, NetworkAddress),
     /// One of the sub event channel closed and unrecoverable.

@@ -23,6 +23,10 @@ pub enum Query {
     GetStoreQuote {
         /// The Address of the record to be stored.
         key: NetworkAddress,
+        /// DataTypes as represented as its `index`
+        data_type: u32,
+        /// Data size of the record
+        data_size: usize,
         /// The random nonce that nodes use to produce the Proof (i.e., hash(record+nonce))
         /// Set to None if no need to carry out storage check.
         nonce: Option<Nonce>,
@@ -40,17 +44,6 @@ pub enum Query {
         /// Sender of the query
         requester: NetworkAddress,
         /// Key of the record to be fetched
-        key: NetworkAddress,
-    },
-    /// Retrieve a specific register record from a specific peer.
-    ///
-    /// This should eventually lead to a [`GetRegisterRecord`] response.
-    ///
-    /// [`GetRegisterRecord`]: super::QueryResponse::GetRegisterRecord
-    GetRegisterRecord {
-        /// Sender of the query
-        requester: NetworkAddress,
-        /// Key of the register record to be fetched
         key: NetworkAddress,
     },
     /// Get the proof that the chunk with the given NetworkAddress exists with the requested node.
@@ -89,7 +82,6 @@ impl Query {
             // and the destination shall be decided by the requester already.
             Query::GetStoreQuote { key, .. }
             | Query::GetReplicatedRecord { key, .. }
-            | Query::GetRegisterRecord { key, .. }
             | Query::GetChunkExistenceProof { key, .. }
             | Query::GetClosestPeers { key, .. } => key.clone(),
         }
@@ -101,16 +93,18 @@ impl std::fmt::Display for Query {
         match self {
             Query::GetStoreQuote {
                 key,
+                data_type,
+                data_size,
                 nonce,
                 difficulty,
             } => {
-                write!(f, "Query::GetStoreQuote({key:?} {nonce:?} {difficulty})")
+                write!(
+                    f,
+                    "Query::GetStoreQuote({key:?} {data_type} {data_size} {nonce:?} {difficulty})"
+                )
             }
             Query::GetReplicatedRecord { key, requester } => {
                 write!(f, "Query::GetReplicatedRecord({requester:?} {key:?})")
-            }
-            Query::GetRegisterRecord { key, requester } => {
-                write!(f, "Query::GetRegisterRecord({requester:?} {key:?})")
             }
             Query::GetChunkExistenceProof {
                 key,

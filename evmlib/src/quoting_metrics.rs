@@ -13,6 +13,10 @@ use std::fmt::{Debug, Formatter, Result as FmtResult};
 /// Quoting metrics used to generate a quote, or to track peer's status.
 #[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct QuotingMetrics {
+    /// DataTypes presented as its `index`
+    pub data_type: u32,
+    /// data size of the record
+    pub data_size: usize,
     /// the records stored
     pub close_records_stored: usize,
     /// the max_records configured
@@ -28,31 +32,11 @@ pub struct QuotingMetrics {
     pub network_size: Option<u64>,
 }
 
-impl QuotingMetrics {
-    /// construct an empty QuotingMetrics
-    pub fn new() -> Self {
-        Self {
-            close_records_stored: 0,
-            max_records: 0,
-            received_payment_count: 0,
-            live_time: 0,
-            network_density: None,
-            network_size: None,
-        }
-    }
-}
-
-impl Default for QuotingMetrics {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Debug for QuotingMetrics {
     fn fmt(&self, formatter: &mut Formatter) -> FmtResult {
         let density_u256 = self.network_density.map(U256::from_be_bytes);
 
-        write!(formatter, "QuotingMetrics {{ close_records_stored: {}, max_records: {}, received_payment_count: {}, live_time: {}, network_density: {density_u256:?}, network_size: {:?} }}",
-               self.close_records_stored, self.max_records, self.received_payment_count, self.live_time, self.network_size)
+        write!(formatter, "QuotingMetrics {{ data_type: {}, data_size: {}, close_records_stored: {}, max_records: {}, received_payment_count: {}, live_time: {}, network_density: {density_u256:?}, network_size: {:?} }}",
+               self.data_type, self.data_size, self.close_records_stored, self.max_records, self.received_payment_count, self.live_time, self.network_size)
     }
 }

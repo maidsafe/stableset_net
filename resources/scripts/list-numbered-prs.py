@@ -49,7 +49,7 @@ def main(pr_numbers):
         pr_number = pr["number"]
         closed_date = pr["closed_at"].date()
         breaking_text = "[BREAKING]" if pr["breaking"] else ""
-        print(f"{closed_date} [#{pr_number}](https://github.com/maidsafe/safe_network/pull/{pr_number}) -- {pr['title']} [@{pr['author']}] {breaking_text}")
+        print(f"{closed_date} [#{pr_number}](https://github.com/maidsafe/autonomi/pull/{pr_number}) -- {pr['title']} [@{pr['author']}] {breaking_text}")
 
     print()
     grouped_pulls = defaultdict(list)
@@ -83,7 +83,7 @@ def main(pr_numbers):
             pr_number = pr["number"]
             closed_date = pr["closed_at"].date()
             breaking_text = "[BREAKING]" if pr["breaking"] else ""
-            print(f"  {closed_date} [#{pr_number}](https://github.com/maidsafe/safe_network/pull/{pr_number}) -- {pr['title']} {breaking_text}")
+            print(f"  {closed_date} [#{pr_number}](https://github.com/maidsafe/autonomi/pull/{pr_number}) -- {pr['title']} {breaking_text}")
         print()
 
 def read_pr_numbers(file_path):

@@ -20,7 +20,6 @@ use ant_protocol::{
     },
     NetworkAddress, PrettyPrintRecordKey,
 };
-use ant_registers::SignedRegister;
 use libp2p::kad::{Record, RecordKey};
 use xor_name::XorName;
 
@@ -40,7 +39,10 @@ impl Node {
                 // Validate the payment and that we received what we asked.
                 // This stores any payments to disk
                 let payment_res = self
-                    .payment_for_us_exists_and_is_still_valid(&chunk.network_address(), payment)
+                    .payment_for_us_exists_and_is_still_valid(
+                        &chunk.network_address(),
+                        payment.clone(),
+                    )
                     .await;
 
                 // Now that we've taken any money passed to us, regardless of the payment's validity,
@@ -49,7 +51,11 @@ impl Node {
                     // if we're receiving this chunk PUT again, and we have been paid,
                     // we eagerly retry replicaiton as it seems like other nodes are having trouble
                     // did not manage to get this chunk as yet
-                    self.replicate_valid_fresh_record(record_key, ValidationType::Chunk);
+                    self.replicate_valid_fresh_record(
+                        record_key,
+                        ValidationType::Chunk,
+                        Some(payment),
+                    );
 
                     // Notify replication_fetcher to mark the attempt as completed.
                     // Send the notification earlier to avoid it got skipped due to:
@@ -75,7 +81,11 @@ impl Node {
                 if store_chunk_result.is_ok() {
                     Marker::ValidPaidChunkPutFromClient(&PrettyPrintRecordKey::from(&record.key))
                         .log();
-                    self.replicate_valid_fresh_record(record_key, ValidationType::Chunk);
+                    self.replicate_valid_fresh_record(
+                        record_key,
+                        ValidationType::Chunk,
+                        Some(payment),
+                    );
 
                     // Notify replication_fetcher to mark the attempt as completed.
                     // Send the notification earlier to avoid it got skipped due to:
@@ -106,7 +116,7 @@ impl Node {
                 let payment_res = self
                     .payment_for_us_exists_and_is_still_valid(
                         &scratchpad.network_address(),
-                        payment,
+                        payment.clone(),
                     )
                     .await;
 
@@ -117,7 +127,12 @@ impl Node {
                 // So that when the replicate target asking for the copy,
                 // the node can have a higher chance to respond.
                 let store_scratchpad_result = self
-                    .validate_and_store_scratchpad_record(scratchpad, record_key.clone(), true)
+                    .validate_and_store_scratchpad_record(
+                        scratchpad,
+                        record_key.clone(),
+                        true,
+                        Some(payment),
+                    )
                     .await;
 
                 match store_scratchpad_result {
@@ -130,10 +145,6 @@ impl Node {
                             &record_key,
                         ))
                         .log();
-                        self.replicate_valid_fresh_record(
-                            record_key.clone(),
-                            ValidationType::NonChunk(content_hash),
-                        );
 
                         // Notify replication_fetcher to mark the attempt as completed.
                         // Send the notification earlier to avoid it got skipped due to:
@@ -163,7 +174,7 @@ impl Node {
                 }
 
                 // store the scratchpad
-                self.validate_and_store_scratchpad_record(scratchpad, key, false)
+                self.validate_and_store_scratchpad_record(scratchpad, key, true, None)
                     .await
             }
             RecordKind::DataOnly(DataTypes::GraphEntry) => {
@@ -174,135 +185,50 @@ impl Node {
                 ))
             }
             RecordKind::DataWithPayment(DataTypes::GraphEntry) => {
-                let (payment, transaction) =
+                let (payment, graph_entry) =
                     try_deserialize_record::<(ProofOfPayment, GraphEntry)>(&record)?;
 
-                // check if the deserialized value's TransactionAddress matches the record's key
-                let net_addr = NetworkAddress::from_graph_entry_address(transaction.address());
+                // check if the deserialized value's GraphEntryAddress matches the record's key
+                let net_addr = NetworkAddress::from_graph_entry_address(graph_entry.address());
                 let key = net_addr.to_record_key();
                 let pretty_key = PrettyPrintRecordKey::from(&key);
                 if record.key != key {
                     warn!(
-                        "Record's key {pretty_key:?} does not match with the value's TransactionAddress, ignoring PUT."
+                        "Record's key {pretty_key:?} does not match with the value's GraphEntryAddress, ignoring PUT."
                     );
                     return Err(Error::RecordKeyMismatch);
                 }
 
                 let already_exists = self.validate_key_and_existence(&net_addr, &key).await?;
 
-                // The transaction may already exist during the replication.
-                // The payment shall get deposit to self even the transaction already presents.
-                // However, if the transaction is already present, the incoming one shall be
+                // The GraphEntry may already exist during the replication.
+                // The payment shall get deposit to self even the GraphEntry already presents.
+                // However, if the GraphEntry is already present, the incoming one shall be
                 // appended with the existing one, if content is different.
                 if let Err(err) = self
-                    .payment_for_us_exists_and_is_still_valid(&net_addr, payment)
+                    .payment_for_us_exists_and_is_still_valid(&net_addr, payment.clone())
                     .await
                 {
                     if already_exists {
-                        debug!("Payment of the incoming exists transaction {pretty_key:?} having error {err:?}");
+                        debug!("Payment of the incoming existing GraphEntry {pretty_key:?} having error {err:?}");
                     } else {
-                        error!("Payment of the incoming non-exist transaction {pretty_key:?} having error {err:?}");
+                        error!("Payment of the incoming new GraphEntry {pretty_key:?} having error {err:?}");
                         return Err(err);
                     }
                 }
 
                 let res = self
-                    .validate_merge_and_store_transactions(vec![transaction], &key)
+                    .validate_merge_and_store_graphentries(vec![graph_entry], &key)
                     .await;
                 if res.is_ok() {
                     let content_hash = XorName::from_content(&record.value);
-                    Marker::ValidTransactionPutFromClient(&PrettyPrintRecordKey::from(&record.key))
+                    Marker::ValidGraphEntryPutFromClient(&PrettyPrintRecordKey::from(&record.key))
                         .log();
                     self.replicate_valid_fresh_record(
                         record.key.clone(),
                         ValidationType::NonChunk(content_hash),
+                        Some(payment),
                     );
-
-                    // Notify replication_fetcher to mark the attempt as completed.
-                    // Send the notification earlier to avoid it got skipped due to:
-                    // the record becomes stored during the fetch because of other interleaved process.
-                    self.network().notify_fetch_completed(
-                        record.key.clone(),
-                        ValidationType::NonChunk(content_hash),
-                    );
-                }
-                res
-            }
-            RecordKind::DataOnly(DataTypes::Register) => {
-                let register = try_deserialize_record::<SignedRegister>(&record)?;
-
-                // make sure we already have this register locally
-                let net_addr = NetworkAddress::from_register_address(*register.address());
-                let key = net_addr.to_record_key();
-                let pretty_key = PrettyPrintRecordKey::from(&key);
-                debug!("Got record to store without payment for register at {pretty_key:?}");
-                if !self.validate_key_and_existence(&net_addr, &key).await? {
-                    debug!("Ignore store without payment for register at {pretty_key:?}");
-                    return Err(Error::InvalidPutWithoutPayment(
-                        PrettyPrintRecordKey::from(&record.key).into_owned(),
-                    ));
-                }
-
-                // store the update
-                debug!("Store update without payment as we already had register at {pretty_key:?}");
-                let result = self.validate_and_store_register(register, true).await;
-
-                if result.is_ok() {
-                    debug!("Successfully stored register update at {pretty_key:?}");
-                    Marker::ValidPaidRegisterPutFromClient(&pretty_key).log();
-                    // we dont try and force replicaiton here as there's state to be kept in sync
-                    // which we leave up to the client to enforce
-
-                    let content_hash = XorName::from_content(&record.value);
-
-                    // Notify replication_fetcher to mark the attempt as completed.
-                    // Send the notification earlier to avoid it got skipped due to:
-                    // the record becomes stored during the fetch because of other interleaved process.
-                    self.network().notify_fetch_completed(
-                        record.key.clone(),
-                        ValidationType::NonChunk(content_hash),
-                    );
-                } else {
-                    warn!("Failed to store register update at {pretty_key:?}");
-                }
-                result
-            }
-            RecordKind::DataWithPayment(DataTypes::Register) => {
-                let (payment, register) =
-                    try_deserialize_record::<(ProofOfPayment, SignedRegister)>(&record)?;
-
-                // check if the deserialized value's RegisterAddress matches the record's key
-                let net_addr = NetworkAddress::from_register_address(*register.address());
-                let key = net_addr.to_record_key();
-                let pretty_key = PrettyPrintRecordKey::from(&key);
-                if record.key != key {
-                    warn!(
-                        "Record's key {pretty_key:?} does not match with the value's RegisterAddress, ignoring PUT."
-                    );
-                    return Err(Error::RecordKeyMismatch);
-                }
-
-                let already_exists = self.validate_key_and_existence(&net_addr, &key).await?;
-
-                // The register may already exist during the replication.
-                // The payment shall get deposit to self even the register already presents.
-                // However, if the register already presents, the incoming one maybe for edit only.
-                // Hence the corresponding payment error shall not be thrown out.
-                if let Err(err) = self
-                    .payment_for_us_exists_and_is_still_valid(&net_addr, payment)
-                    .await
-                {
-                    if already_exists {
-                        debug!("Payment of the incoming exists register {pretty_key:?} having error {err:?}");
-                    } else {
-                        error!("Payment of the incoming non-exist register {pretty_key:?} having error {err:?}");
-                        return Err(err);
-                    }
-                }
-
-                let res = self.validate_and_store_register(register, true).await;
-                if res.is_ok() {
-                    let content_hash = XorName::from_content(&record.value);
 
                     // Notify replication_fetcher to mark the attempt as completed.
                     // Send the notification earlier to avoid it got skipped due to:
@@ -341,7 +267,7 @@ impl Node {
                 // The pointer may already exist during the replication.
                 // The payment shall get deposit to self even if the pointer already exists.
                 if let Err(err) = self
-                    .payment_for_us_exists_and_is_still_valid(&net_addr, payment)
+                    .payment_for_us_exists_and_is_still_valid(&net_addr, payment.clone())
                     .await
                 {
                     if already_exists {
@@ -352,15 +278,11 @@ impl Node {
                     }
                 }
 
-                let res = self.validate_and_store_pointer_record(pointer, key);
+                let res = self.validate_and_store_pointer_record(pointer, key, true, Some(payment));
                 if res.is_ok() {
                     let content_hash = XorName::from_content(&record.value);
                     Marker::ValidPointerPutFromClient(&PrettyPrintRecordKey::from(&record.key))
                         .log();
-                    self.replicate_valid_fresh_record(
-                        record.key.clone(),
-                        ValidationType::NonChunk(content_hash),
-                    );
 
                     // Notify replication_fetcher to mark the attempt as completed.
                     self.network().notify_fetch_completed(
@@ -405,40 +327,26 @@ impl Node {
             RecordKind::DataOnly(DataTypes::Scratchpad) => {
                 let key = record.key.clone();
                 let scratchpad = try_deserialize_record::<Scratchpad>(&record)?;
-                self.validate_and_store_scratchpad_record(scratchpad, key, false)
+                self.validate_and_store_scratchpad_record(scratchpad, key, false, None)
                     .await
             }
             RecordKind::DataOnly(DataTypes::GraphEntry) => {
                 let record_key = record.key.clone();
-                let transactions = try_deserialize_record::<Vec<GraphEntry>>(&record)?;
-                self.validate_merge_and_store_transactions(transactions, &record_key)
+                let graph_entries = try_deserialize_record::<Vec<GraphEntry>>(&record)?;
+                self.validate_merge_and_store_graphentries(graph_entries, &record_key)
                     .await
-            }
-            RecordKind::DataOnly(DataTypes::Register) => {
-                let register = try_deserialize_record::<SignedRegister>(&record)?;
-
-                // check if the deserialized value's RegisterAddress matches the record's key
-                let key =
-                    NetworkAddress::from_register_address(*register.address()).to_record_key();
-                if record.key != key {
-                    warn!(
-                        "Record's key does not match with the value's RegisterAddress, ignoring PUT."
-                    );
-                    return Err(Error::RecordKeyMismatch);
-                }
-                self.validate_and_store_register(register, false).await
             }
             RecordKind::DataOnly(DataTypes::Pointer) => {
                 let pointer = try_deserialize_record::<Pointer>(&record)?;
                 let key = record.key.clone();
-                self.validate_and_store_pointer_record(pointer, key)
+                self.validate_and_store_pointer_record(pointer, key, false, None)
             }
         }
     }
 
     /// Check key is valid compared to the network name, and if we already have this data or not.
     /// returns true if data already exists locally
-    async fn validate_key_and_existence(
+    pub(crate) async fn validate_key_and_existence(
         &self,
         address: &NetworkAddress,
         expected_record_key: &RecordKey,
@@ -512,13 +420,14 @@ impl Node {
         scratchpad: Scratchpad,
         record_key: RecordKey,
         is_client_put: bool,
+        payment: Option<ProofOfPayment>,
     ) -> Result<()> {
         // owner PK is defined herein, so as long as record key and this match, we're good
         let addr = scratchpad.address();
         let count = scratchpad.count();
         debug!("Validating and storing scratchpad {addr:?} with count {count}");
 
-        // check if the deserialized value's RegisterAddress matches the record's key
+        // check if the deserialized value's ScratchpadAddress matches the record's key
         let scratchpad_key = NetworkAddress::ScratchpadAddress(*addr).to_record_key();
         if scratchpad_key != record_key {
             warn!("Record's key does not match with the value's ScratchpadAddress, ignoring PUT.");
@@ -560,131 +469,76 @@ impl Node {
 
         if is_client_put {
             let content_hash = XorName::from_content(&record.value);
+            // ScratchPad update is a special upload that without payment,
+            // but must have an existing copy to update.
             self.replicate_valid_fresh_record(
                 scratchpad_key,
                 ValidationType::NonChunk(content_hash),
+                payment,
             );
         }
 
         Ok(())
     }
-    /// Validate and store a `Register` to the RecordStore
-    pub(crate) async fn validate_and_store_register(
+
+    /// Validate and store `Vec<GraphEntry>` to the RecordStore
+    /// If we already have a GraphEntry at this address, the Vec is extended and stored.
+    pub(crate) async fn validate_merge_and_store_graphentries(
         &self,
-        register: SignedRegister,
-        is_client_put: bool,
-    ) -> Result<()> {
-        let reg_addr = register.address();
-        debug!("Validating and storing register {reg_addr:?}");
-
-        // check if the Register is present locally
-        let key = NetworkAddress::from_register_address(*reg_addr).to_record_key();
-        let present_locally = self.network().is_record_key_present_locally(&key).await?;
-        let pretty_key = PrettyPrintRecordKey::from(&key);
-
-        // check register and merge if needed
-        let updated_register = match self.register_validation(&register, present_locally).await? {
-            Some(reg) => {
-                debug!("Register {pretty_key:?} needed to be updated");
-                reg
-            }
-            None => {
-                debug!("No update needed for register");
-                return Ok(());
-            }
-        };
-
-        // store in kad
-        let record = Record {
-            key: key.clone(),
-            value: try_serialize_record(
-                &updated_register,
-                RecordKind::DataOnly(DataTypes::Register),
-            )?
-            .to_vec(),
-            publisher: None,
-            expires: None,
-        };
-        let content_hash = XorName::from_content(&record.value);
-
-        info!("Storing register {reg_addr:?} with content of {content_hash:?} as Record locally");
-        self.network().put_local_record(record);
-
-        self.record_metrics(Marker::ValidRegisterRecordPutFromNetwork(&pretty_key));
-
-        // Updated register needs to be replicated out as well,
-        // to avoid `leaking` of old version due to the mismatch of
-        // `close_range` and `replication_range`, combined with nodes churning
-        //
-        // However, to avoid `looping of replication`, a `replicated in` register
-        // shall not trigger any further replication out.
-        if is_client_put {
-            self.replicate_valid_fresh_record(key, ValidationType::NonChunk(content_hash));
-        }
-
-        Ok(())
-    }
-
-    /// Validate and store `Vec<Transaction>` to the RecordStore
-    /// If we already have a transaction at this address, the Vec is extended and stored.
-    pub(crate) async fn validate_merge_and_store_transactions(
-        &self,
-        transactions: Vec<GraphEntry>,
+        entries: Vec<GraphEntry>,
         record_key: &RecordKey,
     ) -> Result<()> {
         let pretty_key = PrettyPrintRecordKey::from(record_key);
-        debug!("Validating transactions before storage at {pretty_key:?}");
+        debug!("Validating GraphEntries before storage at {pretty_key:?}");
 
-        // only keep transactions that match the record key
-        let transactions_for_key: Vec<GraphEntry> = transactions
+        // only keep GraphEntries that match the record key
+        let entries_for_key: Vec<GraphEntry> = entries
             .into_iter()
             .filter(|s| {
-                // get the record key for the transaction
-                let transaction_address = s.address();
-                let network_address = NetworkAddress::from_graph_entry_address(transaction_address);
-                let transaction_record_key = network_address.to_record_key();
-                let transaction_pretty = PrettyPrintRecordKey::from(&transaction_record_key);
-                if &transaction_record_key != record_key {
-                    warn!("Ignoring transaction for another record key {transaction_pretty:?} when verifying: {pretty_key:?}");
+                // get the record key for the GraphEntry
+                let graph_entry_address = s.address();
+                let network_address = NetworkAddress::from_graph_entry_address(graph_entry_address);
+                let graph_entry_record_key = network_address.to_record_key();
+                let graph_entry_pretty = PrettyPrintRecordKey::from(&graph_entry_record_key);
+                if &graph_entry_record_key != record_key {
+                    warn!("Ignoring GraphEntry for another record key {graph_entry_pretty:?} when verifying: {pretty_key:?}");
                     return false;
                 }
                 true
             })
             .collect();
 
-        // if we have no transactions to verify, return early
-        if transactions_for_key.is_empty() {
-            warn!("Found no valid transactions to verify upon validation for {pretty_key:?}");
+        // if we have no GraphEntries to verify, return early
+        if entries_for_key.is_empty() {
+            warn!("Found no valid GraphEntries to verify upon validation for {pretty_key:?}");
             return Err(Error::InvalidRequest(format!(
-                "No transactions to verify when validating {pretty_key:?}"
+                "No GraphEntries to verify when validating {pretty_key:?}"
             )));
         }
 
-        // verify the transactions
-        let mut validated_transactions: BTreeSet<GraphEntry> = transactions_for_key
-            .into_iter()
-            .filter(|t| t.verify())
-            .collect();
+        // verify the GraphEntries
+        let mut validated_entries: BTreeSet<GraphEntry> =
+            entries_for_key.into_iter().filter(|t| t.verify()).collect();
 
         // skip if none are valid
-        let addr = match validated_transactions.first() {
+        let addr = match validated_entries.first() {
             None => {
-                warn!("Found no validated transactions to store at {pretty_key:?}");
+                warn!("Found no validated GraphEntries to store at {pretty_key:?}");
                 return Ok(());
             }
             Some(t) => t.address(),
         };
 
-        // add local transactions to the validated transactions, turn to Vec
-        let local_txs = self.get_local_transactions(addr).await?;
-        validated_transactions.extend(local_txs.into_iter());
-        let validated_transactions: Vec<GraphEntry> = validated_transactions.into_iter().collect();
+        // add local GraphEntries to the validated GraphEntries, turn to Vec
+        let local_entries = self.get_local_graphentries(addr).await?;
+        validated_entries.extend(local_entries.into_iter());
+        let validated_entries: Vec<GraphEntry> = validated_entries.into_iter().collect();
 
         // store the record into the local storage
         let record = Record {
             key: record_key.clone(),
             value: try_serialize_record(
-                &validated_transactions,
+                &validated_entries,
                 RecordKind::DataOnly(DataTypes::GraphEntry),
             )?
             .to_vec(),
@@ -692,22 +546,22 @@ impl Node {
             expires: None,
         };
         self.network().put_local_record(record);
-        debug!("Successfully stored validated transactions at {pretty_key:?}");
+        debug!("Successfully stored validated GraphEntries at {pretty_key:?}");
 
-        // Just log the multiple transactions
-        if validated_transactions.len() > 1 {
+        // Just log the multiple GraphEntries
+        if validated_entries.len() > 1 {
             debug!(
-                "Got multiple transaction(s) of len {} at {pretty_key:?}",
-                validated_transactions.len()
+                "Got multiple GraphEntry(s) of len {} at {pretty_key:?}",
+                validated_entries.len()
             );
         }
 
-        self.record_metrics(Marker::ValidTransactionRecordPutFromNetwork(&pretty_key));
+        self.record_metrics(Marker::ValidGraphEntryRecordPutFromNetwork(&pretty_key));
         Ok(())
     }
 
     /// Perform validations on the provided `Record`.
-    async fn payment_for_us_exists_and_is_still_valid(
+    pub(crate) async fn payment_for_us_exists_and_is_still_valid(
         &self,
         address: &NetworkAddress,
         payment: ProofOfPayment,
@@ -793,75 +647,32 @@ impl Node {
         Ok(())
     }
 
-    async fn register_validation(
-        &self,
-        register: &SignedRegister,
-        present_locally: bool,
-    ) -> Result<Option<SignedRegister>> {
-        // check if register is valid
-        let reg_addr = register.address();
-        register.verify()?;
-
-        // if we don't have it locally return it
-        if !present_locally {
-            debug!("Register with addr {reg_addr:?} is valid and doesn't exist locally");
-            return Ok(Some(register.to_owned()));
-        }
-        debug!("Register with addr {reg_addr:?} exists locally, comparing with local version");
-
-        let key = NetworkAddress::from_register_address(*reg_addr).to_record_key();
-
-        // get local register
-        let maybe_record = self.network().get_local_record(&key).await?;
-        let record = match maybe_record {
-            Some(r) => r,
-            None => {
-                error!("Register with addr {reg_addr:?} already exists locally, but not found in local storage");
-                return Err(Error::InvalidRequest(format!(
-                    "Register with addr {reg_addr:?} claimed to be existing locally was not found"
-                )));
-            }
-        };
-        let local_register: SignedRegister = try_deserialize_record(&record)?;
-
-        // merge the two registers
-        let mut merged_register = local_register.clone();
-        merged_register.verified_merge(register)?;
-        if merged_register == local_register {
-            debug!("Register with addr {reg_addr:?} is the same as the local version");
-            Ok(None)
-        } else {
-            debug!("Register with addr {reg_addr:?} is different from the local version");
-            Ok(Some(merged_register))
-        }
-    }
-
-    /// Get the local transactions for the provided `TransactionAddress`
-    /// This only fetches the transactions from the local store and does not perform any network operations.
-    async fn get_local_transactions(&self, addr: GraphEntryAddress) -> Result<Vec<GraphEntry>> {
-        // get the local transactions
+    /// Get the local GraphEntries for the provided `GraphEntryAddress`
+    /// This only fetches the GraphEntries from the local store and does not perform any network operations.
+    async fn get_local_graphentries(&self, addr: GraphEntryAddress) -> Result<Vec<GraphEntry>> {
+        // get the local GraphEntries
         let record_key = NetworkAddress::from_graph_entry_address(addr).to_record_key();
-        debug!("Checking for local transactions with key: {record_key:?}");
+        debug!("Checking for local GraphEntries with key: {record_key:?}");
         let local_record = match self.network().get_local_record(&record_key).await? {
             Some(r) => r,
             None => {
-                debug!("Transaction is not present locally: {record_key:?}");
+                debug!("GraphEntry is not present locally: {record_key:?}");
                 return Ok(vec![]);
             }
         };
 
-        // deserialize the record and get the transactions
+        // deserialize the record and get the GraphEntries
         let local_header = RecordHeader::from_record(&local_record)?;
         let record_kind = local_header.kind;
         if !matches!(record_kind, RecordKind::DataOnly(DataTypes::GraphEntry)) {
-            error!("Found a {record_kind} when expecting to find Spend at {addr:?}");
+            error!("Found a {record_kind} when expecting to find GraphEntry at {addr:?}");
             return Err(NetworkError::RecordKindMismatch(RecordKind::DataOnly(
                 DataTypes::GraphEntry,
             ))
             .into());
         }
-        let local_transactions: Vec<GraphEntry> = try_deserialize_record(&local_record)?;
-        Ok(local_transactions)
+        let local_entries: Vec<GraphEntry> = try_deserialize_record(&local_record)?;
+        Ok(local_entries)
     }
 
     /// Validate and store a pointer record
@@ -869,6 +680,8 @@ impl Node {
         &self,
         pointer: Pointer,
         key: RecordKey,
+        is_client_put: bool,
+        payment: Option<ProofOfPayment>,
     ) -> Result<()> {
         // Verify the pointer's signature
         if !pointer.verify() {
@@ -891,10 +704,12 @@ impl Node {
             publisher: None,
             expires: None,
         };
-        self.network().put_local_record(record);
+        self.network().put_local_record(record.clone());
 
-        let content_hash = XorName::from_content(&pointer.network_address().to_bytes());
-        self.replicate_valid_fresh_record(key, ValidationType::NonChunk(content_hash));
+        if is_client_put {
+            let content_hash = XorName::from_content(&record.value);
+            self.replicate_valid_fresh_record(key, ValidationType::NonChunk(content_hash), payment);
+        }
 
         Ok(())
     }

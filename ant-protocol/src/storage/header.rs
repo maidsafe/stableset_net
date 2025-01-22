@@ -22,7 +22,6 @@ pub enum DataTypes {
     Chunk,
     GraphEntry,
     Pointer,
-    Register,
     Scratchpad,
 }
 
@@ -32,8 +31,7 @@ impl DataTypes {
             Self::Chunk => 0,
             Self::GraphEntry => 1,
             Self::Pointer => 2,
-            Self::Register => 3,
-            Self::Scratchpad => 4,
+            Self::Scratchpad => 3,
         }
     }
 
@@ -42,8 +40,7 @@ impl DataTypes {
             0 => Some(Self::Chunk),
             1 => Some(Self::GraphEntry),
             2 => Some(Self::Pointer),
-            3 => Some(Self::Register),
-            4 => Some(Self::Scratchpad),
+            3 => Some(Self::Scratchpad),
             _ => None,
         }
     }
@@ -203,29 +200,17 @@ mod tests {
         .try_serialize()?;
         assert_eq!(chunk_with_payment.len(), RecordHeader::SIZE);
 
-        let reg_with_payment = RecordHeader {
-            kind: RecordKind::DataWithPayment(DataTypes::Register),
-        }
-        .try_serialize()?;
-        assert_eq!(reg_with_payment.len(), RecordHeader::SIZE);
-
         let chunk = RecordHeader {
             kind: RecordKind::DataOnly(DataTypes::Chunk),
         }
         .try_serialize()?;
         assert_eq!(chunk.len(), RecordHeader::SIZE);
 
-        let transaction = RecordHeader {
+        let graphentry = RecordHeader {
             kind: RecordKind::DataOnly(DataTypes::GraphEntry),
         }
         .try_serialize()?;
-        assert_eq!(transaction.len(), RecordHeader::SIZE);
-
-        let register = RecordHeader {
-            kind: RecordKind::DataOnly(DataTypes::Register),
-        }
-        .try_serialize()?;
-        assert_eq!(register.len(), RecordHeader::SIZE);
+        assert_eq!(graphentry.len(), RecordHeader::SIZE);
 
         let scratchpad = RecordHeader {
             kind: RecordKind::DataOnly(DataTypes::Scratchpad),
@@ -261,8 +246,6 @@ mod tests {
             RecordKind::DataWithPayment(DataTypes::Chunk),
             RecordKind::DataOnly(DataTypes::GraphEntry),
             RecordKind::DataWithPayment(DataTypes::GraphEntry),
-            RecordKind::DataOnly(DataTypes::Register),
-            RecordKind::DataWithPayment(DataTypes::Register),
             RecordKind::DataOnly(DataTypes::Scratchpad),
             RecordKind::DataWithPayment(DataTypes::Scratchpad),
             RecordKind::DataOnly(DataTypes::Pointer),

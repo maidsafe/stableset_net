@@ -50,6 +50,9 @@ pub struct BootstrapCacheConfig {
 
 impl BootstrapCacheConfig {
     /// Creates a new BootstrapConfig with default settings
+    ///
+    /// When `local` is set to true, a different cache file name is used.
+    /// I.e. the file name will include `_local_` in the name.
     pub fn default_config(local: bool) -> Result<Self> {
         let cache_file_path = if local {
             default_cache_path_local()?

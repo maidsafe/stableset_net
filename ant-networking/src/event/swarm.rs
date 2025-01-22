@@ -299,23 +299,18 @@ impl SwarmDriver {
                 if address.iter().last() != Some(Protocol::P2p(local_peer_id)) {
                     address.push(Protocol::P2p(local_peer_id));
                 }
-                tracing::info!("========> A");
 
                 // Trigger server mode if we're not a client and we should not add our own address if we're behind
                 // home network.
                 if !self.is_client && !self.is_behind_home_network {
-                    tracing::info!("========> B");
                     if self.local {
-                        tracing::info!("========> C");
                         // all addresses are effectively external here...
                         // this is needed for Kad Mode::Server
                         self.swarm.add_external_address(address.clone());
 
                         // If we are local, add our own address(es) to cache
                         if let Some(bootstrap_cache) = self.bootstrap_cache.as_mut() {
-                            tracing::info!(
-                                "Adding our own address to bootstrap cache for local network"
-                            );
+                            tracing::info!("Adding listen address to bootstrap cache");
 
                             let config = bootstrap_cache.config().clone();
                             let mut old_cache = bootstrap_cache.clone();
@@ -324,7 +319,7 @@ impl SwarmDriver {
                                 self.bootstrap_cache = Some(new);
                                 old_cache.add_addr(address.clone());
 
-                                // save the cache to disk
+                                // Save cache to disk.
                                 crate::time::spawn(async move {
                                     if let Err(err) = old_cache.sync_and_flush_to_disk(true) {
                                         error!("Failed to save bootstrap cache: {err}");

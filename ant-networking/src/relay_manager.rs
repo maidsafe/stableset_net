@@ -7,6 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::driver::{BadNodes, NodeBehaviour};
+use itertools::Itertools;
 use libp2p::swarm::ConnectionId;
 use libp2p::{
     core::transport::ListenerId, multiaddr::Protocol, Multiaddr, PeerId, StreamProtocol, Swarm,
@@ -246,10 +247,12 @@ impl RelayManager {
             debug!("We have reached the maximum number of relay connections. Push new identify info to all connected peers");
             // send identify to all connected peers.
 
-            swarm
-                .behaviour_mut()
-                .identify
-                .push(live_connected_peers.values().map(|(peer_id, ..)| *peer_id));
+            swarm.behaviour_mut().identify.push(
+                live_connected_peers
+                    .values()
+                    .map(|(peer_id, ..)| *peer_id)
+                    .unique(),
+            );
         }
     }
 

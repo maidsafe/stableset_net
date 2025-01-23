@@ -12,6 +12,7 @@ mod vault;
 mod wallet;
 
 use crate::opt::Opt;
+use autonomi::ResponseQuorum;
 use clap::{error::ErrorKind, CommandFactory as _, Subcommand};
 use color_eyre::Result;
 
@@ -57,6 +58,8 @@ pub enum FileCmd {
         /// Upload the file as public. Everyone can see public data on the Network.
         #[arg(short, long)]
         public: bool,
+        /// Optionally specify the quorum for the verification of the upload.
+        verification_quorum: Option<ResponseQuorum>,
     },
 
     /// Download a file from the given address.
@@ -65,6 +68,8 @@ pub enum FileCmd {
         addr: String,
         /// The destination file path.
         dest_file: String,
+        /// Optionally specify the quorum for the verification of the download.
+        read_quorum: Option<ResponseQuorum>,
     },
 
     /// List previous uploads
@@ -188,10 +193,16 @@ pub async fn handle_subcommand(opt: Opt) -> Result<()> {
     match cmd {
         Some(SubCmd::File { command }) => match command {
             FileCmd::Cost { file } => file::cost(&file, peers.await?).await,
-            FileCmd::Upload { file, public } => file::upload(&file, public, peers.await?).await,
-            FileCmd::Download { addr, dest_file } => {
-                file::download(&addr, &dest_file, peers.await?).await
-            }
+            FileCmd::Upload {
+                file,
+                public,
+                verification_quorum,
+            } => file::upload(&file, public, peers.await?, verification_quorum).await,
+            FileCmd::Download {
+                addr,
+                dest_file,
+                read_quorum,
+            } => file::download(&addr, &dest_file, peers.await?, read_quorum).await,
             FileCmd::List => file::list(),
         },
         Some(SubCmd::Register { command }) => match command {

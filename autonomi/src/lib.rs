@@ -55,6 +55,9 @@ extern crate tracing;
 pub mod client;
 pub mod self_encryption;
 
+/// Client Operation config types
+pub use ant_networking::{ResponseQuorum, RetryStrategy};
+
 // The Network data types
 pub use client::data_types::chunk;
 pub use client::data_types::graph;
@@ -85,6 +88,14 @@ pub use libp2p::Multiaddr;
 
 #[doc(inline)]
 pub use client::{
+    // Client Configs
+    config::ChunkOperationConfig,
+    config::ClientConfig,
+    config::ClientOperationConfig,
+    config::GraphOperationConfig,
+    config::PointerOperationConfig,
+    config::ScratchpadOperationConfig,
+
     // Native data types
     data_types::chunk::Chunk,
     // Addresses for the native data types
@@ -104,7 +115,6 @@ pub use client::{
 
     // Client
     Client,
-    ClientConfig,
 };
 
 #[cfg(feature = "extension-module")]

@@ -40,7 +40,7 @@ pub fn generate_key(overwrite: bool) -> Result<()> {
 pub async fn cost(name: &str, peers: NetworkPeers) -> Result<()> {
     let main_registers_key = crate::keys::get_register_signing_key()
         .wrap_err("The register key is required to perform this action")?;
-    let client = crate::actions::connect_to_network(peers).await?;
+    let client = crate::actions::connect_to_network(peers, Default::default()).await?;
     let key_for_name = Client::register_key_from_name(&main_registers_key, name);
 
     let cost = client
@@ -55,8 +55,8 @@ pub async fn cost(name: &str, peers: NetworkPeers) -> Result<()> {
 pub async fn create(name: &str, value: &str, peers: NetworkPeers) -> Result<()> {
     let main_registers_key = crate::keys::get_register_signing_key()
         .wrap_err("The register key is required to perform this action")?;
-    let client = crate::actions::connect_to_network(peers).await?;
-    let wallet = load_wallet(&client.evm_network)?;
+    let client = crate::actions::connect_to_network(peers, Default::default()).await?;
+    let wallet = load_wallet(client.evm_network())?;
     let register_key = Client::register_key_from_name(&main_registers_key, name);
 
     println!("Creating register with name: {name}");
@@ -84,8 +84,8 @@ pub async fn create(name: &str, value: &str, peers: NetworkPeers) -> Result<()> 
 pub async fn edit(address: String, name: bool, value: &str, peers: NetworkPeers) -> Result<()> {
     let main_registers_key = crate::keys::get_register_signing_key()
         .wrap_err("The register key is required to perform this action")?;
-    let client = crate::actions::connect_to_network(peers).await?;
-    let wallet = load_wallet(&client.evm_network)?;
+    let client = crate::actions::connect_to_network(peers, Default::default()).await?;
+    let wallet = load_wallet(client.evm_network())?;
     let value_bytes = Client::register_value_from_bytes(value.as_bytes())?;
 
     let register_key = if name {
@@ -121,7 +121,7 @@ pub async fn edit(address: String, name: bool, value: &str, peers: NetworkPeers)
 }
 
 pub async fn get(address: String, name: bool, peers: NetworkPeers) -> Result<()> {
-    let client = crate::actions::connect_to_network(peers).await?;
+    let client = crate::actions::connect_to_network(peers, Default::default()).await?;
 
     let addr = if name {
         let name_str = address.clone();

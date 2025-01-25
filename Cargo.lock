@@ -950,6 +950,7 @@ dependencies = [
  "bytes",
  "chrono",
  "clap",
+ "clap-verbosity-flag 3.0.2",
  "color-eyre",
  "const-hex",
  "crdts",

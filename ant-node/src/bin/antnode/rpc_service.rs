@@ -36,7 +36,7 @@ struct SafeNodeRpcService {
     running_node: RunningNode,
     ctrl_tx: Sender<NodeCtrl>,
     started_instant: Instant,
-    log_reload_handle: ReloadHandle,
+    log_reload_handle: Option<ReloadHandle>,
 }
 
 // Implementing RPC interface for service defined in .proto
@@ -274,14 +274,17 @@ impl AntNode for SafeNodeRpcService {
             request.get_ref()
         );
 
-        match self
-            .log_reload_handle
-            .modify_log_level(&request.get_ref().log_level)
-        {
-            Ok(()) => Ok(Response::new(UpdateLogLevelResponse {})),
-            Err(err) => Err(Status::new(
-                Code::Internal,
-                format!("Failed to update node's log level: {err:?}"),
+        match &self.log_reload_handle {
+            Some(handle) => match handle.modify_log_level(&request.get_ref().log_level) {
+                Ok(()) => Ok(Response::new(UpdateLogLevelResponse {})),
+                Err(err) => Err(Status::new(
+                    Code::Internal,
+                    format!("Failed to update node's log level: {err:?}"),
+                )),
+            },
+            None => Err(Status::new(
+                Code::Unavailable,
+                "Log reloading is not available on this node".to_string(),
             )),
         }
     }
@@ -293,7 +296,7 @@ pub(crate) fn start_rpc_service(
     running_node: RunningNode,
     ctrl_tx: Sender<NodeCtrl>,
     started_instant: Instant,
-    log_reload_handle: ReloadHandle,
+    log_reload_handle: Option<ReloadHandle>,
 ) {
     // creating a service
     let service = SafeNodeRpcService {

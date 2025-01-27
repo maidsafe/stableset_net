@@ -338,13 +338,8 @@ fn main() -> Result<()> {
         };
         #[cfg(feature = "open-metrics")]
         node_builder.metrics_server_port(metrics_server_port);
-        let restart_options = run_node(
-            node_builder,
-            opt.rpc,
-            &log_output_dest,
-            log_reload_handle,
-        )
-        .await?;
+        let restart_options =
+            run_node(node_builder, opt.rpc, &log_output_dest, log_reload_handle).await?;
 
         Ok::<_, eyre::Report>(restart_options)
     })?;
@@ -568,6 +563,7 @@ fn init_logging(
     };
 
     if targets.is_empty() {
+        println!("Logging is not enabled");
         return Ok(("stderr".to_string(), None, None));
     }
 
@@ -594,6 +590,11 @@ fn init_logging(
 
         log_builder.initialize()?
     };
+
+    println!(
+        "Initialised logging. Logs will be output to {:?}",
+        output_dest
+    );
 
     Ok((
         output_dest.to_string(),

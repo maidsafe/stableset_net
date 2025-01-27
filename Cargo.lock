@@ -1005,6 +1005,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "clap",
+ "clap-verbosity-flag 3.0.2",
  "color-eyre",
  "colored",
  "dirs-next",

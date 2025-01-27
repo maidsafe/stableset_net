@@ -38,6 +38,7 @@ ant-releases = { version = "0.4.0" }
 ant-service-management = { path = "../ant-service-management", version = "0.4.7" }
 chrono = "~0.4.19"
 clap = { version = "4.4.6", features = ["derive", "env"] }
+clap-verbosity-flag = "3.0.2"
 colored = "2.0.4"
 color-eyre = "0.6.3"
 dirs-next = "2.0.0"

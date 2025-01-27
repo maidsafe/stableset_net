@@ -49,9 +49,6 @@ pub(crate) struct Cmd {
     #[clap(long, conflicts_with = "debug")]
     trace: bool,
 
-    #[clap(short, long, action = clap::ArgAction::Count, default_value_t = 2)]
-    verbose: u8,
-
     /// Print version information.
     #[clap(long)]
     version: bool,
@@ -906,7 +903,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let verbosity = VerbosityLevel::from(args.verbose);
+    let verbosity = VerbosityLevel::Normal;
 
     let _log_handle = if args.debug || args.trace {
         let level = if args.debug {

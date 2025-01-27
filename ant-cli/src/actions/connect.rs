@@ -22,15 +22,18 @@ pub async fn connect_to_network(peers: NetworkPeers) -> Result<Client> {
 
     let local = peers.is_local();
 
-    let peers_opt = if local {
+    if local {
         progress_bar.set_message("Connecting to a local Autonomi Network...");
-        None
     } else {
         progress_bar.set_message("Connecting to The Autonomi Network...");
-        Some(peers.peers().to_vec())
     };
 
     let evm_network = get_evm_network(local)?;
+
+    let peers_opt = match peers.peers().to_vec() {
+        peers if peers.is_empty() => None,
+        peers => Some(peers),
+    };
 
     let config = ClientConfig {
         local,

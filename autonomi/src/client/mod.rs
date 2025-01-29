@@ -25,6 +25,7 @@ pub use data_types::scratchpad;
 /// High-level types built on top of the basic Network data types.
 /// Includes data, files and personnal data vaults
 mod high_level;
+use event::ClientEvent;
 pub use high_level::data;
 pub use high_level::files;
 pub use high_level::register;
@@ -32,6 +33,7 @@ pub use high_level::vault;
 
 pub mod address;
 pub mod config;
+pub mod event;
 pub mod key_derivation;
 pub mod payment;
 pub mod quote;
@@ -357,21 +359,4 @@ async fn handle_event_receiver(
     }
 
     // TODO: Handle closing of network events sender
-}
-
-/// Events that can be broadcasted by the client.
-#[derive(Debug, Clone)]
-pub enum ClientEvent {
-    UploadComplete(UploadSummary),
-}
-
-/// Summary of an upload operation.
-#[derive(Debug, Clone)]
-pub struct UploadSummary {
-    /// Records that were uploaded to the network
-    pub records_paid: usize,
-    /// Records that were already paid for so were not re-uploaded
-    pub records_already_paid: usize,
-    /// Total cost of the upload
-    pub tokens_spent: Amount,
 }

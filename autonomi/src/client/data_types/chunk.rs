@@ -14,7 +14,7 @@ use crate::{
         GetError, PutError,
     },
     self_encryption::DataMapLevel,
-    Client, ClientEvent,
+    Client,
 };
 use ant_evm::{Amount, AttoTokens, ProofOfPayment};
 use ant_networking::NetworkError;
@@ -108,19 +108,9 @@ impl Client {
     /// Get a chunk from the network.
     pub async fn chunk_get(&self, addr: &ChunkAddress) -> Result<Chunk, GetError> {
         let result = self.chunk_get_inner(addr).await;
-        // Reporting
-        if let Some(channel) = self.client_event_sender.as_ref() {
-            let xor_name = addr.xorname();
-            let event = if result.is_ok() {
-                ClientEvent::DownloadSucceeded(*xor_name)
-            } else {
-                ClientEvent::DownloadFailed(*xor_name)
-            };
+        self.emit_download_event(*addr.xorname(), result.is_ok())
+            .await;
 
-            if let Err(err) = channel.send(event).await {
-                error!("Failed to send client event: {err:?}");
-            }
-        }
         result
     }
 
@@ -308,18 +298,8 @@ impl Client {
         payment: ProofOfPayment,
     ) -> Result<ChunkAddress, PutError> {
         let result = self.chunk_upload_with_payment_inner(chunk, payment).await;
-        // Reporting
-        if let Some(channel) = self.client_event_sender.as_ref() {
-            let xorname = *chunk.name();
-            let event = if result.is_ok() {
-                ClientEvent::UploadSucceeded(xorname)
-            } else {
-                ClientEvent::UploadFailed(xorname)
-            };
-            if let Err(err) = channel.send(event).await {
-                error!("Failed to send client event: {err:?}");
-            }
-        }
+        self.emit_upload_event(*chunk.name(), result.is_ok()).await;
+
         result
     }
 

@@ -47,7 +47,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Start a local network
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         env:
           ANT_LOG: "all"
         with:
@@ -71,7 +71,9 @@ jobs:
 
       - name: Start a client instance to compare memory usage
         shell: bash
-        run: ./target/release/ant --local file upload "./the-test-data.zip"
+        run: |
+          mkdir -p $CLIENT_DATA_PATH/logs
+          ./target/release/ant --local file upload "./the-test-data.zip" 2> $CLIENT_DATA_PATH/logs/ant.log
         env:
           ANT_LOG: "all"
         timeout-minutes: 5

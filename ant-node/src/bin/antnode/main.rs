@@ -563,7 +563,6 @@ fn init_logging(
     };
 
     if targets.is_empty() {
-        println!("Logging is not enabled");
         return Ok(("stderr".to_string(), None, None));
     }
 
@@ -590,11 +589,6 @@ fn init_logging(
 
         log_builder.initialize()?
     };
-
-    println!(
-        "Initialised logging. Logs will be output to {:?}",
-        output_dest
-    );
 
     Ok((
         output_dest.to_string(),

@@ -193,7 +193,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Start a local network
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         with:
           action: start
           enable-evm-testnet: true
@@ -315,8 +315,8 @@ jobs:
               [System.IO.File]::WriteAllBytes($fileName, $byteArray)
 
               # Run autonomi commands
-              ./target/release/ant --log-output-dest data-dir --local file upload "random_file_$i.bin" --public
-              ./target/release/ant --log-output-dest data-dir --local file upload "random_file_$i.bin"
+              ./target/release/ant --local file upload "random_file_$i.bin" --public
+              ./target/release/ant --local file upload "random_file_$i.bin"
           }
         env:
           ANT_LOG: "v"
@@ -558,7 +558,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Start a local network
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         with:
           action: start
           enable-evm-testnet: true
@@ -705,7 +705,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Start a local network
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         with:
           action: start
           enable-evm-testnet: true
@@ -1014,7 +1014,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Start a local network
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         with:
           action: start
           enable-evm-testnet: true

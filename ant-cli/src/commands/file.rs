@@ -53,9 +53,11 @@ pub async fn upload(
 
     let wallet = load_wallet(client.evm_network())?;
     let event_receiver = client.enable_client_events();
-    let (task_summary_thread, stop_summary_collection) = collect_task_summary(event_receiver);
+    let (task_summary_thread, stop_summary_collection) = collect_task_summary(event_receiver, json);
 
-    println!("Uploading data to network...");
+    if !json {
+        println!("Uploading data to network...");
+    }
     info!(
         "Uploading {} file: {file}",
         if public { "public" } else { "private" }
@@ -102,7 +104,7 @@ pub async fn upload(
         task_summary,
         start_time: start,
         end_time: SystemTime::now(),
-        uploaded_address: result.as_ref().ok().cloned(),
+        uploaded_address: Some(local_addr.clone()),
         public,
     };
 

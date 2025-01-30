@@ -52,12 +52,12 @@ pub async fn connect_to_network_with_config(
     match res {
         Ok(client) => {
             info!("Connected to the Network");
-            progress_bar.finish_with_message("Connected to the Network");
+            progress_bar.finish_and_clear();
             Ok(client)
         }
         Err(e) => {
             error!("Failed to connect to the network: {e}");
-            progress_bar.finish_with_message("Failed to connect to the network");
+            progress_bar.finish_and_clear();
             bail!("Failed to connect to the network: {e}")
         }
     }

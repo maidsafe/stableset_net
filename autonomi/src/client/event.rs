@@ -6,6 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use std::path::PathBuf;
+
 use super::Client;
 use ant_evm::Amount;
 use serde::Serialize;
@@ -27,6 +29,14 @@ pub enum ClientEvent {
     DownloadSucceeded(XorName),
     /// Failed to download the record from the network.
     DownloadFailed(XorName),
+    /// File event.
+    File(FileEvent),
+}
+
+/// High level file events.
+#[derive(Debug, Clone)]
+pub enum FileEvent {
+    UploadingFile { path: PathBuf, public: bool },
 }
 
 /// Summary of a payment operation.

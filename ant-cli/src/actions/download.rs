@@ -29,7 +29,7 @@ pub async fn download(
 ) -> Result<(), color_eyre::Report> {
     let start_time = SystemTime::now();
     let event_receiver = client.enable_client_events();
-    let (task_summary_thread, stop_summary_collection) = collect_task_summary(event_receiver);
+    let (task_summary_thread, stop_summary_collection) = collect_task_summary(event_receiver, json);
 
     let public_address = str_to_addr(addr).ok();
     let private_address = crate::user_data::get_local_private_archive_access(addr)
@@ -40,11 +40,11 @@ pub async fn download(
     let result = match (public_address, private_address) {
         (Some(public_address), _) => {
             public = true;
-            download_public(public_address, dest_path, client).await
+            download_public(public_address, dest_path, client, json).await
         }
         (_, Some(private_address)) => {
             public = false;
-            download_private(private_address, dest_path, client).await
+            download_private(private_address, dest_path, client, json).await
         }
         _ => {
             println!("Public addresses look like this: 0037cfa13eae4393841cbc00c3a33cade0f98b8c1f20826e5c51f8269e7b09d7");
@@ -90,6 +90,7 @@ async fn download_private(
     private_address: PrivateArchiveAccess,
     dest_path: &str,
     client: &Client,
+    json: bool,
 ) -> Result<(), (DownloadError, Vec<(String, String)>)> {
     let archive = client.archive_get(&private_address).await.map_err(|err| {
         error!("Failed to fetch archive from address: {private_address:?}");
@@ -105,8 +106,10 @@ async fn download_private(
     let mut last_error = None;
 
     for (path, access, _meta) in archive.iter() {
-        if let Some(ref progress_bar) = progress_bar {
-            progress_bar.println(format!("Fetching file: {path:?}..."));
+        if !json {
+            if let Some(ref progress_bar) = progress_bar {
+                progress_bar.println(format!("Fetching file: {path:?}..."));
+            }
         }
         let bytes = match client.data_get(access).await {
             Ok(bytes) => bytes,
@@ -147,6 +150,7 @@ async fn download_public(
     address: ArchiveAddr,
     dest_path: &str,
     client: &Client,
+    json: bool,
 ) -> Result<(), (DownloadError, Vec<(String, String)>)> {
     let archive = client.archive_get_public(&address).await.map_err(|err| {
         error!("Failed to fetch archive from address: {address:?}");
@@ -162,8 +166,10 @@ async fn download_public(
     let mut last_error = None;
 
     for (path, addr, _meta) in archive.iter() {
-        if let Some(ref progress_bar) = progress_bar {
-            progress_bar.println(format!("Fetching file: {path:?}..."));
+        if !json {
+            if let Some(ref progress_bar) = progress_bar {
+                progress_bar.println(format!("Fetching file: {path:?}..."));
+            }
         }
         let bytes = match client.data_get_public(addr).await {
             Ok(bytes) => bytes,

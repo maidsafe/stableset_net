@@ -8,11 +8,13 @@
 
 use super::archive_public::{ArchiveAddr, PublicArchive};
 use super::{DownloadError, FileCostError, Metadata, UploadError};
+use crate::client::event::FileEvent;
 use crate::client::high_level::files::{
     get_relative_file_path_from_abs_file_and_folder_path, FILE_UPLOAD_BATCH_SIZE,
 };
 use crate::client::Client;
 use crate::client::{high_level::data::DataAddr, utils::process_tasks_with_max_concurrency};
+use crate::ClientEvent;
 use crate::{Amount, AttoTokens, Wallet};
 use ant_networking::time::{Duration, SystemTime};
 use bytes::Bytes;
@@ -64,7 +66,6 @@ impl Client {
         dir_path: PathBuf,
         wallet: &Wallet,
     ) -> Result<(AttoTokens, PublicArchive), UploadError> {
-        info!("Uploading directory: {dir_path:?}");
         let start = tokio::time::Instant::now();
 
         // start upload of files in parallel
@@ -111,8 +112,6 @@ impl Client {
             }
         }
 
-        #[cfg(feature = "loud")]
-        println!("Upload completed in {:?}", start.elapsed());
         Ok((total_cost, archive))
     }
 
@@ -141,8 +140,17 @@ impl Client {
         wallet: &Wallet,
     ) -> Result<(AttoTokens, DataAddr), UploadError> {
         info!("Uploading file: {path:?}");
-        #[cfg(feature = "loud")]
-        println!("Uploading file: {path:?}");
+        if let Some(sender) = self.client_event_sender.as_ref() {
+            let _ = sender
+                .send(ClientEvent::File(FileEvent::UploadingFile {
+                    path: path.clone(),
+                    public: true,
+                }))
+                .await
+                .inspect_err(|err| {
+                    error!("Failed to send client event: {err:?}");
+                });
+        }
 
         let data = tokio::fs::read(path.clone()).await?;
         let data = Bytes::from(data);

@@ -18,8 +18,10 @@ use super::archive_private::{PrivateArchive, PrivateArchiveAccess};
 use super::{get_relative_file_path_from_abs_file_and_folder_path, FILE_UPLOAD_BATCH_SIZE};
 use super::{DownloadError, UploadError};
 
+use crate::client::event::FileEvent;
 use crate::client::Client;
 use crate::client::{data_types::chunk::DataMapChunk, utils::process_tasks_with_max_concurrency};
+use crate::ClientEvent;
 use crate::{AttoTokens, Wallet};
 use bytes::Bytes;
 use std::path::PathBuf;
@@ -109,8 +111,6 @@ impl Client {
             }
         }
 
-        #[cfg(feature = "loud")]
-        println!("Upload completed in {:?}", start.elapsed());
         Ok((total_cost, archive))
     }
 
@@ -139,8 +139,18 @@ impl Client {
         wallet: &Wallet,
     ) -> Result<(AttoTokens, DataMapChunk), UploadError> {
         info!("Uploading file: {path:?}");
-        #[cfg(feature = "loud")]
-        println!("Uploading file: {path:?}");
+
+        if let Some(sender) = self.client_event_sender.as_ref() {
+            let _ = sender
+                .send(ClientEvent::File(FileEvent::UploadingFile {
+                    path: path.clone(),
+                    public: false,
+                }))
+                .await
+                .inspect_err(|err| {
+                    error!("Failed to send client event: {err:?}");
+                });
+        }
 
         let data = tokio::fs::read(path).await?;
         let data = Bytes::from(data);

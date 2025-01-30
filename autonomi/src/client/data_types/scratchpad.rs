@@ -6,7 +6,6 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::client::event::ClientEvent;
 use crate::client::payment::{PayError, PaymentOption};
 use crate::{client::quote::CostError, Client};
 use crate::{Amount, AttoTokens};
@@ -69,19 +68,9 @@ impl Client {
     ) -> Result<Scratchpad, ScratchpadError> {
         let result = self.scratchpad_get_inner(address).await;
 
-        // Reporting
-        if let Some(channel) = self.client_event_sender.as_ref() {
-            let xor_name = address.xorname();
-            let event = if result.is_ok() {
-                ClientEvent::DownloadSucceeded(xor_name)
-            } else {
-                ClientEvent::DownloadFailed(xor_name)
-            };
+        self.emit_download_event(address.xorname(), result.is_ok())
+            .await;
 
-            if let Err(err) = channel.send(event).await {
-                error!("Failed to send client event: {err:?}");
-            }
-        }
         result
     }
 
@@ -211,18 +200,8 @@ impl Client {
     ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
         let xor_name = scratchpad.address().xorname();
         let result = self.scratchpad_put_inner(scratchpad, payment_option).await;
-        // Reporting
-        if let Some(channel) = self.client_event_sender.as_ref() {
-            let event = if result.is_ok() {
-                ClientEvent::UploadSucceeded(xor_name)
-            } else {
-                ClientEvent::UploadFailed(xor_name)
-            };
+        self.emit_upload_event(xor_name, result.is_ok()).await;
 
-            if let Err(err) = channel.send(event).await {
-                error!("Failed to send client event: {err:?}");
-            }
-        }
         result
     }
 
@@ -339,18 +318,8 @@ impl Client {
         let result = self
             .scratchpad_create_inner(owner, content_type, initial_data, payment_option)
             .await;
-        // Reporting
-        if let Some(channel) = self.client_event_sender.as_ref() {
-            let event = if result.is_ok() {
-                ClientEvent::UploadSucceeded(xor_name)
-            } else {
-                ClientEvent::UploadFailed(xor_name)
-            };
+        self.emit_upload_event(xor_name, result.is_ok()).await;
 
-            if let Err(err) = channel.send(event).await {
-                error!("Failed to send client event: {err:?}");
-            }
-        }
         result
     }
 
@@ -385,18 +354,8 @@ impl Client {
         let result = self
             .scratchpad_update_inner(owner, content_type, data)
             .await;
-        // Reporting
-        if let Some(channel) = self.client_event_sender.as_ref() {
-            let event = if result.is_ok() {
-                ClientEvent::UploadSucceeded(xor_name)
-            } else {
-                ClientEvent::UploadFailed(xor_name)
-            };
+        self.emit_upload_event(xor_name, result.is_ok()).await;
 
-            if let Err(err) = channel.send(event).await {
-                error!("Failed to send client event: {err:?}");
-            }
-        }
         result
     }
 

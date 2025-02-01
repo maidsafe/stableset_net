@@ -21,6 +21,10 @@ use ant_releases::{AntReleaseRepoActions, ReleaseType};
 use ant_service_management::{
     control::ServiceController, get_local_node_registry_path, NodeRegistry,
 };
+use clap_verbosity_flag::{
+    log::{Level, LevelFilter},
+    OffLevel, Verbosity,
+};
 use color_eyre::{eyre::eyre, Help, Report, Result};
 use std::path::PathBuf;
 
@@ -39,12 +43,8 @@ pub async fn join(
     rewards_address: RewardsAddress,
     evm_network: Option<EvmNetwork>,
     skip_validation: bool,
-    verbosity: VerbosityLevel,
 ) -> Result<(), Report> {
-    if verbosity != VerbosityLevel::Minimal {
-        print_banner("Joining Local Network");
-    }
-    info!("Joining local network");
+    print_banner("Joining Local Network");
 
     if (enable_metrics_server || metrics_port.is_some()) && !cfg!(feature = "open-metrics") && build
     {
@@ -64,7 +64,7 @@ pub async fn join(
         ReleaseType::AntNode,
         node_version,
         &*release_repo,
-        verbosity,
+        VerbosityLevel::Normal,
     )
     .await?;
 
@@ -82,6 +82,7 @@ pub async fn join(
         log_format,
         rewards_address,
         evm_network,
+        verbosity: None,
     };
     run_network(options, &mut local_node_registry, &ServiceController {}).await?;
     Ok(())
@@ -119,7 +120,8 @@ pub async fn run(
     rewards_address: RewardsAddress,
     evm_network: Option<EvmNetwork>,
     skip_validation: bool,
-    verbosity: VerbosityLevel,
+    verbosity: Verbosity<OffLevel>,
+    verbosity_level: VerbosityLevel,
 ) -> Result<(), Report> {
     if (enable_metrics_server || metrics_port.is_some()) && !cfg!(feature = "open-metrics") && build
     {
@@ -145,7 +147,7 @@ pub async fn run(
         if local_node_reg_path.exists() {
             std::fs::remove_file(local_node_reg_path)?;
         }
-        kill(false, verbosity)?;
+        kill(false, verbosity_level)?;
         NodeRegistry::load(local_node_reg_path)?
     } else {
         let local_node_registry = NodeRegistry::load(local_node_reg_path)?;
@@ -157,7 +159,7 @@ pub async fn run(
         local_node_registry
     };
 
-    if verbosity != VerbosityLevel::Minimal {
+    if verbosity_level != VerbosityLevel::Minimal {
         print_banner("Launching Local Network");
     }
     info!("Launching local network");
@@ -170,9 +172,19 @@ pub async fn run(
         ReleaseType::AntNode,
         node_version,
         &*release_repo,
-        verbosity,
+        verbosity_level,
     )
     .await?;
+
+    let log_level = match verbosity.log_level_filter() {
+        LevelFilter::Off => None,
+        LevelFilter::Error => Some(Level::Error),
+        LevelFilter::Warn => Some(Level::Warn),
+        LevelFilter::Info => Some(Level::Info),
+        LevelFilter::Debug => Some(Level::Debug),
+        LevelFilter::Trace => Some(Level::Trace),
+    };
+    println!("Verbosity level: {:?}", log_level);
 
     let options = LocalNetworkOptions {
         antnode_bin_path,
@@ -188,6 +200,7 @@ pub async fn run(
         log_format,
         rewards_address,
         evm_network,
+        verbosity: log_level,
     };
     run_network(options, &mut local_node_registry, &ServiceController {}).await?;
 

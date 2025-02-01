@@ -25,6 +25,7 @@ use ant_protocol::{
     version,
 };
 use clap::{command, Parser};
+use clap_verbosity_flag::{log::LevelFilter, OffLevel, Verbosity};
 use color_eyre::{eyre::eyre, Result};
 use const_hex::traits::FromHex;
 use libp2p::PeerId;
@@ -44,7 +45,7 @@ use tracing_appender::non_blocking::WorkerGuard;
 
 #[derive(Debug, Clone)]
 pub enum LogOutputDestArg {
-    Stdout,
+    Stderr,
     DataDir,
     Path(PathBuf),
 }
@@ -52,7 +53,7 @@ pub enum LogOutputDestArg {
 impl std::fmt::Display for LogOutputDestArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LogOutputDestArg::Stdout => write!(f, "stdout"),
+            LogOutputDestArg::Stderr => write!(f, "stderr"),
             LogOutputDestArg::DataDir => write!(f, "data-dir"),
             LogOutputDestArg::Path(path) => write!(f, "{}", path.display()),
         }
@@ -61,7 +62,7 @@ impl std::fmt::Display for LogOutputDestArg {
 
 pub fn parse_log_output(val: &str) -> Result<LogOutputDestArg> {
     match val {
-        "stdout" => Ok(LogOutputDestArg::Stdout),
+        "stderr" => Ok(LogOutputDestArg::Stderr),
         "data-dir" => Ok(LogOutputDestArg::DataDir),
         // The path should be a directory, but we can't use something like `is_dir` to check
         // because the path doesn't need to exist. We can create it for the user.
@@ -88,17 +89,18 @@ struct Opt {
 
     /// Specify the logging output destination.
     ///
-    /// Valid values are "stdout", "data-dir", or a custom path.
+    /// Using this argument will enable logging, which is not on by default.
     ///
-    /// `data-dir` is the default value.
+    /// Valid values are "stderr", "data-dir", or a custom path.
     ///
     /// The data directory location is platform specific:
+    ///
     ///  - Linux: $HOME/.local/share/autonomi/node/<peer-id>/logs
     ///  - macOS: $HOME/Library/Application Support/autonomi/node/<peer-id>/logs
     ///  - Windows: C:\Users\<username>\AppData\Roaming\autonomi\node\<peer-id>\logs
     #[expect(rustdoc::invalid_html_tags)]
-    #[clap(long, default_value_t = LogOutputDestArg::DataDir, value_parser = parse_log_output, verbatim_doc_comment)]
-    log_output_dest: LogOutputDestArg,
+    #[clap(long, value_parser = parse_log_output, verbatim_doc_comment)]
+    log_output_dest: Option<LogOutputDestArg>,
 
     /// Specify the logging format.
     ///
@@ -206,6 +208,9 @@ struct Opt {
     #[cfg(not(feature = "nightly"))]
     #[clap(long)]
     package_version: bool,
+
+    #[clap(flatten)]
+    pub verbose: Verbosity<OffLevel>,
 
     /// Print version information.
     #[clap(long)]
@@ -362,7 +367,7 @@ async fn run_node(
     node_builder: NodeBuilder,
     rpc: Option<SocketAddr>,
     log_output_dest: &str,
-    log_reload_handle: ReloadHandle,
+    log_reload_handle: Option<ReloadHandle>,
 ) -> Result<Option<(bool, PathBuf, u16)>> {
     let started_instant = std::time::Instant::now();
 
@@ -511,30 +516,68 @@ fn monitor_node_events(mut node_events_rx: NodeEventsReceiver, ctrl_tx: mpsc::Se
     });
 }
 
-fn init_logging(opt: &Opt, peer_id: PeerId) -> Result<(String, ReloadHandle, Option<WorkerGuard>)> {
-    let logging_targets = vec![
-        ("ant_bootstrap".to_string(), Level::INFO),
-        ("ant_build_info".to_string(), Level::DEBUG),
+fn init_logging(
+    opt: &Opt,
+    peer_id: PeerId,
+) -> Result<(String, Option<ReloadHandle>, Option<WorkerGuard>)> {
+    let level = match opt.verbose.log_level_filter() {
+        LevelFilter::Off => None,
+        LevelFilter::Error => Some(Level::ERROR),
+        LevelFilter::Warn => Some(Level::WARN),
+        LevelFilter::Info => Some(Level::INFO),
+        LevelFilter::Debug => Some(Level::DEBUG),
+        LevelFilter::Trace => Some(Level::TRACE),
+    };
+
+    let default_targets = vec![
         ("ant_evm".to_string(), Level::DEBUG),
         ("ant_logging".to_string(), Level::DEBUG),
-        ("ant_networking".to_string(), Level::INFO),
+        ("ant_networking".to_string(), Level::DEBUG),
         ("ant_node".to_string(), Level::DEBUG),
         ("ant_protocol".to_string(), Level::DEBUG),
         ("antnode".to_string(), Level::DEBUG),
     ];
 
+    // The use of `-v` flags will control the logging level, but we also want to enable logging if
+    // either the `--log-output-dest` argument has been used, or the ANT_LOG env var is set,
+    // but the `-v` flag has not been used. This is to ensure backward compatibility with existing
+    // deployments.
+    let targets = if let Some(level) = level {
+        vec![
+            ("ant_evm".to_string(), level),
+            ("ant_logging".to_string(), level),
+            ("ant_networking".to_string(), level),
+            ("ant_node".to_string(), level),
+            ("ant_protocol".to_string(), level),
+            ("ant_registers".to_string(), level),
+            ("antnode".to_string(), level),
+        ]
+    } else if opt.log_output_dest.is_some() || std::env::var("ANT_LOG").is_ok() {
+        // If `ANT_LOG` has been set, the default targets will be overridden, but the code to
+        // override is in the logging crate. If we didn't use the default targets, we would not
+        // reach the code in the logging crate because we would return early without logging
+        // enabled.
+        default_targets
+    } else {
+        vec![]
+    };
+
+    if targets.is_empty() {
+        return Ok(("stderr".to_string(), None, None));
+    }
+
     let output_dest = match &opt.log_output_dest {
-        LogOutputDestArg::Stdout => LogOutputDest::Stdout,
-        LogOutputDestArg::DataDir => {
+        Some(LogOutputDestArg::Stderr) => LogOutputDest::Stderr,
+        Some(LogOutputDestArg::DataDir) => {
             let path = get_antnode_root_dir(peer_id)?.join("logs");
             LogOutputDest::Path(path)
         }
-        LogOutputDestArg::Path(path) => LogOutputDest::Path(path.clone()),
+        Some(LogOutputDestArg::Path(path)) => LogOutputDest::Path(path.clone()),
+        None => LogOutputDest::Stderr,
     };
 
-    #[cfg(not(feature = "otlp"))]
     let (reload_handle, log_appender_guard) = {
-        let mut log_builder = ant_logging::LogBuilder::new(logging_targets);
+        let mut log_builder = ant_logging::LogBuilder::new(targets);
         log_builder.output_dest(output_dest.clone());
         log_builder.format(opt.log_format.unwrap_or(LogFormat::Default));
         if let Some(files) = opt.max_log_files {
@@ -547,26 +590,11 @@ fn init_logging(opt: &Opt, peer_id: PeerId) -> Result<(String, ReloadHandle, Opt
         log_builder.initialize()?
     };
 
-    #[cfg(feature = "otlp")]
-    let (_rt, reload_handle, log_appender_guard) = {
-        // init logging in a separate runtime if we are sending traces to an opentelemetry server
-        let rt = Runtime::new()?;
-        let (reload_handle, log_appender_guard) = rt.block_on(async {
-            let mut log_builder = ant_logging::LogBuilder::new(logging_targets);
-            log_builder.output_dest(output_dest.clone());
-            log_builder.format(opt.log_format.unwrap_or(LogFormat::Default));
-            if let Some(files) = opt.max_log_files {
-                log_builder.max_log_files(files);
-            }
-            if let Some(files) = opt.max_archived_log_files {
-                log_builder.max_archived_log_files(files);
-            }
-            log_builder.initialize()
-        })?;
-        (rt, reload_handle, log_appender_guard)
-    };
-
-    Ok((output_dest.to_string(), reload_handle, log_appender_guard))
+    Ok((
+        output_dest.to_string(),
+        Some(reload_handle),
+        log_appender_guard,
+    ))
 }
 
 /// Starts a new process running the binary with the same args as

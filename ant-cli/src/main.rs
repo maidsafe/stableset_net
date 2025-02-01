@@ -25,8 +25,9 @@ use clap::Parser;
 use color_eyre::Result;
 
 use ant_logging::metrics::init_metrics;
-use ant_logging::{LogBuilder, LogFormat, ReloadHandle, WorkerGuard};
+use ant_logging::{LogBuilder, LogFormat, LogOutputDest, ReloadHandle, WorkerGuard};
 use ant_protocol::version;
+use clap_verbosity_flag::log::LevelFilter;
 use opt::Opt;
 use tracing::Level;
 
@@ -86,19 +87,28 @@ async fn main() -> Result<()> {
 }
 
 fn init_logging_and_metrics(opt: &Opt) -> Result<(ReloadHandle, Option<WorkerGuard>)> {
-    let logging_targets = vec![
-        ("ant_bootstrap".to_string(), Level::DEBUG),
-        ("ant_build_info".to_string(), Level::TRACE),
-        ("ant_evm".to_string(), Level::TRACE),
-        ("ant_networking".to_string(), Level::INFO),
-        ("autonomi_cli".to_string(), Level::TRACE),
-        ("autonomi".to_string(), Level::TRACE),
-        ("evmlib".to_string(), Level::TRACE),
-        ("ant_logging".to_string(), Level::TRACE),
-        ("ant_protocol".to_string(), Level::TRACE),
-    ];
-    let mut log_builder = LogBuilder::new(logging_targets);
-    log_builder.output_dest(opt.log_output_dest.clone());
+    let level = match opt.verbose.log_level_filter() {
+        LevelFilter::Off => None,
+        LevelFilter::Error => Some(Level::ERROR),
+        LevelFilter::Warn => Some(Level::WARN),
+        LevelFilter::Info => Some(Level::INFO),
+        LevelFilter::Debug => Some(Level::DEBUG),
+        LevelFilter::Trace => Some(Level::TRACE),
+    };
+
+    let targets = if let Some(level) = level {
+        vec![
+            ("ant_evm".to_string(), level),
+            ("autonomi_cli".to_string(), level),
+            ("autonomi".to_string(), level),
+            ("evmlib".to_string(), level),
+        ]
+    } else {
+        vec![]
+    };
+
+    let mut log_builder = LogBuilder::new(targets);
+    log_builder.output_dest(LogOutputDest::Stderr);
     log_builder.format(opt.log_format.unwrap_or(LogFormat::Default));
     let guards = log_builder.initialize()?;
     Ok(guards)

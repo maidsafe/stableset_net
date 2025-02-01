@@ -40,7 +40,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Start a local network
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         with:
           action: start
           enable-evm-testnet: true
@@ -56,7 +56,10 @@ jobs:
         run: |
           mkdir -p $RESTART_TEST_NODE_DATA_PATH
           ./target/release/antnode \
-            --root-dir $RESTART_TEST_NODE_DATA_PATH --log-output-dest $RESTART_TEST_NODE_DATA_PATH --local --rewards-address "0x03B770D9cD32077cC0bF330c13C114a87643B124" &
+            --root-dir $RESTART_TEST_NODE_DATA_PATH \
+            --log-output-dest $RESTART_TEST_NODE_DATA_PATH \
+            --local \
+            --rewards-address "0x03B770D9cD32077cC0bF330c13C114a87643B124" &
           sleep 10
         env:
           ANT_LOG: "all"
@@ -70,19 +73,26 @@ jobs:
         shell: bash
 
       - name: File upload
-        run: ./target/release/ant --log-output-dest=data-dir --local file upload --public "./the-test-data.zip" > ./upload_output 2>&1
+        run: |
+          mkdir -p "${CLIENT_DATA_PATH}/logs"
+          ./target/release/ant \
+            --local \
+            file upload \
+            --public "./the-test-data.zip" \
+            > ./upload_output_second \
+            2> "${CLIENT_DATA_PATH}/logs/ant.log"
         env:
           ANT_LOG: "v"
         timeout-minutes: 15
 
       - name: showing the upload terminal output
-        run: cat upload_output
+        run: cat upload_output_second
         shell: bash
         if: always()
 
       - name: parse address
         run: |
-          UPLOAD_ADDRESS=$(rg "At address: ([0-9a-f]*)" -o -r '$1' ./upload_output)
+          UPLOAD_ADDRESS=$(rg "At address: ([0-9a-f]*)" -o -r '$1' ./upload_output_second)
           echo "UPLOAD_ADDRESS=$UPLOAD_ADDRESS" >> $GITHUB_ENV
         shell: bash
 
@@ -90,15 +100,7 @@ jobs:
       # Note rg will throw an error directly in case of failed to find a matching pattern.
       - name: Start a different client to upload the same file
         run: |
-          pwd
-          ls -l $ANT_DATA_PATH
-          mv $CLIENT_DATA_PATH $ANT_DATA_PATH/client_first
-          ls -l $ANT_DATA_PATH
-          ls -l $ANT_DATA_PATH/client_first
-          ls -l $ANT_DATA_PATH/client_first/logs
-          mkdir $ANT_DATA_PATH/client
-          ls -l $ANT_DATA_PATH
-          ./target/release/ant --log-output-dest=data-dir --local file upload --public "./the-test-data.zip" > ./upload_output_second 2>&1
+          ./target/release/ant --local file upload --public "./the-test-data.zip" > ./upload_output_second 2>&1
           rg 'All chunks already exist on the network.' ./upload_output_second -c --stats
         env:
           ANT_LOG: "all"
@@ -127,7 +129,9 @@ jobs:
       # Currently, there will be `Existing record found`, but NO `Existing record loaded`
       # Due to the failure on decryption (as different seed used)
       - name: Assert we've reloaded some chunks
-        run: rg "Existing record found" $RESTART_TEST_NODE_DATA_PATH
+        run: |
+          ls -al $RESTART_TEST_NODE_DATA_PATH
+          rg "Existing record found" $RESTART_TEST_NODE_DATA_PATH/antnode.log
 
       - name: Wait at least 1min for replication to happen # it is throttled to once/30s.
         run: sleep 60
@@ -150,7 +154,7 @@ jobs:
         if: always()
 
       - name: File Download
-        run: ./target/release/ant --log-output-dest=data-dir --local file download ${{ env.UPLOAD_ADDRESS }} ./downloaded_resources
+        run: ./target/release/ant --local file download ${{ env.UPLOAD_ADDRESS }} ./downloaded_resources
         env:
           ANT_LOG: "v"
         timeout-minutes: 2
@@ -180,7 +184,7 @@ jobs:
 
       - name: Stop the local network and upload logs
         if: always()
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         with:
           action: stop
           log_file_prefix: safe_test_logs_memcheck

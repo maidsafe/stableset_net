@@ -19,7 +19,6 @@ extension-module = ["pyo3/extension-module"]
 loud = ["ant-networking/loud"] # loud mode: print important messages to console
 nightly = []
 open-metrics = ["ant-networking/open-metrics", "prometheus-client"]
-otlp = ["ant-logging/otlp"]
 
 [dependencies]
 ant-bootstrap = { path = "../ant-bootstrap", version = "0.1.4" }
@@ -33,6 +32,7 @@ async-trait = "0.1"
 bls = { package = "blsttc", version = "8.0.1" }
 bytes = { version = "1.0.1", features = ["serde"] }
 clap = { version = "4.2.1", features = ["derive"] }
+clap-verbosity-flag = "3.0.2"
 crdts = { version = "7.3", default-features = false, features = ["merkle"] }
 chrono = "~0.4.19"
 color-eyre = "0.6.3"
@@ -71,7 +71,6 @@ tokio-stream = { version = "~0.1.12" }
 tonic = { version = "0.6.2" }
 tracing = { version = "~0.1.26" }
 tracing-appender = "~0.2.0"
-tracing-opentelemetry = { version = "0.21", optional = true }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 walkdir = "~2.5.0"
 xor_name = "5.0.0"

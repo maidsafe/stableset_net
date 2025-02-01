@@ -18,6 +18,7 @@ use ant_node_manager::{
     VerbosityLevel, DEFAULT_NODE_STARTUP_CONNECTION_TIMEOUT_S,
 };
 use clap::{Parser, Subcommand};
+use clap_verbosity_flag::{OffLevel, Verbosity};
 use color_eyre::{eyre::eyre, Result};
 use libp2p::Multiaddr;
 use std::{net::Ipv4Addr, path::PathBuf};
@@ -48,9 +49,6 @@ pub(crate) struct Cmd {
     /// Output trace-level logging to stderr.
     #[clap(long, conflicts_with = "debug")]
     trace: bool,
-
-    #[clap(short, long, action = clap::ArgAction::Count, default_value_t = 2)]
-    verbose: u8,
 
     /// Print version information.
     #[clap(long)]
@@ -862,6 +860,8 @@ pub enum LocalSubCmd {
         /// Set to skip the network validation process
         #[clap(long)]
         skip_validation: bool,
+        #[clap(flatten)]
+        verbose: Verbosity<OffLevel>,
     },
     /// Get the status of the local nodes.
     #[clap(name = "status")]
@@ -906,7 +906,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let verbosity = VerbosityLevel::from(args.verbose);
+    let verbosity = VerbosityLevel::Normal;
 
     let _log_handle = if args.debug || args.trace {
         let level = if args.debug {
@@ -1073,7 +1073,6 @@ async fn main() -> Result<()> {
                     rewards_address,
                     evm_network,
                     true,
-                    verbosity,
                 )
                 .await
             }
@@ -1092,7 +1091,8 @@ async fn main() -> Result<()> {
                 rpc_port,
                 rewards_address,
                 evm_network,
-                skip_validation: _,
+                skip_validation,
+                verbose,
             } => {
                 let evm_network = if let Some(evm_network) = evm_network {
                     Some(evm_network.try_into()?)
@@ -1113,7 +1113,8 @@ async fn main() -> Result<()> {
                     rpc_port,
                     rewards_address,
                     evm_network,
-                    true,
+                    skip_validation,
+                    verbose,
                     verbosity,
                 )
                 .await

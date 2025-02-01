@@ -109,16 +109,6 @@ impl TracingLayers {
         print_updates_to_stdout: bool,
     ) -> Result<ReloadHandle> {
         let layer = match output_dest {
-            LogOutputDest::Stdout => {
-                if print_updates_to_stdout {
-                    println!("Logging to stdout");
-                }
-                tracing_fmt::layer()
-                    .with_ansi(false)
-                    .with_target(false)
-                    .event_format(LogFormatter)
-                    .boxed()
-            }
             LogOutputDest::Stderr => tracing_fmt::layer()
                 .with_ansi(false)
                 .with_target(false)
@@ -182,56 +172,6 @@ impl TracingLayers {
         self.layers.push(Box::new(layer));
 
         Ok(ReloadHandle(reload_handle))
-    }
-
-    #[cfg(feature = "otlp")]
-    pub(crate) fn otlp_layer(
-        &mut self,
-        default_logging_targets: Vec<(String, Level)>,
-    ) -> Result<()> {
-        use opentelemetry::{
-            sdk::{trace, Resource},
-            KeyValue,
-        };
-        use opentelemetry_otlp::WithExportConfig;
-        use opentelemetry_semantic_conventions::resource::{SERVICE_INSTANCE_ID, SERVICE_NAME};
-        use rand::{distributions::Alphanumeric, thread_rng, Rng};
-
-        let service_name = std::env::var("OTLP_SERVICE_NAME").unwrap_or_else(|_| {
-            let random_node_name: String = thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(10)
-                .map(char::from)
-                .collect();
-            random_node_name
-        });
-        println!("The opentelemetry traces are logged under the name: {service_name}");
-
-        let tracer = opentelemetry_otlp::new_pipeline()
-            .tracing()
-            .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_env())
-            .with_trace_config(trace::config().with_resource(Resource::new(vec![
-                KeyValue::new(SERVICE_NAME, service_name),
-                KeyValue::new(SERVICE_INSTANCE_ID, std::process::id().to_string()),
-            ])))
-            .install_batch(opentelemetry::runtime::Tokio)?;
-
-        let targets = match std::env::var("ANT_LOG_OTLP") {
-            Ok(sn_log_val) => {
-                println!("Using ANT_LOG_OTLP={sn_log_val}");
-                get_logging_targets(&sn_log_val)?
-            }
-            Err(_) => default_logging_targets,
-        };
-
-        let target_filters: Box<dyn Filter<Registry> + Send + Sync> =
-            Box::new(Targets::new().with_targets(targets));
-        let otlp_layer = tracing_opentelemetry::layer()
-            .with_tracer(tracer)
-            .with_filter(target_filters)
-            .boxed();
-        self.layers.push(otlp_layer);
-        Ok(())
     }
 }
 

@@ -19,6 +19,7 @@ use ant_service_management::{
     rpc::{RpcActions, RpcClient},
     NodeRegistry, NodeServiceData, ServiceStatus,
 };
+use clap_verbosity_flag::log::Level;
 use color_eyre::eyre::OptionExt;
 use color_eyre::{eyre::eyre, Result};
 use colored::Colorize;
@@ -46,6 +47,7 @@ pub trait Launcher {
         rpc_socket_addr: SocketAddr,
         rewards_address: RewardsAddress,
         evm_network: Option<EvmNetwork>,
+        verbosity: Option<Level>,
     ) -> Result<()>;
     fn wait(&self, delay: u64);
 }
@@ -69,8 +71,23 @@ impl Launcher for LocalSafeLauncher {
         rpc_socket_addr: SocketAddr,
         rewards_address: RewardsAddress,
         evm_network: Option<EvmNetwork>,
+        verbosity: Option<Level>,
     ) -> Result<()> {
         let mut args = Vec::new();
+
+        if let Some(level) = verbosity {
+            match level {
+                Level::Error => args.push("-v".to_string()),
+                Level::Warn => args.push("-vv".to_string()),
+                Level::Info => args.push("-vvv".to_string()),
+                Level::Debug => args.push("-vvvv".to_string()),
+                Level::Trace => args.push("-vvvvv".to_string()),
+            }
+            // It makes sense for the log output to go to file for the local network.
+            // Otherwise you will get a blizzard of output on the terminal from all the nodes.
+            args.push("--log-output-dest".to_string());
+            args.push("data-dir".to_string());
+        }
 
         if first {
             args.push("--first".to_string())
@@ -110,6 +127,9 @@ impl Launcher for LocalSafeLauncher {
                 args.push(custom.data_payments_address.to_string());
             }
         }
+
+        debug!("Launching node with arguments: {:?}", args);
+        debug!("Binary location: {}", self.antnode_bin_path.display());
 
         Command::new(self.antnode_bin_path.clone())
             .args(args)
@@ -217,6 +237,7 @@ pub struct LocalNetworkOptions {
     pub log_format: Option<LogFormat>,
     pub rewards_address: RewardsAddress,
     pub evm_network: Option<EvmNetwork>,
+    pub verbosity: Option<Level>,
 }
 
 pub async fn run_network(
@@ -292,6 +313,7 @@ pub async fn run_network(
                 rewards_address: options.rewards_address,
                 evm_network: options.evm_network.clone(),
                 version: get_bin_version(&launcher.get_antnode_path())?,
+                verbosity: options.verbosity,
             },
             &launcher,
             &rpc_client,
@@ -338,6 +360,7 @@ pub async fn run_network(
                 rewards_address: options.rewards_address,
                 evm_network: options.evm_network.clone(),
                 version: get_bin_version(&launcher.get_antnode_path())?,
+                verbosity: options.verbosity,
             },
             &launcher,
             &rpc_client,
@@ -377,6 +400,7 @@ pub struct RunNodeOptions {
     pub rewards_address: RewardsAddress,
     pub evm_network: Option<EvmNetwork>,
     pub version: String,
+    pub verbosity: Option<Level>,
 }
 
 pub async fn run_node(
@@ -394,6 +418,7 @@ pub async fn run_node(
         run_options.rpc_socket_addr,
         run_options.rewards_address,
         run_options.evm_network.clone(),
+        run_options.verbosity,
     )?;
     launcher.wait(run_options.interval);
 
@@ -544,9 +569,10 @@ mod tests {
                 eq(rpc_socket_addr),
                 eq(rewards_address),
                 eq(None),
+                eq(None),
             )
             .times(1)
-            .returning(|_, _, _, _, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _, _, _, _| Ok(()));
         mock_launcher
             .expect_wait()
             .with(eq(100))
@@ -593,6 +619,7 @@ mod tests {
                 rewards_address,
                 evm_network: None,
                 version: "0.100.12".to_string(),
+                verbosity: None,
             },
             &mock_launcher,
             &mock_rpc_client,

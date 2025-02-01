@@ -62,7 +62,6 @@ jobs:
       - name: Run autonomi --tests
         run: cargo test --package autonomi --tests -- --nocapture
         env:
-          ANT_LOG: "v"
           # only set the target dir for windows to bypass the linker issue.
           # happens if we build the node manager via testnet action
           CARGO_TARGET_DIR: ${{ matrix.os == 'windows-latest' && './test-target' || '.' }}
@@ -80,15 +79,11 @@ jobs:
         shell: pwsh
 
       - name: Get file cost
-        run: ./target/release/ant --log-output-dest=data-dir file cost "./resources"
-        env:
-          ANT_LOG: "v"
+        run: ./target/release/ant file cost "./resources"
         timeout-minutes: 15
 
       - name: File upload
-        run: ./target/release/ant --log-output-dest=data-dir file upload "./resources" > ./upload_output 2>&1
-        env:
-          ANT_LOG: "v"
+        run: ./target/release/ant file upload "./resources" > ./upload_output 2>&1
         timeout-minutes: 15
 
       - name: parse address (unix)
@@ -106,7 +101,7 @@ jobs:
         shell: pwsh
 
       - name: File Download
-        run: ./target/release/ant --log-output-dest=data-dir file download ${{ env.UPLOAD_ADDRESS }} ./downloaded_resources
+        run: ./target/release/ant file download ${{ env.UPLOAD_ADDRESS }} ./downloaded_resources
         env:
           ANT_LOG: "v"
         timeout-minutes: 5

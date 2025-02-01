@@ -85,7 +85,7 @@ jobs:
       - name: Start a client to carry out chunk actions
         run: |
           set -e
-          cargo run --bin safe --release -- --log-output-dest=data-dir files upload "./resources" --retry-strategy quick
+          cargo run --bin safe --release -- files upload "./resources" --retry-strategy quick
         env:
           ANT_LOG: "all"
         timeout-minutes: 2

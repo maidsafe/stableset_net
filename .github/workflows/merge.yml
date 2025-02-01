@@ -193,7 +193,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Start a local network
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         with:
           action: start
           enable-evm-testnet: true
@@ -236,13 +236,13 @@ jobs:
         shell: pwsh
 
       - name: Get file cost
-        run: ./target/release/ant --log-output-dest=data-dir --local file cost "./resources"
+        run: ./target/release/ant --local file cost "./resources"
         env:
           ANT_LOG: "v"
         timeout-minutes: 15
 
       - name: File upload
-        run: ./target/release/ant --log-output-dest=data-dir --local file upload "./resources" > ./upload_output 2>&1
+        run: ./target/release/ant --local file upload "./resources" > ./upload_output 2>&1
         env:
           ANT_LOG: "v"
         timeout-minutes: 15
@@ -262,7 +262,7 @@ jobs:
         shell: pwsh
 
       - name: File Download
-        run: ./target/release/ant --log-output-dest=data-dir --local file download ${{ env.UPLOAD_ADDRESS }} ./downloaded_resources
+        run: ./target/release/ant --local file download ${{ env.UPLOAD_ADDRESS }} ./downloaded_resources
         env:
           ANT_LOG: "v"
         timeout-minutes: 5
@@ -274,19 +274,19 @@ jobs:
         timeout-minutes: 2
 
       - name: file upload
-        run: ./target/release/ant --log-output-dest data-dir --local file upload random.txt
+        run: ./target/release/ant --local file upload random.txt
         env:
           ANT_LOG: "v"
         timeout-minutes: 2
 
       - name: Estimate cost to create a vault
-        run: ./target/release/ant --log-output-dest data-dir --local vault cost
+        run: ./target/release/ant --local vault cost
         env:
           ANT_LOG: "v"
         timeout-minutes: 2
 
       - name: create a vault with existing user data as above
-        run: ./target/release/ant --log-output-dest data-dir --local vault create
+        run: ./target/release/ant --local vault create
         env:
           ANT_LOG: "v"
         timeout-minutes: 2
@@ -297,8 +297,8 @@ jobs:
           set -e
           for i in {1..50}; do
             dd if=/dev/urandom of=random_file_$i.bin bs=1M count=1 status=none
-            ./target/release/ant --log-output-dest data-dir --local file upload random_file_$i.bin --public
-            ./target/release/ant --log-output-dest data-dir --local file upload random_file_$i.bin
+            ./target/release/ant --local file upload random_file_$i.bin --public
+            ./target/release/ant --local file upload random_file_$i.bin
           done
         env:
           ANT_LOG: "v"
@@ -315,21 +315,21 @@ jobs:
               [System.IO.File]::WriteAllBytes($fileName, $byteArray)
 
               # Run autonomi commands
-              ./target/release/ant --log-output-dest data-dir --local file upload "random_file_$i.bin" --public
-              ./target/release/ant --log-output-dest data-dir --local file upload "random_file_$i.bin"
+              ./target/release/ant --local file upload "random_file_$i.bin" --public
+              ./target/release/ant --local file upload "random_file_$i.bin"
           }
         env:
           ANT_LOG: "v"
         timeout-minutes: 25
 
       - name: sync the vault
-        run: ./target/release/ant --log-output-dest data-dir --local vault sync
+        run: ./target/release/ant --local vault sync
         env:
           ANT_LOG: "v"
         timeout-minutes: 2
 
       - name: load the vault from network
-        run: ./target/release/ant --log-output-dest data-dir --local vault load
+        run: ./target/release/ant --local vault load
         env:
           ANT_LOG: "v"
         timeout-minutes: 2
@@ -344,11 +344,11 @@ jobs:
           NUM_OF_PUBLIC_FILES_IN_VAULT=""
           NUM_OF_PRIVATE_FILES_IN_VAULT=""
 
-          ./target/release/ant --log-output-dest data-dir --local file list 2>&1 > file_list.txt
+          ./target/release/ant --local file list 2>&1 > file_list.txt
 
           NUM_OF_PUBLIC_FILES=`cat file_list.txt | grep "public" | grep -o '[0-9]\+'`
           NUM_OF_PRIVATE_FILES=`cat file_list.txt | grep "private" | grep -o '[0-9]\+'`
-          ./target/release/ant --log-output-dest data-dir --local vault load 2>&1 > vault_data.txt
+          ./target/release/ant --local vault load 2>&1 > vault_data.txt
 
           NUM_OF_PUBLIC_FILES_IN_VAULT=`cat vault_data.txt  | grep "public" | grep -o '[0-9]\+'`
           NUM_OF_PRIVATE_FILES_IN_VAULT=`cat vault_data.txt| grep "private" | grep -o '[0-9]\+'`
@@ -370,8 +370,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          ./target/release/ant --log-output-dest data-dir --local file list > file_list.txt 2>&1
-          ./target/release/ant --log-output-dest data-dir --local vault load > vault_data.txt 2>&1
+          ./target/release/ant --local file list > file_list.txt 2>&1
+          ./target/release/ant --local vault load > vault_data.txt 2>&1
         env:
           ANT_LOG: "v"
         timeout-minutes: 15
@@ -418,7 +418,7 @@ jobs:
         timeout-minutes: 2
 
       - name: load an existing vault from the network
-        run: ./target/release/ant --log-output-dest data-dir --local vault load
+        run: ./target/release/ant --local vault load
         env:
           ANT_LOG: "v"
         timeout-minutes: 2
@@ -436,12 +436,12 @@ jobs:
           # 1 GB
           python3 -c "with open('random_1GB.bin', 'wb') as f: f.write(bytearray([0xff] * 1000 * 1024 * 1024))"
 
-          ./target/release/ant --log-output-dest=data-dir --local file list
-          time ./target/release/ant --log-output-dest=data-dir --local file upload random_1MB.bin
-          time ./target/release/ant --log-output-dest=data-dir --local file upload random_10MB.bin
-          time ./target/release/ant --log-output-dest=data-dir --local file upload random_100MB.bin
-          time ./target/release/ant --log-output-dest=data-dir --local file upload random_1GB.bin
-          ./target/release/ant --log-output-dest=data-dir --local vault sync
+          ./target/release/ant --local file list
+          time ./target/release/ant --local file upload random_1MB.bin
+          time ./target/release/ant --local file upload random_10MB.bin
+          time ./target/release/ant --local file upload random_100MB.bin
+          time ./target/release/ant --local file upload random_1GB.bin
+          ./target/release/ant --local vault sync
           rm -rf random*.bin
           rm -rf ${{ matrix.ant_path }}/autonomi
         env:
@@ -558,7 +558,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Start a local network
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         with:
           action: start
           enable-evm-testnet: true
@@ -705,7 +705,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Start a local network
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         with:
           action: start
           enable-evm-testnet: true
@@ -853,8 +853,8 @@ jobs:
 
   #     - name: Create and fund a wallet first time
   #       run: |
-  #         ~/safe --log-output-dest=data-dir wallet create --no-password
-  #         ~/faucet --log-output-dest=data-dir send 100000000 $(~/safe --log-output-dest=data-dir wallet address | tail -n 1) | tail -n 1 1>first.txt
+  #         ~/safe wallet create --no-password
+  #         ~/faucet send 100000000 $(~/safe wallet address | tail -n 1) | tail -n 1 1>first.txt
   #         echo "----------"
   #         cat first.txt
   #       env:
@@ -886,13 +886,13 @@ jobs:
   #       if: always()
 
   # - name: Create a new wallet
-  #   run: ~/safe --log-output-dest=data-dir wallet create --no-password
+  #   run: ~/safe wallet create --no-password
   #   env:
   #     ANT_LOG: "all"
   #   timeout-minutes: 5
 
   # - name: Attempt second faucet genesis disbursement
-  #   run: ~/faucet --log-output-dest=data-dir send 100000000 $(~/safe --log-output-dest=data-dir wallet address | tail -n 1)  > second.txt 2>&1 || true
+  #   run: ~/faucet send 100000000 $(~/safe wallet address | tail -n 1)  > second.txt 2>&1 || true
   #   env:
   #     ANT_LOG: "all"
   #   timeout-minutes: 5
@@ -922,8 +922,8 @@ jobs:
   #     rm -rf /home/runner/.local/share/autonomi/test_faucet
   #     rm -rf /home/runner/.local/share/autonomi/test_genesis
   #     rm -rf /home/runner/.local/share/autonomi/autonomi
-  #     ~/safe --log-output-dest=data-dir wallet create --no-password
-  #     if GENESIS_PK=a9925296499299fdbf4412509d342a92e015f5b996e9acd1d2ab7f2326e3ad05934326efdc345345a95e973ac1bb6637 GENESIS_SK=40f6bbc870355c68138ac70b450b6425af02b49874df3f141b7018378ceaac66 nohup ~/faucet --log-output-dest=data-dir send 100000000 $(~/safe --log-output-dest=data-dir wallet address | tail -n 1); then
+  #     ~/safe wallet create --no-password
+  #     if GENESIS_PK=a9925296499299fdbf4412509d342a92e015f5b996e9acd1d2ab7f2326e3ad05934326efdc345345a95e973ac1bb6637 GENESIS_SK=40f6bbc870355c68138ac70b450b6425af02b49874df3f141b7018378ceaac66 nohup ~/faucet send 100000000 $(~/safe wallet address | tail -n 1); then
   #       echo "Faucet with different genesis key not rejected!"
   #       exit 1
   #     else
@@ -1014,7 +1014,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Start a local network
-        uses: maidsafe/ant-local-testnet-action@main
+        uses: jacderida/ant-local-testnet-action@chore-enable_logging
         with:
           action: start
           enable-evm-testnet: true
@@ -1053,7 +1053,7 @@ jobs:
         shell: bash
 
       - name: File upload
-        run: ./target/release/ant --log-output-dest data-dir --local file upload "./test_data_1.tar.gz" > ./upload_output 2>&1
+        run: ./target/release/ant --local file upload "./test_data_1.tar.gz" > ./upload_output 2>&1
         env:
           ANT_LOG: "v"
         timeout-minutes: 15
@@ -1070,7 +1070,7 @@ jobs:
         shell: bash
 
       - name: File Download
-        run: ./target/release/ant --log-output-dest data-dir --local file download ${{ env.UPLOAD_ADDRESS }} ./downloaded_resources > ./download_output 2>&1
+        run: ./target/release/ant --local file download ${{ env.UPLOAD_ADDRESS }} ./downloaded_resources > ./download_output 2>&1
         env:
           ANT_LOG: "v"
         timeout-minutes: 5
@@ -1112,7 +1112,6 @@ jobs:
           platform: ubuntu-latest
           log_file_prefix: safe_test_logs_large_file_upload_no_ws
           build: true
-
   # replication_bench_with_heavy_upload:
   #   if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
   #   name: Replication bench with heavy upload
@@ -1198,15 +1197,15 @@ jobs:
 
   #     - name: Create and fund a wallet to pay for files storage
   #       run: |
-  #         ./target/release/safe --log-output-dest=data-dir wallet create --no-password
-  #         ./target/release/faucet --log-output-dest=data-dir send 100000000 $(./target/release/safe --log-output-dest=data-dir wallet address | tail -n 1) | tail -n 1 > transfer_hex
-  #         ./target/release/safe --log-output-dest=data-dir wallet receive --file transfer_hex
+  #         ./target/release/safe wallet create --no-password
+  #         ./target/release/faucet send 100000000 $(./target/release/safe wallet address | tail -n 1) | tail -n 1 > transfer_hex
+  #         ./target/release/safe wallet receive --file transfer_hex
   #       env:
   #         ANT_LOG: "all"
   #       timeout-minutes: 5
 
   #     - name: Start a client to upload first file
-  #       run: ./target/release/safe --log-output-dest=data-dir files upload "./test_data_1.tar.gz" --retry-strategy quick
+  #       run: ./target/release/safe files upload "./test_data_1.tar.gz" --retry-strategy quick
   #       env:
   #         ANT_LOG: "all"
   #       timeout-minutes: 5
@@ -1240,7 +1239,7 @@ jobs:
   #       timeout-minutes: 6
 
   #     - name: Use same client to upload second file
-  #       run: ./target/release/safe --log-output-dest=data-dir files upload "./test_data_2.tar.gz" --retry-strategy quick
+  #       run: ./target/release/safe files upload "./test_data_2.tar.gz" --retry-strategy quick
   #       env:
   #         ANT_LOG: "all"
   #       timeout-minutes: 10
@@ -1283,9 +1282,9 @@ jobs:
   #         ls -l $SAFE_DATA_PATH
   #         mv $SAFE_DATA_PATH/client_first/logs $CLIENT_DATA_PATH/logs
   #         ls -l $CLIENT_DATA_PATH
-  #         ./target/release/safe --log-output-dest=data-dir wallet create --no-password
-  #         ./target/release/faucet --log-output-dest=data-dir send 100000000 $(./target/release/safe --log-output-dest=data-dir wallet address | tail -n 1) | tail -n 1 > transfer_hex
-  #         ./target/release/safe --log-output-dest=data-dir wallet receive --file transfer_hex
+  #         ./target/release/safe wallet create --no-password
+  #         ./target/release/faucet send 100000000 $(./target/release/safe wallet address | tail -n 1) | tail -n 1 > transfer_hex
+  #         ./target/release/safe wallet receive --file transfer_hex
   #       env:
   #         ANT_LOG: "all"
   #         SAFE_DATA_PATH: /home/runner/.local/share/autonomi
@@ -1293,7 +1292,7 @@ jobs:
   #       timeout-minutes: 25
 
   #     - name: Use second client to upload third file
-  #       run: ./target/release/safe --log-output-dest=data-dir files upload "./test_data_3.tar.gz" --retry-strategy quick
+  #       run: ./target/release/safe files upload "./test_data_3.tar.gz" --retry-strategy quick
   #       env:
   #         ANT_LOG: "all"
   #       timeout-minutes: 10
@@ -1329,3 +1328,4 @@ jobs:
   #         action: stop
   #         log_file_prefix: safe_test_logs_heavy_replicate_bench
   #         platform: ubuntu-latest
+

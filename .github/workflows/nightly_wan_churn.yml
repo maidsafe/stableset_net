@@ -78,7 +78,7 @@ jobs:
         timeout-minutes: 2
 
       - name: Start a client to upload
-        run: cargo run --bin safe -- --log-output-dest=data-dir files upload "ubuntu-16.04.7-desktop-amd64.iso" --retry-strategy quick
+        run: cargo run --bin safe -- files upload "ubuntu-16.04.7-desktop-amd64.iso" --retry-strategy quick
         env:
           ANT_LOG: "all"
         timeout-minutes: 45
@@ -94,7 +94,7 @@ jobs:
           random-churn-count: 5
 
       - name: Start a client to download files
-        run: cargo run --bin safe --release -- --log-output-dest=data-dir files download --retry-strategy quick
+        run: cargo run --bin safe --release -- files download --retry-strategy quick
         env:
           ANT_LOG: "all"
         timeout-minutes: 30

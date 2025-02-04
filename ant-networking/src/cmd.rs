@@ -123,6 +123,7 @@ pub enum LocalSwarmCmd {
     AddLocalRecordAsStored {
         key: RecordKey,
         record_type: ValidationType,
+        data_type: DataTypes,
     },
     /// Add a peer to the blocklist
     AddPeerToBlockList {
@@ -235,10 +236,14 @@ impl Debug for LocalSwarmCmd {
                     PrettyPrintRecordKey::from(key)
                 )
             }
-            LocalSwarmCmd::AddLocalRecordAsStored { key, record_type } => {
+            LocalSwarmCmd::AddLocalRecordAsStored {
+                key,
+                record_type,
+                data_type,
+            } => {
                 write!(
                     f,
-                    "LocalSwarmCmd::AddLocalRecordAsStored {{ key: {:?}, record_type: {record_type:?} }}",
+                    "LocalSwarmCmd::AddLocalRecordAsStored {{ key: {:?}, record_type: {record_type:?}, data_type: {data_type:?} }}",
                     PrettyPrintRecordKey::from(key)
                 )
             }
@@ -778,7 +783,11 @@ impl SwarmDriver {
                     return Err(err.into());
                 };
             }
-            LocalSwarmCmd::AddLocalRecordAsStored { key, record_type } => {
+            LocalSwarmCmd::AddLocalRecordAsStored {
+                key,
+                record_type,
+                data_type,
+            } => {
                 info!(
                     "Adding Record locally, for {:?} and {record_type:?}",
                     PrettyPrintRecordKey::from(&key)
@@ -788,7 +797,7 @@ impl SwarmDriver {
                     .behaviour_mut()
                     .kademlia
                     .store_mut()
-                    .mark_as_stored(key, record_type);
+                    .mark_as_stored(key, record_type, data_type);
                 // Reset counter on any success HDD write.
                 self.hard_disk_write_error = 0;
             }
@@ -1119,7 +1128,10 @@ impl SwarmDriver {
             );
             let request = Request::Cmd(Cmd::Replicate {
                 holder: NetworkAddress::from_peer(self.self_peer_id),
-                keys: all_records,
+                keys: all_records
+                    .into_iter()
+                    .map(|(addr, val_type, _data_type)| (addr, val_type))
+                    .collect(),
             });
             for peer_id in replicate_targets {
                 self.queue_network_swarm_cmd(NetworkSwarmCmd::SendRequest {

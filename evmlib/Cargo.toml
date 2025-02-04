@@ -21,5 +21,8 @@ tracing = { version = "~0.1.26" }
 tokio = "1.38.0"
 rand = "0.8.5"
 
+[dev-dependencies]
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
 [lints]
 workspace = true

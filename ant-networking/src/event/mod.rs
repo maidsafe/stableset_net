@@ -6,6 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+mod identify;
 mod kad;
 mod request_response;
 mod swarm;
@@ -20,6 +21,7 @@ use libp2p::{
 };
 
 use ant_evm::{PaymentQuote, ProofOfPayment};
+use ant_protocol::storage::DataTypes;
 #[cfg(feature = "open-metrics")]
 use ant_protocol::CLOSE_GROUP_SIZE;
 use ant_protocol::{
@@ -30,7 +32,7 @@ use ant_protocol::{
 #[cfg(feature = "open-metrics")]
 use std::collections::HashSet;
 use std::{
-    collections::BTreeSet,
+    collections::BTreeMap,
     fmt::{Debug, Formatter},
 };
 use tokio::sync::oneshot;
@@ -131,13 +133,18 @@ pub enum NetworkEvent {
     /// Terminate Node on unrecoverable errors
     TerminateNode { reason: TerminateNodeReason },
     /// List of peer nodes that failed to fetch replication copy from.
-    FailedToFetchHolders(BTreeSet<PeerId>),
+    FailedToFetchHolders(BTreeMap<PeerId, RecordKey>),
     /// Quotes to be verified
     QuoteVerification { quotes: Vec<(PeerId, PaymentQuote)> },
     /// Fresh replicate to fetch
     FreshReplicateToFetch {
         holder: NetworkAddress,
-        keys: Vec<(NetworkAddress, ValidationType, Option<ProofOfPayment>)>,
+        keys: Vec<(
+            NetworkAddress,
+            DataTypes,
+            ValidationType,
+            Option<ProofOfPayment>,
+        )>,
     },
 }
 

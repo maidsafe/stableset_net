@@ -10,7 +10,10 @@
 use crate::error::{NetworkError, Result};
 use crate::record_store::{ClientRecordStore, NodeRecordStore};
 use ant_evm::{QuotingMetrics, U256};
-use ant_protocol::{storage::ValidationType, NetworkAddress};
+use ant_protocol::{
+    storage::{DataTypes, ValidationType},
+    NetworkAddress,
+};
 use libp2p::kad::{store::RecordStore, ProviderRecord, Record, RecordKey};
 use std::{borrow::Cow, collections::HashMap};
 
@@ -103,7 +106,7 @@ impl UnifiedRecordStore {
 
     pub(crate) fn record_addresses_ref(
         &self,
-    ) -> Result<&HashMap<RecordKey, (NetworkAddress, ValidationType)>> {
+    ) -> Result<&HashMap<RecordKey, (NetworkAddress, ValidationType, DataTypes)>> {
         match self {
             Self::Client(_) => {
                 error!("Calling record_addresses_ref at Client. This should not happen");
@@ -185,12 +188,17 @@ impl UnifiedRecordStore {
     /// Mark the record as stored in the store.
     /// This adds it to records set, so it can now be retrieved
     /// (to be done after writes are finalised)
-    pub(crate) fn mark_as_stored(&mut self, k: RecordKey, record_type: ValidationType) {
+    pub(crate) fn mark_as_stored(
+        &mut self,
+        k: RecordKey,
+        record_type: ValidationType,
+        data_type: DataTypes,
+    ) {
         match self {
             Self::Client(_) => {
                 error!("Calling mark_as_stored at Client. This should not happen");
             }
-            Self::Node(store) => store.mark_as_stored(k, record_type),
+            Self::Node(store) => store.mark_as_stored(k, record_type, data_type),
         };
     }
 

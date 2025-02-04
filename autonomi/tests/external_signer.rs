@@ -11,7 +11,8 @@ use autonomi::client::payment::{receipt_from_store_quotes, Receipt};
 use autonomi::client::quote::StoreQuote;
 use autonomi::client::vault::user_data::USER_DATA_VAULT_CONTENT_IDENTIFIER;
 use autonomi::client::vault::VaultSecretKey;
-use autonomi::{Client, Wallet};
+use autonomi::vault::UserData;
+use autonomi::{Client, Scratchpad, Wallet};
 use bytes::Bytes;
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -30,19 +31,13 @@ async fn pay_for_data(client: &Client, wallet: &Wallet, data: Bytes) -> eyre::Re
         xor_names.push((*chunk.name(), chunk.serialised_size()));
     }
 
-    pay_for_content_addresses(
-        client,
-        wallet,
-        DataTypes::Chunk.get_index(),
-        xor_names.into_iter(),
-    )
-    .await
+    pay_for_content_addresses(client, wallet, DataTypes::Chunk, xor_names.into_iter()).await
 }
 
 async fn pay_for_content_addresses(
     client: &Client,
     wallet: &Wallet,
-    data_types: u32,
+    data_types: DataTypes,
     content_addrs: impl Iterator<Item = (XorName, usize)> + Clone,
 ) -> eyre::Result<Receipt> {
     let (quotes, quote_payments, _free_chunks) = client
@@ -138,32 +133,26 @@ async fn external_signer_put() -> eyre::Result<()> {
 
     let vault_key = VaultSecretKey::random();
 
-    let mut user_data = client
-        .get_user_data_from_vault(&vault_key)
-        .await
-        .unwrap_or_default();
+    let mut user_data = UserData::default();
 
     user_data.add_private_file_archive_with_name(
         private_archive_access.clone(),
         "test-archive".to_string(),
     );
 
-    let (scratch, is_new) = client
-        .get_or_create_scratchpad(&vault_key.public_key(), *USER_DATA_VAULT_CONTENT_IDENTIFIER)
-        .await?;
+    let scratchpad = Scratchpad::new(
+        &vault_key,
+        *USER_DATA_VAULT_CONTENT_IDENTIFIER,
+        &user_data.to_bytes()?,
+        0,
+    );
 
-    assert!(is_new, "Scratchpad is not new");
-
-    let scratch_addresses = if is_new {
-        vec![(scratch.xorname(), scratch.payload_size())]
-    } else {
-        vec![]
-    };
+    let scratch_addresses = vec![(scratchpad.xorname(), scratchpad.payload_size())];
 
     let receipt = pay_for_content_addresses(
         &client,
         &wallet,
-        DataTypes::Scratchpad.get_index(),
+        DataTypes::Scratchpad,
         scratch_addresses.into_iter(),
     )
     .await?;

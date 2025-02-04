@@ -121,7 +121,7 @@ pub enum SubCmd {
         /// Useful to set log levels. Variables should be comma separated without spaces.
         ///
         /// Example: --env ANT_LOG=all,RUST_LOG=libp2p=debug
-        #[clap(name = "env", long, use_value_delimiter = true, value_parser = parse_environment_variables)]
+        #[clap(name = "env", long, use_value_delimiter = false, value_parser = parse_environment_variables)]
         env_variables: Option<Vec<(String, String)>>,
         /// Specify what EVM network to use for payments.
         #[command(subcommand)]
@@ -415,7 +415,7 @@ pub enum SubCmd {
         /// spaces.
         ///
         /// Example: --env ANT_LOG=all,RUST_LOG=libp2p=debug
-        #[clap(name = "env", long, use_value_delimiter = true, value_parser = parse_environment_variables)]
+        #[clap(name = "env", long, use_value_delimiter = false, value_parser = parse_environment_variables)]
         env_variables: Option<Vec<(String, String)>>,
         /// Set this flag to force the upgrade command to replace binaries without comparing any
         /// version numbers.
@@ -480,7 +480,7 @@ pub enum DaemonSubCmd {
         /// Useful to set log levels. Variables should be comma separated without spaces.
         ///
         /// Example: --env ANT_LOG=all,RUST_LOG=libp2p=debug
-        #[clap(name = "env", long, use_value_delimiter = true, value_parser = parse_environment_variables)]
+        #[clap(name = "env", long, use_value_delimiter = false, value_parser = parse_environment_variables)]
         env_variables: Option<Vec<(String, String)>>,
         /// Specify a port for the daemon to listen on.
         #[clap(long, default_value_t = 12500)]
@@ -537,7 +537,7 @@ pub enum FaucetSubCmd {
         /// Useful to set log levels. Variables should be comma separated without spaces.
         ///
         /// Example: --env ANT_LOG=all,RUST_LOG=libp2p=debug
-        #[clap(name = "env", long, use_value_delimiter = true, value_parser = parse_environment_variables)]
+        #[clap(name = "env", long, use_value_delimiter = false, value_parser = parse_environment_variables)]
         env_variables: Option<Vec<(String, String)>>,
         /// Provide the path for the log directory for the faucet.
         ///
@@ -604,7 +604,7 @@ pub enum FaucetSubCmd {
         /// Useful to set log levels. Variables should be comma separated without spaces.
         ///
         /// Example: --env ANT_LOG=all,RUST_LOG=libp2p=debug
-        #[clap(name = "env", long, use_value_delimiter = true, value_parser = parse_environment_variables)]
+        #[clap(name = "env", long, use_value_delimiter = false, value_parser = parse_environment_variables)]
         env_variables: Option<Vec<(String, String)>>,
         /// Provide a binary to upgrade to using a URL.
         ///

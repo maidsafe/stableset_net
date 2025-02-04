@@ -7,14 +7,15 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::Client;
-use crate::client::rate_limiter::RateLimiter;
 use ant_evm::payment_vault::get_market_price;
-use ant_evm::{Amount, EvmNetwork, PaymentQuote, QuotePayment, QuotingMetrics};
+use ant_evm::{Amount, PaymentQuote, QuotePayment, QuotingMetrics};
 use ant_networking::{Network, NetworkError};
 use ant_protocol::{storage::ChunkAddress, NetworkAddress, CLOSE_GROUP_SIZE};
 use libp2p::PeerId;
 use std::collections::HashMap;
 use xor_name::XorName;
+
+pub use ant_protocol::storage::DataTypes;
 
 /// A quote for a single address
 pub struct QuoteForAddress(pub(crate) Vec<(PeerId, PaymentQuote, Amount)>);
@@ -67,19 +68,26 @@ pub enum CostError {
     Serialization(String),
     #[error("Market price error: {0:?}")]
     MarketPriceError(#[from] ant_evm::payment_vault::error::Error),
+    #[error("Received invalid cost")]
+    InvalidCost,
 }
 
 impl Client {
     pub async fn get_store_quotes(
         &self,
-        data_type: u32,
+        data_type: DataTypes,
         content_addrs: impl Iterator<Item = (XorName, usize)>,
     ) -> Result<StoreQuote, CostError> {
         // get all quotes from nodes
         let futures: Vec<_> = content_addrs
             .into_iter()
             .map(|(content_addr, data_size)| {
-                fetch_store_quote_with_retries(&self.network, content_addr, data_type, data_size)
+                fetch_store_quote_with_retries(
+                    &self.network,
+                    content_addr,
+                    data_type.get_index(),
+                    data_size,
+                )
             })
             .collect();
 
@@ -87,8 +95,6 @@ impl Client {
 
         // choose the quotes to pay for each address
         let mut quotes_to_pay_per_addr = HashMap::new();
-
-        let mut rate_limiter = RateLimiter::new();
 
         for (content_addr, raw_quotes) in raw_quotes_per_addr {
             debug!(
@@ -110,12 +116,7 @@ impl Client {
                 .map(|(_, q)| q.quoting_metrics.clone())
                 .collect();
 
-            let all_prices = get_market_price_with_rate_limiter_and_retries(
-                &self.evm_network,
-                &mut rate_limiter,
-                quoting_metrics.clone(),
-            )
-            .await?;
+            let all_prices = get_market_price(&self.evm_network, quoting_metrics.clone()).await?;
 
             debug!("market prices: {all_prices:?}");
 
@@ -218,38 +219,5 @@ async fn fetch_store_quote_with_retries(
         // Shall have a sleep between retries to avoid choking the network.
         // This shall be rare to happen though.
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-    }
-}
-
-async fn get_market_price_with_rate_limiter_and_retries(
-    evm_network: &EvmNetwork,
-    rate_limiter: &mut RateLimiter,
-    quoting_metrics: Vec<QuotingMetrics>,
-) -> Result<Vec<Amount>, ant_evm::payment_vault::error::Error> {
-    const MAX_RETRIES: u64 = 2;
-    let mut retries: u64 = 0;
-    let mut interval_in_ms: u64 = 1000;
-
-    loop {
-        rate_limiter
-            .wait_interval_since_last_request(interval_in_ms)
-            .await;
-
-        match get_market_price(evm_network, quoting_metrics.clone()).await {
-            Ok(amounts) => {
-                break Ok(amounts);
-            }
-            Err(err) => {
-                if retries < MAX_RETRIES {
-                    retries += 1;
-                    interval_in_ms *= retries * 2;
-                    error!("Error while fetching quote market price: {err:?}, retry #{retries}");
-                    continue;
-                } else {
-                    error!("Error while fetching quote market price: {err:?}, stopping after {retries} retries");
-                    break Err(err);
-                }
-            }
-        }
     }
 }

@@ -187,12 +187,15 @@ impl Client {
         counter: u32,
         target: &PyPointerTarget,
         key: &PySecretKey,
-        wallet: &Wallet,
+        payment_option: &PaymentOption,
     ) -> PyResult<PyPointerAddress> {
         let rt = tokio::runtime::Runtime::new().expect("Could not start tokio runtime");
         let pointer = RustPointer::new(&key.inner, counter, target.inner.clone());
         let (_price, addr) = rt
-            .block_on(self.inner.pointer_put(pointer, &wallet.inner))
+            .block_on(
+                self.inner
+                    .pointer_put(pointer, payment_option.inner.clone()),
+            )
             .map_err(|e| PyValueError::new_err(format!("Failed to put pointer: {e}")))?;
         Ok(PyPointerAddress { inner: addr })
     }

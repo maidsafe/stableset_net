@@ -7,27 +7,13 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::storage::{ChunkAddress, GraphEntryAddress, PointerAddress, ScratchpadAddress};
-use bls::{Error as BlsError, PublicKey, SecretKey, Signature};
-use hex::FromHexError;
+use bls::{PublicKey, SecretKey, Signature};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use xor_name::XorName;
 
-#[derive(Error, Debug)]
-pub enum PointerError {
-    #[error("Failed to decode hex string: {0}")]
-    HexDecoding(#[from] FromHexError),
-    #[error("Failed to create public key: {0}")]
-    BlsError(#[from] BlsError),
-    #[error("Invalid public key bytes length")]
-    InvalidPublicKeyLength,
-    #[error("Invalid signature")]
-    InvalidSignature,
-    #[error("Serialization error: {0}")]
-    SerializationError(String),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Pointer, a mutable address pointing to other data on the Network
+/// It is stored at the owner's public key and can only be updated by the owner
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Pointer {
     owner: PublicKey,
     counter: u32,
@@ -35,7 +21,7 @@ pub struct Pointer {
     signature: Signature,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Ord, PartialOrd)]
 pub enum PointerTarget {
     ChunkAddress(ChunkAddress),
     GraphEntryAddress(GraphEntryAddress),
@@ -105,6 +91,11 @@ impl Pointer {
         PointerAddress::from_owner(self.owner)
     }
 
+    /// Get the target of the pointer
+    pub fn target(&self) -> &PointerTarget {
+        &self.target
+    }
+
     /// Get the bytes that were signed for this pointer
     pub fn bytes_for_signature(&self) -> Vec<u8> {
         Self::bytes_to_sign(&self.owner, self.counter, &self.target)
@@ -126,9 +117,14 @@ impl Pointer {
     }
 
     /// Verifies if the pointer has a valid signature
-    pub fn verify(&self) -> bool {
+    pub fn verify_signature(&self) -> bool {
         let bytes = self.bytes_for_signature();
         self.owner.verify(&self.signature, &bytes)
+    }
+
+    /// Size of the pointer
+    pub fn size() -> usize {
+        size_of::<Pointer>()
     }
 }
 
@@ -147,13 +143,13 @@ mod tests {
 
         // Create and sign pointer
         let pointer = Pointer::new(&owner_sk, counter, target.clone());
-        assert!(pointer.verify()); // Should be valid with correct signature
+        assert!(pointer.verify_signature()); // Should be valid with correct signature
 
         // Create pointer with wrong signature
         let wrong_sk = SecretKey::random();
         let sig = wrong_sk.sign(pointer.bytes_for_signature());
         let wrong_pointer =
             Pointer::new_with_signature(owner_sk.public_key(), counter, target.clone(), sig);
-        assert!(!wrong_pointer.verify()); // Should be invalid with wrong signature
+        assert!(!wrong_pointer.verify_signature()); // Should be invalid with wrong signature
     }
 }

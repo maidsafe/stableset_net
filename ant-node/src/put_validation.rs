@@ -41,6 +41,7 @@ impl Node {
                 let payment_res = self
                     .payment_for_us_exists_and_is_still_valid(
                         &chunk.network_address(),
+                        DataTypes::Chunk,
                         payment.clone(),
                     )
                     .await;
@@ -53,6 +54,7 @@ impl Node {
                     // did not manage to get this chunk as yet
                     self.replicate_valid_fresh_record(
                         record_key,
+                        DataTypes::Chunk,
                         ValidationType::Chunk,
                         Some(payment),
                     );
@@ -83,6 +85,7 @@ impl Node {
                         .log();
                     self.replicate_valid_fresh_record(
                         record_key,
+                        DataTypes::Chunk,
                         ValidationType::Chunk,
                         Some(payment),
                     );
@@ -116,6 +119,7 @@ impl Node {
                 let payment_res = self
                     .payment_for_us_exists_and_is_still_valid(
                         &scratchpad.network_address(),
+                        DataTypes::Scratchpad,
                         payment.clone(),
                     )
                     .await;
@@ -206,7 +210,11 @@ impl Node {
                 // However, if the GraphEntry is already present, the incoming one shall be
                 // appended with the existing one, if content is different.
                 if let Err(err) = self
-                    .payment_for_us_exists_and_is_still_valid(&net_addr, payment.clone())
+                    .payment_for_us_exists_and_is_still_valid(
+                        &net_addr,
+                        DataTypes::GraphEntry,
+                        payment.clone(),
+                    )
                     .await
                 {
                     if already_exists {
@@ -226,6 +234,7 @@ impl Node {
                         .log();
                     self.replicate_valid_fresh_record(
                         record.key.clone(),
+                        DataTypes::GraphEntry,
                         ValidationType::NonChunk(content_hash),
                         Some(payment),
                     );
@@ -283,7 +292,11 @@ impl Node {
                 // The pointer may already exist during the replication.
                 // The payment shall get deposit to self even if the pointer already exists.
                 if let Err(err) = self
-                    .payment_for_us_exists_and_is_still_valid(&net_addr, payment.clone())
+                    .payment_for_us_exists_and_is_still_valid(
+                        &net_addr,
+                        DataTypes::Pointer,
+                        payment.clone(),
+                    )
                     .await
                 {
                     if already_exists {
@@ -447,7 +460,7 @@ impl Node {
     ) -> Result<()> {
         // owner PK is defined herein, so as long as record key and this match, we're good
         let addr = scratchpad.address();
-        let count = scratchpad.count();
+        let count = scratchpad.counter();
         debug!("Validating and storing scratchpad {addr:?} with count {count}");
 
         // check if the deserialized value's ScratchpadAddress matches the record's key
@@ -460,16 +473,22 @@ impl Node {
         // check if the Scratchpad is present locally that we don't have a newer version
         if let Some(local_pad) = self.network().get_local_record(&scratchpad_key).await? {
             let local_pad = try_deserialize_record::<Scratchpad>(&local_pad)?;
-            if local_pad.count() >= scratchpad.count() {
+            if local_pad.counter() >= scratchpad.counter() {
                 warn!("Rejecting Scratchpad PUT with counter less than or equal to the current counter");
                 return Err(Error::IgnoringOutdatedScratchpadPut);
             }
         }
 
         // ensure data integrity
-        if !scratchpad.is_valid() {
+        if !scratchpad.verify_signature() {
             warn!("Rejecting Scratchpad PUT with invalid signature");
             return Err(Error::InvalidScratchpadSignature);
+        }
+
+        // ensure the scratchpad is not too big
+        if scratchpad.is_too_big() {
+            warn!("Rejecting Scratchpad PUT with too big size");
+            return Err(Error::ScratchpadTooBig(scratchpad.size()));
         }
 
         info!(
@@ -496,6 +515,7 @@ impl Node {
             // but must have an existing copy to update.
             self.replicate_valid_fresh_record(
                 scratchpad_key,
+                DataTypes::Scratchpad,
                 ValidationType::NonChunk(content_hash),
                 payment,
             );
@@ -540,8 +560,10 @@ impl Node {
         }
 
         // verify the GraphEntries
-        let mut validated_entries: BTreeSet<GraphEntry> =
-            entries_for_key.into_iter().filter(|t| t.verify()).collect();
+        let mut validated_entries: BTreeSet<GraphEntry> = entries_for_key
+            .into_iter()
+            .filter(|t| t.verify_signature())
+            .collect();
 
         // skip if none are valid
         let addr = match validated_entries.first() {
@@ -554,8 +576,15 @@ impl Node {
 
         // add local GraphEntries to the validated GraphEntries, turn to Vec
         let local_entries = self.get_local_graphentries(addr).await?;
+        let existing_entry = local_entries.len();
         validated_entries.extend(local_entries.into_iter());
         let validated_entries: Vec<GraphEntry> = validated_entries.into_iter().collect();
+
+        // No need to write to disk if nothing new.
+        if existing_entry == validated_entries.len() {
+            debug!("No new entry of the GraphEntry {pretty_key:?}");
+            return Ok(());
+        }
 
         // store the record into the local storage
         let record = Record {
@@ -587,6 +616,7 @@ impl Node {
     pub(crate) async fn payment_for_us_exists_and_is_still_valid(
         &self,
         address: &NetworkAddress,
+        data_type: DataTypes,
         payment: ProofOfPayment,
     ) -> Result<()> {
         let key = address.to_record_key();
@@ -601,7 +631,6 @@ impl Node {
                 "Payment is not valid for record {pretty_key}"
             )));
         }
-        debug!("Payment is valid for record {pretty_key}");
 
         // verify quote expiration
         if payment.has_expired() {
@@ -611,11 +640,20 @@ impl Node {
             )));
         }
 
+        // verify data type matches
+        if !payment.verify_data_type(data_type.get_index()) {
+            warn!("Payment quote has wrong data type for record {pretty_key}");
+            return Err(Error::InvalidRequest(format!(
+                "Payment quote has wrong data type for record {pretty_key}"
+            )));
+        }
+
         // verify the claimed payees are all known to us within the certain range.
         let closest_k_peers = self.network().get_closest_k_value_local_peers().await?;
         let mut payees = payment.payees();
         payees.retain(|peer_id| !closest_k_peers.contains(peer_id));
         if !payees.is_empty() {
+            warn!("Payment quote has out-of-range payees for record {pretty_key}");
             return Err(Error::InvalidRequest(format!(
                 "Payment quote has out-of-range payees {payees:?}"
             )));
@@ -632,7 +670,11 @@ impl Node {
         let reward_amount =
             verify_data_payment(self.evm_network(), owned_payment_quotes, payments_to_verify)
                 .await
-                .map_err(|e| Error::EvmNetwork(format!("Failed to verify chunk payment: {e}")))?;
+                .inspect_err(|e| {
+                    warn!("Failed to verify record payment: {e}");
+                })
+                .map_err(|e| Error::EvmNetwork(format!("Failed to verify record payment: {e}")))?;
+
         debug!("Payment of {reward_amount:?} is valid for record {pretty_key}");
 
         // Notify `record_store` that the node received a payment.
@@ -749,7 +791,7 @@ impl Node {
         payment: Option<ProofOfPayment>,
     ) -> Result<()> {
         // Verify the pointer's signature
-        if !pointer.verify() {
+        if !pointer.verify_signature() {
             warn!("Pointer signature verification failed");
             return Err(Error::InvalidSignature);
         }
@@ -787,6 +829,7 @@ impl Node {
             let content_hash = XorName::from_content(&record.value);
             self.replicate_valid_fresh_record(
                 key.clone(),
+                DataTypes::Pointer,
                 ValidationType::NonChunk(content_hash),
                 payment,
             );

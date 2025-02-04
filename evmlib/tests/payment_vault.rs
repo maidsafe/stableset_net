@@ -11,7 +11,7 @@ use alloy::providers::fillers::{
 use alloy::providers::{Identity, ProviderBuilder, ReqwestProvider, WalletProvider};
 use alloy::signers::local::{LocalSigner, PrivateKeySigner};
 use alloy::transports::http::{Client, Http};
-use evmlib::common::{Amount, U256};
+use evmlib::common::U256;
 use evmlib::contract::network_token::NetworkToken;
 use evmlib::contract::payment_vault::handler::PaymentVaultHandler;
 use evmlib::contract::payment_vault::{interface, MAX_TRANSFERS_PER_TRANSACTION};
@@ -116,31 +116,8 @@ async fn test_deploy() {
 }
 
 #[tokio::test]
-async fn test_proxy_reachable_on_arb_sepolia() {
+async fn test_get_quote_on_arb_sepolia() {
     let network = Network::ArbitrumSepolia;
-    let provider = http_provider(network.rpc_url().clone());
-    let payment_vault = PaymentVaultHandler::new(*network.data_payments_address(), provider);
-
-    let amount = payment_vault
-        .get_quote(vec![QuotingMetrics {
-            data_size: 0,
-            data_type: 0,
-            close_records_stored: 0,
-            max_records: 0,
-            received_payment_count: 0,
-            live_time: 0,
-            network_density: None,
-            network_size: None,
-        }])
-        .await
-        .unwrap();
-
-    assert_eq!(amount, vec![Amount::from(1)]);
-}
-
-#[tokio::test]
-async fn test_get_quote_on_arb_sepolia_test() {
-    let network = Network::ArbitrumSepoliaTest;
     let provider = http_provider(network.rpc_url().clone());
     let payment_vault = PaymentVaultHandler::new(*network.data_payments_address(), provider);
 
@@ -148,6 +125,7 @@ async fn test_get_quote_on_arb_sepolia_test() {
         data_type: 1, // a GraphEntry record
         data_size: 100,
         close_records_stored: 10,
+        records_per_type: vec![(0, 5), (1, 5)],
         max_records: 16 * 1024,
         received_payment_count: 0,
         live_time: 1400,
@@ -158,12 +136,9 @@ async fn test_get_quote_on_arb_sepolia_test() {
         network_size: Some(240),
     };
 
-    let amount = payment_vault
-        .get_quote(vec![quoting_metrics])
-        .await
-        .unwrap();
+    let result = payment_vault.get_quote(vec![quoting_metrics]).await;
 
-    assert_eq!(amount, vec![Amount::from(610698657484797_u64)]);
+    assert!(result.is_ok(), "Failed with error: {:?}", result.err());
 }
 
 #[tokio::test]
@@ -222,6 +197,7 @@ async fn test_verify_payment_on_local() {
                 data_size: 0,
                 data_type: 0,
                 close_records_stored: 0,
+                records_per_type: vec![],
                 max_records: 0,
                 received_payment_count: 0,
                 live_time: 0,

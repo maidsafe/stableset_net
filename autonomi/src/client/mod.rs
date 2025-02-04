@@ -25,6 +25,7 @@ pub use data_types::scratchpad;
 mod high_level;
 pub use high_level::data;
 pub use high_level::files;
+pub use high_level::register;
 pub use high_level::vault;
 
 pub mod address;
@@ -37,7 +38,6 @@ pub mod quote;
 pub mod external_signer;
 
 // private module with utility functions
-mod rate_limiter;
 mod utils;
 
 use ant_bootstrap::{BootstrapCacheConfig, BootstrapCacheStore, PeersArgs};
@@ -81,7 +81,7 @@ pub struct Client {
     pub(crate) client_event_sender: Arc<Option<mpsc::Sender<ClientEvent>>>,
     /// The EVM network to use for the client.
     pub evm_network: EvmNetwork,
-    // Shutdown signal for the `SwarmDriver` task
+    // Shutdown signal for child tasks. Sends signal when dropped.
     _shutdown_tx: watch::Sender<bool>,
 }
 
@@ -245,7 +245,11 @@ impl Client {
 
         // Wait until we have added a few peers to our routing table.
         let (sender, receiver) = futures::channel::oneshot::channel();
-        ant_networking::time::spawn(handle_event_receiver(event_receiver, sender));
+        ant_networking::time::spawn(handle_event_receiver(
+            event_receiver,
+            sender,
+            shutdown_tx.subscribe(),
+        ));
         receiver.await.expect("sender should not close")?;
         debug!("Enough peers were added to our routing table, initialization complete");
 
@@ -300,6 +304,7 @@ fn build_client_and_run_swarm(
 async fn handle_event_receiver(
     mut event_receiver: mpsc::Receiver<NetworkEvent>,
     sender: futures::channel::oneshot::Sender<Result<(), ConnectError>>,
+    mut shutdown_rx: watch::Receiver<bool>,
 ) {
     // We switch this to `None` when we've sent the oneshot 'connect' result.
     let mut sender = Some(sender);
@@ -310,6 +315,16 @@ async fn handle_event_receiver(
 
     loop {
         tokio::select! {
+            // polls futures in order they appear here (as opposed to random)
+            biased;
+
+            // Check for a shutdown command.
+            result = shutdown_rx.changed() => {
+                if result.is_ok() && *shutdown_rx.borrow() || result.is_err() {
+                    info!("Shutdown signal received or sender dropped. Exiting event receiver loop.");
+                    break;
+                }
+            }
             _ = timeout_timer.tick() =>  {
                 if let Some(sender) = sender.take() {
                     if unsupported_protocols.len() > 1 {

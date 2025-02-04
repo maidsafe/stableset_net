@@ -1,4 +1,4 @@
-use crate::client::quote::StoreQuote;
+use crate::client::quote::{DataTypes, StoreQuote};
 use crate::Client;
 use ant_evm::{AttoTokens, EncodedPeerId, EvmWallet, EvmWalletError, ProofOfPayment};
 use std::collections::HashMap;
@@ -56,7 +56,9 @@ pub fn receipt_from_store_quotes(quotes: StoreQuote) -> Receipt {
 /// Payment options for data payments.
 #[derive(Clone)]
 pub enum PaymentOption {
+    /// Pay using an evm wallet
     Wallet(EvmWallet),
+    /// When data was already paid for, use the receipt
     Receipt(Receipt),
 }
 
@@ -81,7 +83,7 @@ impl From<Receipt> for PaymentOption {
 impl Client {
     pub(crate) async fn pay_for_content_addrs(
         &self,
-        data_type: u32,
+        data_type: DataTypes,
         content_addrs: impl Iterator<Item = (XorName, usize)> + Clone,
         payment_option: PaymentOption,
     ) -> Result<(Receipt, AlreadyPaidAddressesCount), PayError> {
@@ -97,7 +99,7 @@ impl Client {
     /// Pay for the chunks and get the proof of payment.
     pub(crate) async fn pay(
         &self,
-        data_type: u32,
+        data_type: DataTypes,
         content_addrs: impl Iterator<Item = (XorName, usize)> + Clone,
         wallet: &EvmWallet,
     ) -> Result<(Receipt, AlreadyPaidAddressesCount), PayError> {

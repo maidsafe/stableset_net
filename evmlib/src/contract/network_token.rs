@@ -8,8 +8,7 @@
 
 use crate::common::{Address, Calldata, TxHash, U256};
 use crate::contract::network_token::NetworkTokenContract::NetworkTokenContractInstance;
-use crate::TX_TIMEOUT;
-use alloy::network::TransactionBuilder;
+use crate::retry::{retry, send_transaction_with_retries};
 use alloy::providers::{Network, Provider};
 use alloy::sol;
 use alloy::transports::{RpcError, Transport, TransportErrorKind};
@@ -65,66 +64,36 @@ where
     /// Get the raw token balance of an address.
     pub async fn balance_of(&self, account: Address) -> Result<U256, Error> {
         debug!("Getting balance of account: {account:?}");
-        let balance = self
-            .contract
-            .balanceOf(account)
-            .call()
-            .await
-            .inspect_err(|err| error!("Error getting balance of account: {err:?}"))?
-            ._0;
-        debug!("Balance of account: {account} is {balance}");
+        let balance = retry(
+            || async { self.contract.balanceOf(account).call().await },
+            "balanceOf",
+            None,
+        )
+        .await?
+        ._0;
+        debug!("Balance of account {account} is {balance}");
         Ok(balance)
     }
 
     /// See how many tokens are approved to be spent.
     pub async fn allowance(&self, owner: Address, spender: Address) -> Result<U256, Error> {
-        debug!("Getting allowance of owner: {owner} for spender: {spender}",);
-        let balance = self
-            .contract
-            .allowance(owner, spender)
-            .call()
-            .await
-            .inspect_err(|err| error!("Error getting allowance: {err:?}"))?
-            ._0;
-        debug!("Allowance of owner: {owner} for spender: {spender} is: {balance}");
-        Ok(balance)
+        debug!("Getting allowance of owner: {owner} for spender: {spender}");
+        let allowance = retry(
+            || async { self.contract.allowance(owner, spender).call().await },
+            "allowance",
+            None,
+        )
+        .await?
+        ._0;
+        debug!("Allowance of owner: {owner} for spender: {spender} is: {allowance}");
+        Ok(allowance)
     }
 
     /// Approve spender to spend a raw amount of tokens.
     pub async fn approve(&self, spender: Address, value: U256) -> Result<TxHash, Error> {
-        debug!("Approving spender to spend raw amt of tokens: {value}");
+        debug!("Approving spender {spender:?} to spend {value}");
         let (calldata, to) = self.approve_calldata(spender, value);
-
-        let transaction_request = self
-            .contract
-            .provider()
-            .transaction_request()
-            .with_to(to)
-            .with_input(calldata);
-
-        let pending_tx_builder = self
-            .contract
-            .provider()
-            .send_transaction(transaction_request)
-            .await
-            .inspect_err(|err| {
-                error!(
-                "Error to send_transaction while approving spender {spender:?} to spend raw amt of tokens {value}:  {err:?}"
-            )
-            })?
-            .with_timeout(Some(TX_TIMEOUT));
-
-        let pending_tx_hash = *pending_tx_builder.tx_hash();
-
-        debug!("The approval from sender {spender:?} is pending with tx_hash: {pending_tx_hash:?}",);
-
-        let tx_hash = pending_tx_builder.watch().await.inspect_err(|err| {
-            error!("Error watching approve tx with hash {pending_tx_hash:?}:  {err:?}")
-        })?;
-
-        debug!("Approve tx with hash {tx_hash:?} is successful");
-
-        Ok(tx_hash)
+        send_transaction_with_retries(self.contract.provider(), calldata, to, "approve").await
     }
 
     /// Approve spender to spend a raw amount of tokens.
@@ -136,37 +105,9 @@ where
 
     /// Transfer a raw amount of tokens.
     pub async fn transfer(&self, receiver: Address, amount: U256) -> Result<TxHash, Error> {
-        debug!("Transferring raw amt of tokens: {amount} to {receiver:?}");
+        debug!("Transferring raw amount of tokens: {amount} to {receiver:?}");
         let (calldata, to) = self.transfer_calldata(receiver, amount);
-
-        let transaction_request = self
-            .contract
-            .provider()
-            .transaction_request()
-            .with_to(to)
-            .with_input(calldata);
-
-        let pending_tx_builder = self
-            .contract
-            .provider()
-            .send_transaction(transaction_request)
-            .await
-            .inspect_err(|err| {
-                error!("Error to send_transaction during transfer raw amt of tokens to {receiver:?}: {err:?}")
-            })?
-            .with_timeout(Some(TX_TIMEOUT));
-
-        let pending_tx_hash = *pending_tx_builder.tx_hash();
-        debug!(
-            "The transfer to receiver {receiver:?} is pending with tx_hash: {pending_tx_hash:?}"
-        );
-        let tx_hash = pending_tx_builder.watch().await.inspect_err(|err| {
-            error!("Error watching transfer tx with hash {pending_tx_hash:?}: {err:?}")
-        })?;
-
-        debug!("Transfer tx with hash {tx_hash:?} is successful");
-
-        Ok(tx_hash)
+        send_transaction_with_retries(self.contract.provider(), calldata, to, "transfer").await
     }
 
     /// Transfer a raw amount of tokens.

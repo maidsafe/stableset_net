@@ -152,6 +152,15 @@ impl RecordHeader {
         let kind = Self::from_record(record)?.kind;
         Ok(kind == RecordKind::DataOnly(DataTypes::Chunk))
     }
+
+    pub fn get_data_type(record: &Record) -> Result<DataTypes, Error> {
+        let kind = Self::from_record(record)?.kind;
+        match kind {
+            RecordKind::DataOnly(data_type) | RecordKind::DataWithPayment(data_type) => {
+                Ok(data_type)
+            }
+        }
+    }
 }
 
 /// Utility to deserialize a `KAD::Record` into any type.

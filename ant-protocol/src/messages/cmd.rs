@@ -7,6 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 #![allow(clippy::mutable_key_type)] // for Bytes in NetworkAddress
 
+use crate::storage::DataTypes;
 use crate::{storage::ValidationType, NetworkAddress};
 use ant_evm::ProofOfPayment;
 use serde::{Deserialize, Serialize};
@@ -35,7 +36,12 @@ pub enum Cmd {
         /// Holder of the replication keys.
         holder: NetworkAddress,
         /// Keys of copy that shall be replicated.
-        keys: Vec<(NetworkAddress, ValidationType, Option<ProofOfPayment>)>,
+        keys: Vec<(
+            NetworkAddress,
+            DataTypes,
+            ValidationType,
+            Option<ProofOfPayment>,
+        )>,
     },
     /// Notify the peer it is now being considered as BAD due to the included behaviour
     PeerConsideredAsBad {

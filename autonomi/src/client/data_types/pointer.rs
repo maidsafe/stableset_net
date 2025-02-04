@@ -6,8 +6,12 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::client::{payment::PayError, quote::CostError, Client};
-use ant_evm::{Amount, AttoTokens, EvmWallet, EvmWalletError};
+use crate::client::{
+    payment::{PayError, PaymentOption},
+    quote::CostError,
+    Client,
+};
+use ant_evm::{Amount, AttoTokens, EvmWalletError};
 use ant_networking::{GetRecordCfg, GetRecordError, NetworkError, PutRecordCfg, VerificationKind};
 use ant_protocol::{
     storage::{
@@ -22,16 +26,17 @@ use tracing::{debug, error, trace};
 
 pub use ant_protocol::storage::{Pointer, PointerAddress, PointerTarget};
 
+/// Errors that can occur when dealing with Pointers
 #[derive(Debug, thiserror::Error)]
 pub enum PointerError {
-    #[error("Cost error: {0}")]
-    Cost(#[from] CostError),
     #[error("Network error")]
     Network(#[from] NetworkError),
     #[error("Serialization error")]
     Serialization,
     #[error("Pointer record corrupt: {0}")]
     Corrupt(String),
+    #[error("Pointer signature is invalid")]
+    BadSignature,
     #[error("Payment failure occurred during pointer creation.")]
     Pay(#[from] PayError),
     #[error("Failed to retrieve wallet payment")]
@@ -67,27 +72,64 @@ impl Client {
             ))
         })?;
 
-        if matches!(header.kind, RecordKind::DataOnly(DataTypes::Pointer)) {
-            let pointer: Pointer = try_deserialize_record(&record).map_err(|err| {
-                PointerError::Corrupt(format!(
-                    "Failed to parse record for pointer at {key:?}: {err:?}"
-                ))
-            })?;
-            Ok(pointer)
-        } else {
-            error!(
-                "Record kind mismatch: expected Pointer, got {:?}",
-                header.kind
+        let kind = header.kind;
+        if !matches!(kind, RecordKind::DataOnly(DataTypes::Pointer)) {
+            error!("Record kind mismatch: expected Pointer, got {kind:?}");
+            return Err(
+                NetworkError::RecordKindMismatch(RecordKind::DataOnly(DataTypes::Pointer)).into(),
             );
-            Err(NetworkError::RecordKindMismatch(RecordKind::DataOnly(DataTypes::Pointer)).into())
+        };
+
+        let pointer: Pointer = try_deserialize_record(&record).map_err(|err| {
+            PointerError::Corrupt(format!(
+                "Failed to parse record for pointer at {key:?}: {err:?}"
+            ))
+        })?;
+
+        Self::pointer_verify(&pointer)?;
+        Ok(pointer)
+    }
+
+    /// Check if a pointer exists on the network
+    pub async fn pointer_check_existance(
+        &self,
+        address: &PointerAddress,
+    ) -> Result<bool, PointerError> {
+        let key = NetworkAddress::from_pointer_address(*address).to_record_key();
+        debug!("Checking pointer existance at: {key:?}");
+        let get_cfg = GetRecordCfg {
+            get_quorum: Quorum::Majority,
+            retry_strategy: Some(RetryStrategy::None),
+            target_record: None,
+            expected_holders: Default::default(),
+        };
+
+        match self
+            .network
+            .get_record_from_network(key.clone(), &get_cfg)
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(NetworkError::GetRecordError(GetRecordError::SplitRecord { .. })) => Ok(true),
+            Err(NetworkError::GetRecordError(GetRecordError::RecordNotFound)) => Ok(false),
+            Err(err) => Err(PointerError::Network(err))
+                .inspect_err(|err| error!("Error checking pointer existance: {err:?}")),
         }
     }
 
-    /// Store a pointer on the network
+    /// Verify a pointer
+    pub fn pointer_verify(pointer: &Pointer) -> Result<(), PointerError> {
+        if !pointer.verify_signature() {
+            return Err(PointerError::BadSignature);
+        }
+        Ok(())
+    }
+
+    /// Manually store a pointer on the network
     pub async fn pointer_put(
         &self,
         pointer: Pointer,
-        wallet: &EvmWallet,
+        payment_option: PaymentOption,
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
         let address = pointer.network_address();
 
@@ -96,10 +138,10 @@ impl Client {
         debug!("Paying for pointer at address: {address:?}");
         let (payment_proofs, _skipped_payments) = self
             // TODO: define Pointer default size for pricing
-            .pay(
-                DataTypes::Pointer.get_index(),
-                std::iter::once((xor_name, 128)),
-                wallet,
+            .pay_for_content_addrs(
+                DataTypes::Pointer,
+                std::iter::once((xor_name, Pointer::size())),
+                payment_option,
             )
             .await
             .inspect_err(|err| {
@@ -174,26 +216,16 @@ impl Client {
         &self,
         owner: &SecretKey,
         target: PointerTarget,
-        wallet: &EvmWallet,
+        payment_option: PaymentOption,
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
         let address = PointerAddress::from_owner(owner.public_key());
-        let already_exists = match self.pointer_get(address).await {
-            Ok(_) => true,
-            Err(PointerError::Network(NetworkError::GetRecordError(
-                GetRecordError::SplitRecord { .. },
-            ))) => true,
-            Err(PointerError::Network(NetworkError::GetRecordError(
-                GetRecordError::RecordNotFound,
-            ))) => false,
-            Err(err) => return Err(err),
-        };
-
+        let already_exists = self.pointer_check_existance(&address).await?;
         if already_exists {
             return Err(PointerError::PointerAlreadyExists(address));
         }
 
         let pointer = Pointer::new(owner, 0, target);
-        self.pointer_put(pointer, wallet).await
+        self.pointer_put(pointer, payment_option).await
     }
 
     /// Update an existing pointer to point to a new target on the network
@@ -264,14 +296,13 @@ impl Client {
     }
 
     /// Calculate the cost of storing a pointer
-    pub async fn pointer_cost(&self, key: PublicKey) -> Result<AttoTokens, PointerError> {
+    pub async fn pointer_cost(&self, key: PublicKey) -> Result<AttoTokens, CostError> {
         trace!("Getting cost for pointer of {key:?}");
 
         let address = PointerAddress::from_owner(key);
         let xor = *address.xorname();
-        // TODO: define default size of Pointer
         let store_quote = self
-            .get_store_quotes(DataTypes::Pointer.get_index(), std::iter::once((xor, 128)))
+            .get_store_quotes(DataTypes::Pointer, std::iter::once((xor, Pointer::size())))
             .await?;
         let total_cost = AttoTokens::from_atto(
             store_quote

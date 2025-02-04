@@ -77,11 +77,7 @@ impl Client {
             .collect();
         info!("Paying for {} addresses", xor_names.len());
         let (receipt, skipped_payments) = self
-            .pay_for_content_addrs(
-                DataTypes::Chunk.get_index(),
-                xor_names.into_iter(),
-                payment_option,
-            )
+            .pay_for_content_addrs(DataTypes::Chunk, xor_names.into_iter(), payment_option)
             .await
             .inspect_err(|err| error!("Error paying for data: {err:?}"))?;
 

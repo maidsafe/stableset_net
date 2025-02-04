@@ -64,6 +64,7 @@ pub use client::data_types::scratchpad;
 // The high-level data types
 pub use client::data;
 pub use client::files;
+pub use client::register;
 pub use client::vault;
 
 // Re-exports of the evm types
@@ -84,9 +85,9 @@ pub use libp2p::Multiaddr;
 
 #[doc(inline)]
 pub use client::{
-    // Data types
+    // Native data types
     data_types::chunk::Chunk,
-    // Addresses for the data types
+    // Addresses for the native data types
     data_types::chunk::ChunkAddress,
     data_types::graph::GraphEntry,
     data_types::graph::GraphEntryAddress,

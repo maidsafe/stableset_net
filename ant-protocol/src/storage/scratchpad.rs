@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use xor_name::XorName;
 
-/// Scratchpad, a mutable address for encrypted data
+/// Scratchpad, a mutable space for encrypted data on the Network
 #[derive(
     Hash, Eq, PartialEq, PartialOrd, Ord, Clone, custom_debug::Debug, Serialize, Deserialize,
 )]
@@ -25,30 +25,81 @@ pub struct Scratchpad {
     address: ScratchpadAddress,
     /// Data encoding: custom apps using scratchpad should use this so they can identify the type of data they are storing
     data_encoding: u64,
-    /// Contained data. This should be encrypted
+    /// Encrypted data stored in the scratchpad, it is encrypted automatically by the [`Scratchpad::new`] and [`Scratchpad::update`] methods
     #[debug(skip)]
     encrypted_data: Bytes,
     /// Monotonically increasing counter to track the number of times this has been updated.
+    /// When pushed to the network, the scratchpad with the highest counter is kept.
     counter: u64,
-    /// Signature over `Vec<counter>`.extend(Xorname::from_content(encrypted_data).to_vec()) from the owning key.
-    /// Required for scratchpad to be valid.
-    signature: Option<Signature>,
+    /// Signature over the above fields
+    signature: Signature,
 }
 
 impl Scratchpad {
-    /// Creates a new instance of `Scratchpad`.
-    pub fn new(owner: PublicKey, data_encoding: u64) -> Self {
-        Self {
-            address: ScratchpadAddress::new(owner),
-            encrypted_data: Bytes::new(),
+    /// Max Scratchpad size is 4MB including the metadata
+    pub const MAX_SIZE: usize = 4 * 1024 * 1024;
+
+    /// Creates a new instance of `Scratchpad`. Encrypts the data, and signs all the elements.
+    pub fn new(
+        owner: &SecretKey,
+        data_encoding: u64,
+        unencrypted_data: &Bytes,
+        counter: u64,
+    ) -> Self {
+        let pk = owner.public_key();
+        let encrypted_data = Bytes::from(pk.encrypt(unencrypted_data).to_bytes());
+        let addr = ScratchpadAddress::new(pk);
+        let signature = owner.sign(Self::bytes_for_signature(
+            addr,
             data_encoding,
-            counter: 0,
-            signature: None,
+            &encrypted_data,
+            counter,
+        ));
+        Self {
+            address: addr,
+            encrypted_data,
+            data_encoding,
+            counter,
+            signature,
         }
     }
 
-    /// Return the current count
-    pub fn count(&self) -> u64 {
+    /// Create a new Scratchpad without provding the secret key
+    /// It is the caller's responsibility to ensure the signature is valid (signs [`Scratchpad::bytes_for_signature`]) and the data is encrypted
+    /// It is recommended to use the [`Scratchpad::new`] method instead when possible
+    pub fn new_with_signature(
+        owner: PublicKey,
+        data_encoding: u64,
+        encrypted_data: Bytes,
+        counter: u64,
+        signature: Signature,
+    ) -> Self {
+        Self {
+            address: ScratchpadAddress::new(owner),
+            encrypted_data,
+            data_encoding,
+            counter,
+            signature,
+        }
+    }
+
+    /// Returns the bytes to sign for the signature
+    pub fn bytes_for_signature(
+        address: ScratchpadAddress,
+        data_encoding: u64,
+        encrypted_data: &Bytes,
+        counter: u64,
+    ) -> Vec<u8> {
+        let mut bytes_to_sign = data_encoding.to_be_bytes().to_vec();
+        bytes_to_sign.extend(address.to_hex().as_bytes());
+        bytes_to_sign.extend(counter.to_be_bytes().to_vec());
+        bytes_to_sign.extend(encrypted_data.to_vec());
+        bytes_to_sign
+    }
+
+    /// Get the counter of the Scratchpad, the higher the counter, the more recent the Scratchpad is
+    /// Similarly to counter CRDTs only the latest version (highest counter) of the Scratchpad is kept on the network
+    pub fn counter(&self) -> u64 {
         self.counter
     }
 
@@ -57,43 +108,32 @@ impl Scratchpad {
         self.data_encoding
     }
 
-    /// Increments the counter value.
-    pub fn increment(&mut self) -> u64 {
+    /// Updates the content and encrypts it, increments the counter, re-signs the scratchpad
+    pub fn update(&mut self, unencrypted_data: &Bytes, sk: &SecretKey) {
         self.counter += 1;
-
-        self.counter
-    }
-
-    /// Returns the next counter value,
-    ///
-    /// Encrypts data and updates the signature with provided sk
-    pub fn update_and_sign(&mut self, unencrypted_data: Bytes, sk: &SecretKey) -> u64 {
-        let next_count = self.increment();
-
         let pk = self.owner();
-
+        let address = ScratchpadAddress::new(*pk);
         self.encrypted_data = Bytes::from(pk.encrypt(unencrypted_data).to_bytes());
 
-        let encrypted_data_xorname = self.encrypted_data_hash().to_vec();
-
-        let mut bytes_to_sign = self.counter.to_be_bytes().to_vec();
-        bytes_to_sign.extend(encrypted_data_xorname);
-
-        self.signature = Some(sk.sign(&bytes_to_sign));
-        next_count
+        let bytes_to_sign = Self::bytes_for_signature(
+            address,
+            self.data_encoding,
+            &self.encrypted_data,
+            self.counter,
+        );
+        self.signature = sk.sign(&bytes_to_sign);
+        debug_assert!(self.verify_signature(), "Must be valid after being signed. This is a bug, please report it by opening an issue on our github");
     }
 
-    /// Verifies the signature and content of the scratchpad are valid for the
-    /// owner's public key.
-    pub fn is_valid(&self) -> bool {
-        if let Some(signature) = &self.signature {
-            let mut signing_bytes = self.counter.to_be_bytes().to_vec();
-            signing_bytes.extend(self.encrypted_data_hash().to_vec()); // add the count
-
-            self.owner().verify(signature, &signing_bytes)
-        } else {
-            false
-        }
+    /// Verifies that the Scratchpad signature is valid
+    pub fn verify_signature(&self) -> bool {
+        let signing_bytes = Self::bytes_for_signature(
+            self.address,
+            self.data_encoding,
+            &self.encrypted_data,
+            self.counter,
+        );
+        self.owner().verify(&self.signature, &signing_bytes)
     }
 
     /// Returns the encrypted_data.
@@ -140,6 +180,16 @@ impl Scratchpad {
     pub fn payload_size(&self) -> usize {
         self.encrypted_data.len()
     }
+
+    /// Size of the scratchpad
+    pub fn size(&self) -> usize {
+        size_of::<Scratchpad>() + self.payload_size()
+    }
+
+    /// Returns true if the scratchpad is too big
+    pub fn is_too_big(&self) -> bool {
+        self.size() > Self::MAX_SIZE
+    }
 }
 
 #[cfg(test)]
@@ -147,11 +197,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_scratchpad_is_valid() {
+    fn test_scratchpad_sig_and_update() {
         let sk = SecretKey::random();
-        let pk = sk.public_key();
-        let mut scratchpad = Scratchpad::new(pk, 42);
-        scratchpad.update_and_sign(Bytes::from_static(b"data to be encrypted"), &sk);
-        assert!(scratchpad.is_valid());
+        let raw_data = Bytes::from_static(b"data to be encrypted");
+        let mut scratchpad = Scratchpad::new(&sk, 42, &raw_data, 0);
+        assert!(scratchpad.verify_signature());
+        assert_eq!(scratchpad.counter(), 0);
+        assert_ne!(scratchpad.encrypted_data(), &raw_data);
+
+        let raw_data2 = Bytes::from_static(b"data to be encrypted v2");
+        scratchpad.update(&raw_data2, &sk);
+        assert!(scratchpad.verify_signature());
+        assert_eq!(scratchpad.counter(), 1);
+        assert_ne!(scratchpad.encrypted_data(), &raw_data);
+        assert_ne!(scratchpad.encrypted_data(), &raw_data2);
+    }
+
+    #[test]
+    fn test_scratchpad_encryption() {
+        let sk = SecretKey::random();
+        let raw_data = Bytes::from_static(b"data to be encrypted");
+        let scratchpad = Scratchpad::new(&sk, 42, &raw_data, 0);
+
+        let decrypted_data = scratchpad.decrypt_data(&sk).unwrap();
+        assert_eq!(decrypted_data, raw_data);
     }
 }

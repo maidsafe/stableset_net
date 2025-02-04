@@ -6,10 +6,9 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::client::payment::PaymentOption;
-use crate::client::PutError;
+use crate::client::payment::{PayError, PaymentOption};
 use crate::{client::quote::CostError, Client};
-use ant_evm::{Amount, AttoTokens};
+use crate::{Amount, AttoTokens};
 use ant_networking::{GetRecordCfg, GetRecordError, NetworkError, PutRecordCfg, VerificationKind};
 use ant_protocol::storage::{try_serialize_record, RecordKind, RetryStrategy};
 use ant_protocol::{
@@ -19,17 +18,33 @@ use ant_protocol::{
 use libp2p::kad::{Quorum, Record};
 use std::collections::HashSet;
 
+pub use crate::Bytes;
 pub use ant_protocol::storage::{Scratchpad, ScratchpadAddress};
-pub use bls::{PublicKey, SecretKey};
+pub use bls::{PublicKey, SecretKey, Signature};
 
+const SCRATCHPAD_MAX_SIZE: usize = Scratchpad::MAX_SIZE;
+
+/// Errors that can occur when dealing with Scratchpads
 #[derive(Debug, thiserror::Error)]
 pub enum ScratchpadError {
+    #[error("Payment failure occurred during scratchpad creation.")]
+    Pay(#[from] PayError),
     #[error("Scratchpad found at {0:?} was not a valid record.")]
     CouldNotDeserializeScratchPad(ScratchpadAddress),
     #[error("Network: {0}")]
     Network(#[from] NetworkError),
     #[error("Scratchpad not found")]
     Missing,
+    #[error("Serialization error")]
+    Serialization,
+    #[error("Scratchpad already exists at this address: {0:?}")]
+    ScratchpadAlreadyExists(ScratchpadAddress),
+    #[error("Scratchpad cannot be updated as it does not exist, please create it first or wait for it to be created")]
+    CannotUpdateNewScratchpad,
+    #[error("Scratchpad size is too big: {0} > {SCRATCHPAD_MAX_SIZE}")]
+    ScratchpadTooBig(usize),
+    #[error("Scratchpad signature is not valid")]
+    BadSignature,
 }
 
 impl Client {
@@ -79,14 +94,14 @@ impl Client {
                     .map_err(|_| ScratchpadError::CouldNotDeserializeScratchPad(*address))?;
 
                 // take the latest versions
-                pads.sort_by_key(|s| s.count());
-                let max_version = pads.last().map(|p| p.count()).unwrap_or_else(|| {
+                pads.sort_by_key(|s| s.counter());
+                let max_version = pads.last().map(|p| p.counter()).unwrap_or_else(|| {
                     error!("Got empty scratchpad vector for {scratch_key:?}");
                     u64::MAX
                 });
                 let latest_pads: Vec<_> = pads
                     .into_iter()
-                    .filter(|s| s.count() == max_version)
+                    .filter(|s| s.counter() == max_version)
                     .collect();
 
                 // make sure we only have one of latest version
@@ -109,173 +124,240 @@ impl Client {
             }
         };
 
+        Self::scratchpad_verify(&pad)?;
         Ok(pad)
     }
 
-    /// Returns the latest found version of the scratchpad for that secret key
-    /// If none is found, it creates a new one locally
-    /// Note that is does not upload that new scratchpad to the network, one would need to call [`Self::scratchpad_create`] to do so
-    /// Returns the scratchpad along with a boolean indicating if that scratchpad is new or not
-    pub async fn get_or_create_scratchpad(
+    /// Check if a scratchpad exists on the network
+    pub async fn scratchpad_check_existance(
         &self,
-        public_key: &PublicKey,
-        content_type: u64,
-    ) -> Result<(Scratchpad, bool), PutError> {
-        let pad_res = self.scratchpad_get_from_public_key(public_key).await;
-        let mut is_new = true;
-
-        let scratch = if let Ok(existing_data) = pad_res {
-            info!("Scratchpad already exists, returning existing data");
-
-            info!(
-                "scratch already exists, is version {:?}",
-                existing_data.count()
-            );
-
-            is_new = false;
-
-            if existing_data.owner() != public_key {
-                return Err(PutError::ScratchpadBadOwner);
-            }
-
-            existing_data
-        } else {
-            trace!("new scratchpad creation");
-            Scratchpad::new(*public_key, content_type)
+        address: &ScratchpadAddress,
+    ) -> Result<bool, ScratchpadError> {
+        let key = NetworkAddress::from_scratchpad_address(*address).to_record_key();
+        debug!("Checking scratchpad existance at: {key:?}");
+        let get_cfg = GetRecordCfg {
+            get_quorum: Quorum::Majority,
+            retry_strategy: Some(RetryStrategy::None),
+            target_record: None,
+            expected_holders: Default::default(),
         };
 
-        Ok((scratch, is_new))
+        match self
+            .network
+            .get_record_from_network(key.clone(), &get_cfg)
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(NetworkError::GetRecordError(GetRecordError::SplitRecord { .. })) => Ok(true),
+            Err(NetworkError::GetRecordError(GetRecordError::RecordNotFound)) => Ok(false),
+            Err(err) => Err(ScratchpadError::Network(err))
+                .inspect_err(|err| error!("Error checking scratchpad existance: {err:?}")),
+        }
     }
 
-    /// Create a new scratchpad to the network
-    /// Returns the cost of the scratchpad and the address of the scratchpad
-    pub async fn scratchpad_create(
+    /// Verify a scratchpad
+    pub fn scratchpad_verify(scratchpad: &Scratchpad) -> Result<(), ScratchpadError> {
+        if !scratchpad.verify_signature() {
+            return Err(ScratchpadError::BadSignature);
+        }
+        if scratchpad.is_too_big() {
+            return Err(ScratchpadError::ScratchpadTooBig(scratchpad.size()));
+        }
+        Ok(())
+    }
+
+    /// Manually store a scratchpad on the network
+    pub async fn scratchpad_put(
         &self,
         scratchpad: Scratchpad,
         payment_option: PaymentOption,
-    ) -> Result<(AttoTokens, ScratchpadAddress), PutError> {
-        let scratch_address = scratchpad.network_address();
-        let address = *scratchpad.address();
-        let scratch_key = scratch_address.to_record_key();
+    ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
+        let address = scratchpad.address();
+        Self::scratchpad_verify(&scratchpad)?;
 
         // pay for the scratchpad
-        let (receipt, _skipped_payments) = self
+        let xor_name = address.xorname();
+        debug!("Paying for scratchpad at address: {address:?}");
+        let (payment_proofs, _skipped_payments) = self
             .pay_for_content_addrs(
-                DataTypes::Scratchpad.get_index(),
-                std::iter::once((scratchpad.xorname(), scratchpad.payload_size())),
+                DataTypes::Scratchpad,
+                std::iter::once((xor_name, scratchpad.size())),
                 payment_option,
             )
             .await
             .inspect_err(|err| {
-                error!("Failed to pay for new scratchpad at addr: {scratch_address:?} : {err}");
+                error!("Failed to pay for scratchpad at address: {address:?} : {err}")
             })?;
 
-        let (proof, price) = match receipt.values().next() {
-            Some(proof) => proof,
-            None => return Err(PutError::PaymentUnexpectedlyInvalid(scratch_address)),
+        // verify payment was successful
+        let (proof, price) = match payment_proofs.get(&xor_name) {
+            Some((proof, price)) => (Some(proof), price),
+            None => {
+                info!("Scratchpad at address: {address:?} was already paid for, update is free");
+                (None, &AttoTokens::zero())
+            }
         };
         let total_cost = *price;
 
-        let record = Record {
-            key: scratch_key,
-            value: try_serialize_record(
-                &(proof, scratchpad),
-                RecordKind::DataWithPayment(DataTypes::Scratchpad),
-            )
-            .map_err(|_| {
-                PutError::Serialization("Failed to serialize scratchpad with payment".to_string())
-            })?
-            .to_vec(),
-            publisher: None,
-            expires: None,
+        let net_addr = NetworkAddress::from_scratchpad_address(*address);
+        let (record, payees) = if let Some(proof) = proof {
+            let payees = Some(proof.payees());
+            let record = Record {
+                key: net_addr.to_record_key(),
+                value: try_serialize_record(
+                    &(proof, &scratchpad),
+                    RecordKind::DataWithPayment(DataTypes::Scratchpad),
+                )
+                .map_err(|_| ScratchpadError::Serialization)?
+                .to_vec(),
+                publisher: None,
+                expires: None,
+            };
+            (record, payees)
+        } else {
+            let record = Record {
+                key: net_addr.to_record_key(),
+                value: try_serialize_record(
+                    &scratchpad,
+                    RecordKind::DataOnly(DataTypes::Scratchpad),
+                )
+                .map_err(|_| ScratchpadError::Serialization)?
+                .to_vec(),
+                publisher: None,
+                expires: None,
+            };
+            (record, None)
+        };
+
+        let get_cfg = GetRecordCfg {
+            get_quorum: Quorum::Majority,
+            retry_strategy: Some(RetryStrategy::default()),
+            target_record: None,
+            expected_holders: Default::default(),
         };
 
         let put_cfg = PutRecordCfg {
-            put_quorum: Quorum::Majority,
-            retry_strategy: Some(RetryStrategy::Balanced),
-            use_put_record_to: None,
-            verification: Some((
-                VerificationKind::Crdt,
-                GetRecordCfg {
-                    get_quorum: Quorum::Majority,
-                    retry_strategy: None,
-                    target_record: None,
-                    expected_holders: HashSet::new(),
-                },
-            )),
+            put_quorum: Quorum::All,
+            retry_strategy: None,
+            verification: Some((VerificationKind::Crdt, get_cfg)),
+            use_put_record_to: payees,
         };
 
-        debug!("Put record - scratchpad at {scratch_address:?} to the network");
+        // store the scratchpad on the network
+        debug!("Storing scratchpad at address {address:?} to the network");
         self.network
             .put_record(record, &put_cfg)
             .await
             .inspect_err(|err| {
-                error!(
-                    "Failed to put scratchpad {scratch_address:?} to the network with err: {err:?}"
-                )
+                error!("Failed to put record - scratchpad {address:?} to the network: {err}")
             })?;
 
-        Ok((total_cost, address))
+        Ok((total_cost, *address))
+    }
+
+    /// Create a new scratchpad to the network
+    /// Make sure that the owner key is not already used for another scratchpad as each key is associated with one scratchpad
+    /// The data will be encrypted with the owner key before being stored on the network
+    /// The content type is used to identify the type of data stored in the scratchpad, the choice is up to the caller
+    /// Returns the cost and the address of the scratchpad
+    pub async fn scratchpad_create(
+        &self,
+        owner: &SecretKey,
+        content_type: u64,
+        initial_data: &Bytes,
+        payment_option: PaymentOption,
+    ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
+        let address = ScratchpadAddress::new(owner.public_key());
+        let already_exists = self.scratchpad_check_existance(&address).await?;
+        if already_exists {
+            return Err(ScratchpadError::ScratchpadAlreadyExists(address));
+        }
+
+        let counter = 0;
+        let scratchpad = Scratchpad::new(owner, content_type, initial_data, counter);
+        self.scratchpad_put(scratchpad, payment_option).await
     }
 
     /// Update an existing scratchpad to the network
     /// This operation is free but requires the scratchpad to be already created on the network
-    /// Only the latest version of the scratchpad is kept, make sure to update the scratchpad counter before calling this function
-    /// The method [`Scratchpad::update_and_sign`] should be used before calling this function to send the scratchpad to the network
-    pub async fn scratchpad_update(&self, scratchpad: Scratchpad) -> Result<(), PutError> {
-        let scratch_address = scratchpad.network_address();
-        let scratch_key = scratch_address.to_record_key();
-
-        let put_cfg = PutRecordCfg {
-            put_quorum: Quorum::Majority,
-            retry_strategy: Some(RetryStrategy::Balanced),
-            use_put_record_to: None,
-            verification: Some((
-                VerificationKind::Crdt,
-                GetRecordCfg {
-                    get_quorum: Quorum::Majority,
-                    retry_strategy: None,
-                    target_record: None,
-                    expected_holders: HashSet::new(),
-                },
-            )),
+    /// Only the latest version of the scratchpad is kept on the Network, previous versions will be overwritten and unrecoverable
+    pub async fn scratchpad_update(
+        &self,
+        owner: &SecretKey,
+        content_type: u64,
+        data: &Bytes,
+    ) -> Result<(), ScratchpadError> {
+        let address = ScratchpadAddress::new(owner.public_key());
+        let current = match self.scratchpad_get(&address).await {
+            Ok(scratchpad) => Some(scratchpad),
+            Err(ScratchpadError::Network(NetworkError::GetRecordError(
+                GetRecordError::RecordNotFound,
+            ))) => None,
+            Err(ScratchpadError::Network(NetworkError::GetRecordError(
+                GetRecordError::SplitRecord { result_map },
+            ))) => result_map
+                .values()
+                .filter_map(|(record, _)| try_deserialize_record::<Scratchpad>(record).ok())
+                .max_by_key(|scratchpad: &Scratchpad| scratchpad.counter()),
+            Err(err) => {
+                return Err(err);
+            }
         };
 
+        let scratchpad = if let Some(p) = current {
+            let version = p.counter() + 1;
+            Scratchpad::new(owner, content_type, data, version)
+        } else {
+            warn!("Scratchpad at address {address:?} cannot be updated as it does not exist, please create it first or wait for it to be created");
+            return Err(ScratchpadError::CannotUpdateNewScratchpad);
+        };
+
+        // make sure the scratchpad is valid
+        Self::scratchpad_verify(&scratchpad)?;
+
+        // prepare the record to be stored
         let record = Record {
-            key: scratch_key,
+            key: NetworkAddress::from_scratchpad_address(address).to_record_key(),
             value: try_serialize_record(&scratchpad, RecordKind::DataOnly(DataTypes::Scratchpad))
-                .map_err(|_| PutError::Serialization("Failed to serialize scratchpad".to_string()))?
+                .map_err(|_| ScratchpadError::Serialization)?
                 .to_vec(),
             publisher: None,
             expires: None,
         };
+        let get_cfg = GetRecordCfg {
+            get_quorum: Quorum::Majority,
+            retry_strategy: Some(RetryStrategy::default()),
+            target_record: None,
+            expected_holders: Default::default(),
+        };
+        let put_cfg = PutRecordCfg {
+            put_quorum: Quorum::All,
+            retry_strategy: None,
+            verification: Some((VerificationKind::Crdt, get_cfg)),
+            use_put_record_to: None,
+        };
 
-        debug!("Put record - scratchpad at {scratch_address:?} to the network");
+        // store the scratchpad on the network
+        debug!("Updating scratchpad at address {address:?} to the network");
         self.network
             .put_record(record, &put_cfg)
             .await
             .inspect_err(|err| {
-                error!(
-                    "Failed to put scratchpad {scratch_address:?} to the network with err: {err:?}"
-                )
+                error!("Failed to update scratchpad at address {address:?} to the network: {err}")
             })?;
 
         Ok(())
     }
 
     /// Get the cost of creating a new Scratchpad
-    pub async fn scratchpad_cost(&self, owner: &SecretKey) -> Result<AttoTokens, CostError> {
+    pub async fn scratchpad_cost(&self, owner: &PublicKey) -> Result<AttoTokens, CostError> {
         info!("Getting cost for scratchpad");
-        let client_pk = owner.public_key();
-        let content_type = Default::default();
-        let scratch = Scratchpad::new(client_pk, content_type);
-        let scratch_xor = scratch.address().xorname();
+        let scratch_xor = ScratchpadAddress::new(*owner).xorname();
 
-        // TODO: define default size of Scratchpad
         let store_quote = self
             .get_store_quotes(
-                DataTypes::Scratchpad.get_index(),
-                std::iter::once((scratch_xor, 256)),
+                DataTypes::Scratchpad,
+                std::iter::once((scratch_xor, SCRATCHPAD_MAX_SIZE)),
             )
             .await?;
 

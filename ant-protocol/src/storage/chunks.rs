@@ -53,11 +53,6 @@ impl Chunk {
         self.address.xorname()
     }
 
-    /// Returns size of contained value.
-    pub fn payload_size(&self) -> usize {
-        self.value.len()
-    }
-
     /// Returns size of this chunk after serialisation.
     pub fn serialised_size(&self) -> usize {
         self.value.len()

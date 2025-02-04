@@ -1,3 +1,4 @@
+use crate::client::quote::DataTypes;
 use crate::client::PutError;
 use crate::self_encryption::encrypt;
 use crate::Client;
@@ -17,7 +18,7 @@ impl Client {
     /// Returns a cost map, data payments to be executed and a list of free (already paid for) chunks.
     pub async fn get_quotes_for_content_addresses(
         &self,
-        data_type: u32,
+        data_type: DataTypes,
         content_addrs: impl Iterator<Item = (XorName, usize)> + Clone,
     ) -> Result<
         (

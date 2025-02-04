@@ -7,13 +7,17 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::client::payment::PayError;
+use crate::client::payment::PaymentOption;
 use crate::client::quote::CostError;
 use crate::client::Client;
 use crate::client::ClientEvent;
 use crate::client::UploadSummary;
 
-use ant_evm::{Amount, AttoTokens, EvmWallet, EvmWalletError};
+use ant_evm::{Amount, AttoTokens, EvmWalletError};
+use ant_networking::get_graph_entry_from_record;
+use ant_networking::GetRecordError;
 use ant_networking::{GetRecordCfg, NetworkError, PutRecordCfg, VerificationKind};
+use ant_protocol::PrettyPrintRecordKey;
 use ant_protocol::{
     storage::{try_serialize_record, DataTypes, RecordKind, RetryStrategy},
     NetworkAddress,
@@ -21,9 +25,8 @@ use ant_protocol::{
 use bls::PublicKey;
 use libp2p::kad::{Quorum, Record};
 
-pub use ant_protocol::storage::GraphEntry;
-pub use ant_protocol::storage::GraphEntryAddress;
-pub use bls::SecretKey;
+pub use crate::SecretKey;
+pub use ant_protocol::storage::{GraphContent, GraphEntry, GraphEntryAddress};
 
 #[derive(Debug, thiserror::Error)]
 pub enum GraphError {
@@ -53,18 +56,61 @@ impl Client {
         &self,
         address: GraphEntryAddress,
     ) -> Result<GraphEntry, GraphError> {
-        let graph_entries = self.network.get_graph_entry(address).await?;
+        let key = NetworkAddress::from_graph_entry_address(address).to_record_key();
+        let get_cfg = GetRecordCfg {
+            get_quorum: Quorum::All,
+            retry_strategy: Some(RetryStrategy::Quick),
+            target_record: None,
+            expected_holders: Default::default(),
+        };
+        let record = self
+            .network
+            .get_record_from_network(key.clone(), &get_cfg)
+            .await?;
+        debug!(
+            "Got record from the network, {:?}",
+            PrettyPrintRecordKey::from(&record.key)
+        );
+
+        let graph_entries = get_graph_entry_from_record(&record)?;
         match &graph_entries[..] {
             [entry] => Ok(entry.clone()),
             multiple => Err(GraphError::Fork(multiple.to_vec())),
         }
     }
 
-    /// Puts a GraphEntry to the network.
+    /// Check if a graph_entry exists on the network
+    pub async fn graph_entry_check_existance(
+        &self,
+        address: &GraphEntryAddress,
+    ) -> Result<bool, GraphError> {
+        let key = NetworkAddress::from_graph_entry_address(*address).to_record_key();
+        debug!("Checking graph_entry existance at: {key:?}");
+        let get_cfg = GetRecordCfg {
+            get_quorum: Quorum::Majority,
+            retry_strategy: Some(RetryStrategy::None),
+            target_record: None,
+            expected_holders: Default::default(),
+        };
+
+        match self
+            .network
+            .get_record_from_network(key.clone(), &get_cfg)
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(NetworkError::GetRecordError(GetRecordError::SplitRecord { .. })) => Ok(true),
+            Err(NetworkError::GetRecordError(GetRecordError::RecordNotFound)) => Ok(false),
+            Err(err) => Err(GraphError::Network(err))
+                .inspect_err(|err| error!("Error checking graph_entry existance: {err:?}")),
+        }
+    }
+
+    /// Manually puts a GraphEntry to the network.
     pub async fn graph_entry_put(
         &self,
         entry: GraphEntry,
-        wallet: &EvmWallet,
+        payment_option: PaymentOption,
     ) -> Result<(AttoTokens, GraphEntryAddress), GraphError> {
         let address = entry.address();
 
@@ -72,10 +118,10 @@ impl Client {
         let xor_name = address.xorname();
         debug!("Paying for graph entry at address: {address:?}");
         let (payment_proofs, skipped_payments) = self
-            .pay(
-                DataTypes::GraphEntry.get_index(),
-                std::iter::once((*xor_name, entry.bytes_for_signature().len())),
-                wallet,
+            .pay_for_content_addrs(
+                DataTypes::GraphEntry,
+                std::iter::once((*xor_name, entry.size())),
+                payment_option,
             )
             .await
             .inspect_err(|err| {
@@ -144,15 +190,14 @@ impl Client {
     }
 
     /// Get the cost to create a GraphEntry
-    pub async fn graph_entry_cost(&self, key: PublicKey) -> Result<AttoTokens, GraphError> {
+    pub async fn graph_entry_cost(&self, key: &PublicKey) -> Result<AttoTokens, CostError> {
         trace!("Getting cost for GraphEntry of {key:?}");
-        let address = GraphEntryAddress::from_owner(key);
+        let address = GraphEntryAddress::from_owner(*key);
         let xor = *address.xorname();
-        // TODO: define default size of GraphEntry
         let store_quote = self
             .get_store_quotes(
-                DataTypes::GraphEntry.get_index(),
-                std::iter::once((xor, 512)),
+                DataTypes::GraphEntry,
+                std::iter::once((xor, GraphEntry::MAX_SIZE)),
             )
             .await?;
         let total_cost = AttoTokens::from_atto(

@@ -27,7 +27,7 @@ pub enum KeyDecodeError {
 /// from a MainPubkey, and the corresponding
 /// DerivedSecretKey from the MainSecretKey of that MainPubkey.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Hash)]
-pub struct DerivationIndex(pub [u8; 32]);
+pub struct DerivationIndex([u8; 32]);
 
 impl fmt::Debug for DerivationIndex {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -51,6 +51,16 @@ impl DerivationIndex {
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
+
+    /// returns the inner bytes
+    pub fn into_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    /// Create a new DerivationIndex from a bytes array
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
 }
 
 /// A public key derived from a [`MainPubkey`] using a [`DerivationIndex`]
@@ -71,10 +81,6 @@ impl DerivedPubkey {
     /// Returns `true` if the signature matches the message.
     pub fn verify<M: AsRef<[u8]>>(&self, sig: &bls::Signature, msg: M) -> bool {
         self.0.verify(sig, msg)
-    }
-
-    pub fn public_key(&self) -> PublicKey {
-        self.0
     }
 
     pub fn to_hex(&self) -> String {
@@ -133,13 +139,8 @@ impl DerivedSecretKey {
     }
 
     /// The [`DerivedPubkey`] of this [`DerivedSecretKey`]
-    pub fn unique_pubkey(&self) -> DerivedPubkey {
+    pub fn public_key(&self) -> DerivedPubkey {
         DerivedPubkey(self.0.public_key())
-    }
-
-    /// Return the inner secret key
-    pub fn secret_key(&self) -> SecretKey {
-        self.0.inner().to_owned()
     }
 
     /// Sign a message with the secret key
@@ -165,18 +166,13 @@ impl MainPubkey {
     }
 
     /// Generate a new [`DerivedPubkey`] from provided [`DerivationIndex`].
-    pub fn new_unique_pubkey(&self, index: &DerivationIndex) -> DerivedPubkey {
+    pub fn derive_key(&self, index: &DerivationIndex) -> DerivedPubkey {
         DerivedPubkey(self.0.derive_child(&index.0))
     }
 
     /// Return the inner pubkey's bytes representation
     pub fn to_bytes(self) -> [u8; PK_SIZE] {
         self.0.to_bytes()
-    }
-
-    /// Return the inner pubkey
-    pub fn public_key(&self) -> PublicKey {
-        self.0
     }
 
     /// Return a hex representation of the [`MainPubkey`]
@@ -200,6 +196,7 @@ impl std::fmt::Debug for MainPubkey {
 /// The secret key of the [`MainPubkey`]
 /// It is held privately and not shared with anyone
 /// With this [`MainSecretKey`], new [`DerivedSecretKey`]:[`DerivedPubkey`] pairs can be generated
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MainSecretKey(SerdeSecret<SecretKey>);
 
 impl MainSecretKey {
@@ -209,7 +206,7 @@ impl MainSecretKey {
     }
 
     /// Return the matching [`MainPubkey`]
-    pub fn main_pubkey(&self) -> MainPubkey {
+    pub fn public_key(&self) -> MainPubkey {
         MainPubkey(self.0.public_key())
     }
 
@@ -252,6 +249,50 @@ fn bls_public_from_hex<T: AsRef<[u8]>>(hex: T) -> Result<PublicKey, KeyDecodeErr
     Ok(pk)
 }
 
+// conversions to bls types
+impl From<MainSecretKey> for SecretKey {
+    fn from(main_secret_key: MainSecretKey) -> Self {
+        main_secret_key.0.inner().to_owned()
+    }
+}
+impl From<DerivedSecretKey> for SecretKey {
+    fn from(derived_secret_key: DerivedSecretKey) -> Self {
+        derived_secret_key.0.inner().to_owned()
+    }
+}
+impl From<DerivedPubkey> for PublicKey {
+    fn from(derived_pubkey: DerivedPubkey) -> Self {
+        derived_pubkey.0
+    }
+}
+impl From<MainPubkey> for PublicKey {
+    fn from(main_pubkey: MainPubkey) -> Self {
+        main_pubkey.0
+    }
+}
+
+// conversions from bls types
+impl From<SecretKey> for MainSecretKey {
+    fn from(secret_key: SecretKey) -> Self {
+        MainSecretKey::new(secret_key)
+    }
+}
+impl From<SecretKey> for DerivedSecretKey {
+    fn from(secret_key: SecretKey) -> Self {
+        DerivedSecretKey::new(secret_key)
+    }
+}
+impl From<PublicKey> for MainPubkey {
+    fn from(public_key: PublicKey) -> Self {
+        MainPubkey::new(public_key)
+    }
+}
+impl From<PublicKey> for DerivedPubkey {
+    fn from(public_key: PublicKey) -> Self {
+        DerivedPubkey::new(public_key)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -262,7 +303,7 @@ mod tests {
         let pk = sk.public_key();
         let main_pubkey = MainPubkey::new(pk);
         let unique_pubkey =
-            main_pubkey.new_unique_pubkey(&DerivationIndex::random(&mut rand::thread_rng()));
+            main_pubkey.derive_key(&DerivationIndex::random(&mut rand::thread_rng()));
 
         let main_pubkey_hex = main_pubkey.to_hex();
         let unique_pubkey_hex = unique_pubkey.to_hex();
@@ -279,8 +320,7 @@ mod tests {
     fn test_serialisation() -> eyre::Result<()> {
         let pk = SecretKey::random().public_key();
         let main_pubkey = MainPubkey::new(pk);
-        let unique_pk =
-            main_pubkey.new_unique_pubkey(&DerivationIndex::random(&mut rand::thread_rng()));
+        let unique_pk = main_pubkey.derive_key(&DerivationIndex::random(&mut rand::thread_rng()));
 
         let str_serialised = rmp_serde::to_vec_named(&unique_pk)?;
         let str_deserialised: DerivedPubkey = rmp_serde::from_slice(&str_serialised)?;
@@ -297,13 +337,13 @@ mod tests {
 
         // Signature signed by parent key can not be verified by the child key.
         let signature = main_sk.sign(msg);
-        assert!(main_sk.main_pubkey().verify(&signature, msg));
-        assert!(!derived_sk.unique_pubkey().verify(&signature, msg));
+        assert!(main_sk.public_key().verify(&signature, msg));
+        assert!(!derived_sk.public_key().verify(&signature, msg));
 
         // Signature signed by child key can not be verified by the parent key.
         let signature = derived_sk.sign(msg);
-        assert!(derived_sk.unique_pubkey().verify(&signature, msg));
-        assert!(!main_sk.main_pubkey().verify(&signature, msg));
+        assert!(derived_sk.public_key().verify(&signature, msg));
+        assert!(!main_sk.public_key().verify(&signature, msg));
 
         Ok(())
     }

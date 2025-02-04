@@ -17,31 +17,49 @@ pub use bls::{PublicKey, Signature};
 pub type GraphContent = [u8; 32];
 
 /// A generic GraphEntry on the Network
+/// Graph entries are stored at the owner's public key. Note that there can only be one graph entry per owner.
+/// Graph entries can be linked to other graph entries as parents or descendants.
+/// Applications are free to define the meaning of these links, those are not enforced by the protocol.
+/// The protocol only ensures that the graph entry is immutable once uploaded and that the signature is valid and matches the owner.
+/// For convenience it is advised to make use of BLS key derivation to create multiple graph entries from a single key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, Ord, PartialOrd)]
 pub struct GraphEntry {
+    /// The owner of the graph. Note that graph entries are stored at the owner's public key
     pub owner: PublicKey,
+    /// Other graph entries that this graph entry refers to as parents
     pub parents: Vec<PublicKey>,
+    /// The content of the graph entry
     pub content: GraphContent,
-    pub outputs: Vec<(PublicKey, GraphContent)>,
+    /// Other graph entries that this graph entry refers to as descendants/outputs along with some data associated to each one
+    pub descendants: Vec<(PublicKey, GraphContent)>,
     /// signs the above 4 fields with the owners key
     pub signature: Signature,
 }
 
 impl GraphEntry {
+    /// Maximum size of a graph entry: 100KB
+    pub const MAX_SIZE: usize = 100 * 1024;
+
     /// Create a new graph entry, signing it with the provided secret key.
     pub fn new(
-        owner: PublicKey,
+        owner: &SecretKey,
         parents: Vec<PublicKey>,
         content: GraphContent,
-        outputs: Vec<(PublicKey, GraphContent)>,
-        signing_key: &SecretKey,
+        descendants: Vec<(PublicKey, GraphContent)>,
     ) -> Self {
-        let signature = signing_key.sign(Self::bytes_to_sign(&owner, &parents, &content, &outputs));
+        let key = owner;
+        let owner = key.public_key();
+        let signature = key.sign(Self::bytes_to_sign(
+            &owner,
+            &parents,
+            &content,
+            &descendants,
+        ));
         Self {
             owner,
             parents,
             content,
-            outputs,
+            descendants,
             signature,
         }
     }
@@ -51,14 +69,14 @@ impl GraphEntry {
         owner: PublicKey,
         parents: Vec<PublicKey>,
         content: GraphContent,
-        outputs: Vec<(PublicKey, GraphContent)>,
+        descendants: Vec<(PublicKey, GraphContent)>,
         signature: Signature,
     ) -> Self {
         Self {
             owner,
             parents,
             content,
-            outputs,
+            descendants,
             signature,
         }
     }
@@ -68,7 +86,7 @@ impl GraphEntry {
         owner: &PublicKey,
         parents: &[PublicKey],
         content: &[u8],
-        outputs: &[(PublicKey, GraphContent)],
+        descendants: &[(PublicKey, GraphContent)],
     ) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&owner.to_bytes());
@@ -82,9 +100,9 @@ impl GraphEntry {
         );
         bytes.extend_from_slice("content".as_bytes());
         bytes.extend_from_slice(content);
-        bytes.extend_from_slice("outputs".as_bytes());
+        bytes.extend_from_slice("descendants".as_bytes());
         bytes.extend_from_slice(
-            &outputs
+            &descendants
                 .iter()
                 .flat_map(|(p, c)| [&p.to_bytes(), c.as_slice()].concat())
                 .collect::<Vec<_>>(),
@@ -98,11 +116,32 @@ impl GraphEntry {
 
     /// Get the bytes that the signature is calculated from.
     pub fn bytes_for_signature(&self) -> Vec<u8> {
-        Self::bytes_to_sign(&self.owner, &self.parents, &self.content, &self.outputs)
+        Self::bytes_to_sign(&self.owner, &self.parents, &self.content, &self.descendants)
     }
 
-    pub fn verify(&self) -> bool {
+    /// Verify the signature of the graph entry
+    pub fn verify_signature(&self) -> bool {
         self.owner
             .verify(&self.signature, self.bytes_for_signature())
+    }
+
+    /// Size of the graph entry
+    pub fn size(&self) -> usize {
+        size_of::<GraphEntry>()
+            + self
+                .descendants
+                .iter()
+                .map(|(p, c)| p.to_bytes().len() + c.len())
+                .sum::<usize>()
+            + self
+                .parents
+                .iter()
+                .map(|p| p.to_bytes().len())
+                .sum::<usize>()
+    }
+
+    /// Returns true if the graph entry is too big
+    pub fn is_too_big(&self) -> bool {
+        self.size() > Self::MAX_SIZE
     }
 }

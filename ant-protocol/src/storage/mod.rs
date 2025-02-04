@@ -10,8 +10,7 @@ mod address;
 mod chunks;
 mod graph;
 mod header;
-pub mod pointer;
-pub use pointer::{Pointer, PointerTarget};
+mod pointer;
 mod scratchpad;
 
 use core::fmt;
@@ -21,11 +20,12 @@ use std::{num::NonZeroUsize, time::Duration};
 pub use self::{
     address::{ChunkAddress, GraphEntryAddress, PointerAddress, ScratchpadAddress},
     chunks::Chunk,
-    graph::GraphEntry,
+    graph::{GraphContent, GraphEntry},
     header::{
         try_deserialize_record, try_serialize_record, DataTypes, RecordHeader, RecordKind,
         ValidationType,
     },
+    pointer::{Pointer, PointerTarget},
     scratchpad::Scratchpad,
 };
 

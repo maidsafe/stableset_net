@@ -2,8 +2,8 @@ use crate::common::{Address, Amount, Calldata, TxHash};
 use crate::contract::payment_vault::error::Error;
 use crate::contract::payment_vault::interface::IPaymentVault;
 use crate::contract::payment_vault::interface::IPaymentVault::IPaymentVaultInstance;
-use crate::TX_TIMEOUT;
-use alloy::network::{Network, TransactionBuilder};
+use crate::retry::{retry, send_transaction_with_retries};
+use alloy::network::Network;
 use alloy::providers::Provider;
 use alloy::transports::Transport;
 
@@ -35,13 +35,24 @@ where
         metrics: I,
     ) -> Result<Vec<Amount>, Error> {
         let metrics: Vec<_> = metrics.into_iter().map(|v| v.into()).collect();
-        let mut amounts = self.contract.getQuote(metrics.clone()).call().await?.prices;
 
-        // FIXME: temporary logic until the smart contract gets updated
+        debug!("Getting quotes for metrics: {metrics:?}");
+
+        let mut amounts = retry(
+            || async { self.contract.getQuote(metrics.clone()).call().await },
+            "getQuote",
+            None,
+        )
+        .await?
+        .prices;
+
+        // FIXME: temporary logic until the local smart contract gets updated
         if amounts.len() == 1 {
             let value = amounts[0];
             amounts.resize(metrics.len(), value);
         }
+
+        debug!("Returned quotes are: {:?}", amounts);
 
         Ok(amounts)
     }
@@ -51,31 +62,10 @@ where
         &self,
         data_payments: I,
     ) -> Result<TxHash, Error> {
+        debug!("Paying for quotes.");
         let (calldata, to) = self.pay_for_quotes_calldata(data_payments)?;
-
-        let transaction_request = self
-            .contract
-            .provider()
-            .transaction_request()
-            .with_to(to)
-            .with_input(calldata);
-
-        let pending_tx_builder = self
-            .contract
-            .provider()
-            .send_transaction(transaction_request)
+        send_transaction_with_retries(self.contract.provider(), calldata, to, "pay for quotes")
             .await
-            .inspect_err(|err| error!("Error to send_transaction during pay_for_quotes: {err:?}"))?
-            .with_timeout(Some(TX_TIMEOUT));
-
-        let pending_tx_hash = pending_tx_builder.tx_hash();
-        debug!("pay_for_quotes is pending with tx hash: {pending_tx_hash}");
-
-        let tx_hash = pending_tx_builder.watch().await.inspect_err(|err| {
-            error!("Error to watch transaction during pay_for_quotes: {err:?}")
-        })?;
-
-        Ok(tx_hash)
     }
 
     /// Returns the pay for quotes transaction calldata.
@@ -105,12 +95,22 @@ where
             .map(|v| v.into())
             .collect();
 
-        let results = self
-            .contract
-            .verifyPayment(payment_verifications)
-            .call()
-            .await?
-            .verificationResults;
+        debug!("Verifying payments: {payment_verifications:?}");
+
+        let results = retry(
+            || async {
+                self.contract
+                    .verifyPayment(payment_verifications.clone())
+                    .call()
+                    .await
+            },
+            "verifyPayment",
+            None,
+        )
+        .await?
+        .verificationResults;
+
+        debug!("Payment verification results: {:?}", results);
 
         Ok(results)
     }

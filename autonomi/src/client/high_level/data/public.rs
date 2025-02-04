@@ -54,11 +54,7 @@ impl Client {
         // Pay for all chunks + data map chunk
         info!("Paying for {} addresses", xor_names.len());
         let (receipt, skipped_payments) = self
-            .pay_for_content_addrs(
-                DataTypes::Chunk.get_index(),
-                xor_names.into_iter(),
-                payment_option,
-            )
+            .pay_for_content_addrs(DataTypes::Chunk, xor_names.into_iter(), payment_option)
             .await
             .inspect_err(|err| error!("Error paying for data: {err:?}"))?;
 
@@ -127,7 +123,7 @@ impl Client {
         );
 
         let store_quote = self
-            .get_store_quotes(DataTypes::Chunk.get_index(), content_addrs.into_iter())
+            .get_store_quotes(DataTypes::Chunk, content_addrs.into_iter())
             .await
             .inspect_err(|err| error!("Error getting store quotes: {err:?}"))?;
 

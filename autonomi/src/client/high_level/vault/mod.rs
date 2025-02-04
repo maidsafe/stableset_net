@@ -9,13 +9,14 @@
 pub mod key;
 pub mod user_data;
 
+use ant_protocol::storage::ScratchpadAddress;
 pub use key::{derive_vault_key, VaultSecretKey};
 pub use user_data::UserData;
 
 use crate::client::data_types::scratchpad::ScratchpadError;
 use crate::client::payment::PaymentOption;
 use crate::client::quote::CostError;
-use crate::client::{Client, PutError};
+use crate::client::Client;
 use ant_evm::AttoTokens;
 use ant_protocol::Bytes;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -62,7 +63,7 @@ impl Client {
     /// Get the cost of creating a new vault
     pub async fn vault_cost(&self, owner: &VaultSecretKey) -> Result<AttoTokens, CostError> {
         info!("Getting cost for vault");
-        self.scratchpad_cost(owner).await
+        self.scratchpad_cost(&owner.public_key()).await
     }
 
     /// Put data into the client's VaultPacket
@@ -76,27 +77,22 @@ impl Client {
         payment_option: PaymentOption,
         secret_key: &VaultSecretKey,
         content_type: VaultContentType,
-    ) -> Result<AttoTokens, PutError> {
-        let public_key = secret_key.public_key();
-        let (mut scratch, is_new) = self
-            .get_or_create_scratchpad(&public_key, content_type)
-            .await?;
-
-        let _ = scratch.update_and_sign(data, secret_key);
-        debug_assert!(scratch.is_valid(), "Must be valid after being signed. This is a bug, please report it by opening an issue on our github");
-
-        let scratch_address = scratch.network_address();
-
+    ) -> Result<AttoTokens, VaultError> {
+        let scratch_address = ScratchpadAddress::new(secret_key.public_key());
         info!("Writing to vault at {scratch_address:?}");
 
-        let total_cost = if is_new {
-            let (cost, _address) = self.scratchpad_create(scratch, payment_option).await?;
-            cost
-        } else {
-            self.scratchpad_update(scratch).await?;
-            AttoTokens::zero()
-        };
-
-        Ok(total_cost)
+        match self
+            .scratchpad_update(secret_key, content_type, &data)
+            .await
+        {
+            Ok(()) => Ok(AttoTokens::zero()),
+            Err(ScratchpadError::CannotUpdateNewScratchpad) => {
+                let (price, _) = self
+                    .scratchpad_create(secret_key, content_type, &data, payment_option)
+                    .await?;
+                Ok(price)
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 }

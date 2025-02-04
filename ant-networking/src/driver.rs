@@ -546,19 +546,17 @@ impl NetworkBuilder {
         let kademlia = {
             match record_store_cfg {
                 Some(store_cfg) => {
+                    #[cfg(feature = "open-metrics")]
+                    let record_stored_metrics =
+                        metrics_recorder.as_ref().map(|r| r.records_stored.clone());
                     let node_record_store = NodeRecordStore::with_config(
                         peer_id,
                         store_cfg,
                         network_event_sender.clone(),
                         local_swarm_cmd_sender.clone(),
+                        #[cfg(feature = "open-metrics")]
+                        record_stored_metrics,
                     );
-                    #[cfg(feature = "open-metrics")]
-                    let mut node_record_store = node_record_store;
-                    #[cfg(feature = "open-metrics")]
-                    if let Some(metrics_recorder) = &metrics_recorder {
-                        node_record_store = node_record_store
-                            .set_record_count_metric(metrics_recorder.records_stored.clone());
-                    }
 
                     let store = UnifiedRecordStore::Node(node_record_store);
                     debug!("Using Kademlia with NodeRecordStore!");
@@ -636,6 +634,14 @@ impl NetworkBuilder {
         // Enable relay manager for nodes behind home network
         let relay_manager = if !is_client && self.is_behind_home_network {
             let relay_manager = RelayManager::new(peer_id);
+            #[cfg(feature = "open-metrics")]
+            let mut relay_manager = relay_manager;
+            #[cfg(feature = "open-metrics")]
+            if let Some(metrics_recorder) = &metrics_recorder {
+                relay_manager.set_reservation_health_metrics(
+                    metrics_recorder.relay_reservation_health.clone(),
+                );
+            }
             Some(relay_manager)
         } else {
             info!("Relay manager is disabled for this node.");

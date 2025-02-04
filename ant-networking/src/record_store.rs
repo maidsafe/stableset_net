@@ -19,7 +19,7 @@ use aes_gcm_siv::{
 use ant_evm::{QuotingMetrics, U256};
 use ant_protocol::{
     convert_distance_to_u256,
-    storage::{RecordHeader, RecordKind, ValidationType},
+    storage::{DataTypes, RecordHeader, RecordKind, ValidationType},
     NetworkAddress, PrettyPrintRecordKey,
 };
 use hkdf::Hkdf;
@@ -138,7 +138,7 @@ pub struct NodeRecordStore {
     /// The configuration of the store.
     config: NodeRecordStoreConfig,
     /// Main records store remains unchanged for compatibility
-    records: HashMap<Key, (NetworkAddress, ValidationType)>,
+    records: HashMap<Key, (NetworkAddress, ValidationType, DataTypes)>,
     /// Additional index organizing records by distance
     records_by_distance: BTreeMap<U256, Key>,
     /// FIFO simple cache of records to reduce read times
@@ -218,7 +218,7 @@ impl NodeRecordStore {
     fn update_records_from_an_existing_store(
         config: &NodeRecordStoreConfig,
         encryption_details: &(Aes256GcmSiv, [u8; 4]),
-    ) -> HashMap<Key, (NetworkAddress, ValidationType)> {
+    ) -> HashMap<Key, (NetworkAddress, ValidationType, DataTypes)> {
         let process_entry = |entry: &DirEntry| -> _ {
             let path = entry.path();
             if path.is_file() {
@@ -269,11 +269,19 @@ impl NodeRecordStore {
                     }
                 };
 
-                let record_type = match RecordHeader::is_record_of_type_chunk(&record) {
-                    Ok(true) => ValidationType::Chunk,
-                    Ok(false) => {
-                        let xorname_hash = XorName::from_content(&record.value);
-                        ValidationType::NonChunk(xorname_hash)
+                match RecordHeader::get_data_type(&record) {
+                    Ok(data_type) => {
+                        let validate_type = match data_type {
+                            DataTypes::Chunk => ValidationType::Chunk,
+                            _ => {
+                                let xorname_hash = XorName::from_content(&record.value);
+                                ValidationType::NonChunk(xorname_hash)
+                            }
+                        };
+
+                        let address = NetworkAddress::from_record_key(&key);
+                        info!("Existing record {address:?} loaded from: {path:?}");
+                        return Some((key, (address, validate_type, data_type)));
                     }
                     Err(error) => {
                         warn!(
@@ -290,11 +298,7 @@ impl NodeRecordStore {
                         }
                         return None;
                     }
-                };
-
-                let address = NetworkAddress::from_record_key(&key);
-                info!("Existing record loaded: {path:?}");
-                return Some((key, (address, record_type)));
+                }
             }
             None
         };
@@ -348,6 +352,7 @@ impl NodeRecordStore {
         config: NodeRecordStoreConfig,
         network_event_sender: mpsc::Sender<NetworkEvent>,
         swarm_cmd_sender: mpsc::Sender<LocalSwarmCmd>,
+        #[cfg(feature = "open-metrics")] record_count_metric: Option<Gauge>,
     ) -> Self {
         info!("Using encryption_seed of {:?}", config.encryption_seed);
         let encryption_details = derive_aes256gcm_siv_from_seed(&config.encryption_seed);
@@ -370,7 +375,7 @@ impl NodeRecordStore {
 
         // Initialize records_by_distance
         let mut records_by_distance: BTreeMap<U256, Key> = BTreeMap::new();
-        for (key, (addr, _record_type)) in records.iter() {
+        for (key, (addr, _record_type, _data_type)) in records.iter() {
             let distance = convert_distance_to_u256(&local_address.distance(addr));
             let _ = records_by_distance.insert(distance, key.clone());
         }
@@ -386,7 +391,7 @@ impl NodeRecordStore {
             local_swarm_cmd_sender: swarm_cmd_sender,
             responsible_distance_range: None,
             #[cfg(feature = "open-metrics")]
-            record_count_metric: None,
+            record_count_metric,
             received_payment_count,
             encryption_details,
             timestamp,
@@ -397,14 +402,12 @@ impl NodeRecordStore {
 
         record_store.flush_historic_quoting_metrics();
 
-        record_store
-    }
+        #[cfg(feature = "open-metrics")]
+        if let Some(metric) = &record_store.record_count_metric {
+            let _ = metric.set(record_store.records.len() as i64);
+        }
 
-    /// Set the record_count_metric to report the number of records stored to the metrics server
-    #[cfg(feature = "open-metrics")]
-    pub fn set_record_count_metric(mut self, metric: Gauge) -> Self {
-        self.record_count_metric = Some(metric);
-        self
+        record_store
     }
 
     /// Returns the current distance ilog2 (aka bucket) range of CLOSE_GROUP nodes.
@@ -588,26 +591,35 @@ impl NodeRecordStore {
     pub(crate) fn record_addresses(&self) -> HashMap<NetworkAddress, ValidationType> {
         self.records
             .iter()
-            .map(|(_record_key, (addr, record_type))| (addr.clone(), record_type.clone()))
+            .map(|(_record_key, (addr, record_type, _data_type))| {
+                (addr.clone(), record_type.clone())
+            })
             .collect()
     }
 
     /// Returns the reference to the set of `NetworkAddress::RecordKey` held by the store
-    pub(crate) fn record_addresses_ref(&self) -> &HashMap<Key, (NetworkAddress, ValidationType)> {
+    pub(crate) fn record_addresses_ref(
+        &self,
+    ) -> &HashMap<Key, (NetworkAddress, ValidationType, DataTypes)> {
         &self.records
     }
 
     /// The follow up to `put_verified`, this only registers the RecordKey
     /// in the RecordStore records set. After this it should be safe
     /// to return the record as stored.
-    pub(crate) fn mark_as_stored(&mut self, key: Key, record_type: ValidationType) {
+    pub(crate) fn mark_as_stored(
+        &mut self,
+        key: Key,
+        validate_type: ValidationType,
+        data_type: DataTypes,
+    ) {
         let addr = NetworkAddress::from_record_key(&key);
         let distance = self.local_address.distance(&addr);
         let distance_u256 = convert_distance_to_u256(&distance);
 
         // Update main records store
         self.records
-            .insert(key.clone(), (addr.clone(), record_type));
+            .insert(key.clone(), (addr.clone(), validate_type, data_type));
 
         // Update bucket index
         let _ = self.records_by_distance.insert(distance_u256, key.clone());
@@ -686,13 +698,26 @@ impl NodeRecordStore {
         let record_key2 = record_key.clone();
         spawn(async move {
             let key = r.key.clone();
+            let data_type = match RecordHeader::get_data_type(&r) {
+                Ok(data_type) => data_type,
+                Err(err) => {
+                    error!(
+                        "Error get data_type of record {record_key2:?} filename: {filename}, error: {err:?}"
+                    );
+                    return;
+                }
+            };
             if let Some(bytes) = Self::prepare_record_bytes(r, encryption_details) {
                 let cmd = match fs::write(&file_path, bytes) {
                     Ok(_) => {
                         // vdash metric (if modified please notify at https://github.com/happybeing/vdash/issues):
                         info!("Wrote record {record_key2:?} to disk! filename: {filename}");
 
-                        LocalSwarmCmd::AddLocalRecordAsStored { key, record_type }
+                        LocalSwarmCmd::AddLocalRecordAsStored {
+                            key,
+                            record_type,
+                            data_type,
+                        }
                     }
                     Err(err) => {
                         error!(
@@ -719,6 +744,7 @@ impl NodeRecordStore {
         network_size: Option<u64>,
     ) -> (QuotingMetrics, bool) {
         let records_stored = self.records.len();
+        let records_per_type = self.records_per_type();
 
         let live_time = if let Ok(elapsed) = self.timestamp.elapsed() {
             elapsed.as_secs()
@@ -730,6 +756,7 @@ impl NodeRecordStore {
             data_type,
             data_size,
             close_records_stored: records_stored,
+            records_per_type,
             max_records: self.config.max_records,
             received_payment_count: self.received_payment_count,
             live_time,
@@ -779,6 +806,14 @@ impl NodeRecordStore {
     /// Setup the distance range.
     pub(crate) fn set_responsible_distance_range(&mut self, responsible_distance: U256) {
         self.responsible_distance_range = Some(responsible_distance);
+    }
+
+    fn records_per_type(&self) -> Vec<(u32, u32)> {
+        let mut map = BTreeMap::new();
+        for (_, _, data_type) in self.records.values() {
+            *map.entry(data_type.get_index()).or_insert(0) += 1;
+        }
+        map.into_iter().collect()
     }
 }
 
@@ -834,11 +869,15 @@ impl RecordStore for NodeRecordStore {
                         // otherwise shall be passed further to allow different version of nonchunk
                         // to be detected or updated.
                         match self.records.get(&record.key) {
-                            Some((_addr, ValidationType::Chunk)) => {
+                            Some((_addr, ValidationType::Chunk, _data_type)) => {
                                 debug!("Chunk {record_key:?} already exists.");
                                 return Ok(());
                             }
-                            Some((_addr, ValidationType::NonChunk(existing_content_hash))) => {
+                            Some((
+                                _addr,
+                                ValidationType::NonChunk(existing_content_hash),
+                                _data_type,
+                            )) => {
                                 let content_hash = XorName::from_content(&record.value);
                                 if content_hash == *existing_content_hash {
                                     debug!("A non-chunk record {record_key:?} with same content_hash {content_hash:?} already exists.");
@@ -873,7 +912,7 @@ impl RecordStore for NodeRecordStore {
 
     fn remove(&mut self, k: &Key) {
         // Remove from main store
-        if let Some((addr, _)) = self.records.remove(k) {
+        if let Some((addr, _, _)) = self.records.remove(k) {
             let distance = convert_distance_to_u256(&self.local_address.distance(&addr));
             let _ = self.records_by_distance.remove(&distance);
         }
@@ -1048,6 +1087,8 @@ mod tests {
             Default::default(),
             network_event_sender,
             swarm_cmd_sender,
+            #[cfg(feature = "open-metrics")]
+            None,
         );
 
         // An initial unverified put should not write to disk
@@ -1072,7 +1113,7 @@ mod tests {
 
         // We must also mark the record as stored (which would be triggered after the async write in nodes
         // via NetworkEvent::CompletedWrite)
-        store.mark_as_stored(returned_record_key, ValidationType::Chunk);
+        store.mark_as_stored(returned_record_key, ValidationType::Chunk, DataTypes::Chunk);
 
         // loop over store.get max_iterations times to ensure async disk write had time to complete.
         let max_iterations = 10;
@@ -1126,6 +1167,8 @@ mod tests {
             store_config.clone(),
             network_event_sender.clone(),
             swarm_cmd_sender.clone(),
+            #[cfg(feature = "open-metrics")]
+            None,
         );
 
         // Create a chunk
@@ -1149,8 +1192,12 @@ mod tests {
         // Wait for the async write operation to complete
         if let Some(cmd) = swarm_cmd_receiver.recv().await {
             match cmd {
-                LocalSwarmCmd::AddLocalRecordAsStored { key, record_type } => {
-                    store.mark_as_stored(key, record_type);
+                LocalSwarmCmd::AddLocalRecordAsStored {
+                    key,
+                    record_type,
+                    data_type,
+                } => {
+                    store.mark_as_stored(key, record_type, data_type);
                 }
                 _ => panic!("Unexpected command received"),
             }
@@ -1174,6 +1221,8 @@ mod tests {
             store_config,
             new_network_event_sender,
             new_swarm_cmd_sender,
+            #[cfg(feature = "open-metrics")]
+            None,
         );
 
         // Verify the record still exists
@@ -1199,6 +1248,8 @@ mod tests {
             store_config_diff,
             diff_network_event_sender,
             diff_swarm_cmd_sender,
+            #[cfg(feature = "open-metrics")]
+            None,
         );
 
         // When encryption is enabled, the record should be gone because it can't be decrypted
@@ -1227,6 +1278,8 @@ mod tests {
             store_config,
             network_event_sender,
             swarm_cmd_sender,
+            #[cfg(feature = "open-metrics")]
+            None,
         );
 
         // Create a chunk
@@ -1248,7 +1301,7 @@ mod tests {
             .is_ok());
 
         // Mark as stored (simulating the CompletedWrite event)
-        store.mark_as_stored(record.key.clone(), ValidationType::Chunk);
+        store.mark_as_stored(record.key.clone(), ValidationType::Chunk, DataTypes::Chunk);
 
         // Verify the chunk is stored
         let stored_record = store.get(&record.key);
@@ -1291,17 +1344,15 @@ mod tests {
             store_config,
             network_event_sender,
             swarm_cmd_sender,
+            #[cfg(feature = "open-metrics")]
+            None,
         );
 
         // Create a scratchpad
         let unencrypted_scratchpad_data = Bytes::from_static(b"Test scratchpad data");
         let owner_sk = SecretKey::random();
-        let owner_pk = owner_sk.public_key();
 
-        let mut scratchpad = Scratchpad::new(owner_pk, 0);
-
-        let _next_version =
-            scratchpad.update_and_sign(unencrypted_scratchpad_data.clone(), &owner_sk);
+        let scratchpad = Scratchpad::new(&owner_sk, 0, &unencrypted_scratchpad_data, 0);
 
         let scratchpad_address = *scratchpad.address();
 
@@ -1326,6 +1377,7 @@ mod tests {
         store.mark_as_stored(
             record.key.clone(),
             ValidationType::NonChunk(XorName::from_content(&record.value)),
+            DataTypes::Scratchpad,
         );
 
         // Verify the scratchpad is stored
@@ -1385,6 +1437,8 @@ mod tests {
             store_config.clone(),
             network_event_sender,
             swarm_cmd_sender,
+            #[cfg(feature = "open-metrics")]
+            None,
         );
         // keep track of everything ever stored, to check missing at the end are further away
         let mut stored_records_at_some_point: Vec<RecordKey> = vec![];
@@ -1420,7 +1474,7 @@ mod tests {
             } else {
                 // We must also mark the record as stored (which would be triggered
                 // after the async write in nodes via NetworkEvent::CompletedWrite)
-                store.mark_as_stored(record_key.clone(), ValidationType::Chunk);
+                store.mark_as_stored(record_key.clone(), ValidationType::Chunk, DataTypes::Chunk);
 
                 println!("success sotred len: {:?} ", store.record_addresses().len());
                 stored_records_at_some_point.push(record_key.clone());
@@ -1509,6 +1563,8 @@ mod tests {
             store_config,
             network_event_sender,
             swarm_cmd_sender,
+            #[cfg(feature = "open-metrics")]
+            None,
         );
 
         let mut stored_records: Vec<RecordKey> = vec![];
@@ -1536,7 +1592,7 @@ mod tests {
             assert!(store.put_verified(record, ValidationType::Chunk).is_ok());
             // We must also mark the record as stored (which would be triggered after the async write in nodes
             // via NetworkEvent::CompletedWrite)
-            store.mark_as_stored(record_key.clone(), ValidationType::Chunk);
+            store.mark_as_stored(record_key.clone(), ValidationType::Chunk, DataTypes::Chunk);
 
             stored_records.push(record_key.clone());
             stored_records.sort_by(|a, b| {
@@ -1593,6 +1649,8 @@ mod tests {
             store_config.clone(),
             network_event_sender.clone(),
             swarm_cmd_sender.clone(),
+            #[cfg(feature = "open-metrics")]
+            None,
         );
 
         store.payment_received();
@@ -1605,6 +1663,8 @@ mod tests {
             store_config,
             network_event_sender,
             swarm_cmd_sender,
+            #[cfg(feature = "open-metrics")]
+            None,
         );
 
         assert_eq!(1, new_store.received_payment_count);

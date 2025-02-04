@@ -538,10 +538,19 @@ impl Node {
                 // Note: this log will be checked in CI, and expecting `not appear`.
                 //       any change to the keyword `failed to fetch` shall incur
                 //       correspondent CI script change as well.
-                error!("Received notification from replication_fetcher, notifying {bad_nodes:?} failed to fetch replication copies from.");
+                debug!("Received notification from replication_fetcher, notifying {bad_nodes:?} failed to fetch replication copies from.");
                 let _handle = spawn(async move {
-                    for peer_id in bad_nodes {
-                        network.record_node_issues(peer_id, NodeIssue::ReplicationFailure);
+                    for (peer_id, record_key) in bad_nodes {
+                        // Obsoleted fetch request (due to flooded in fresh replicates) could result
+                        // in peer to be claimed as bad, as local copy blocks the entry to be cleared.
+                        if let Ok(false) = network.is_record_key_present_locally(&record_key).await
+                        {
+                            error!(
+                                "From peer {peer_id:?}, failed to fetch record {:?}",
+                                PrettyPrintRecordKey::from(&record_key)
+                            );
+                            network.record_node_issues(peer_id, NodeIssue::ReplicationFailure);
+                        }
                     }
                 });
             }

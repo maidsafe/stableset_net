@@ -432,9 +432,16 @@ impl Network {
                     if !storage_proofs.is_empty() {
                         debug!("Storage proofing during GetStoreQuote to be implemented.");
                     }
+
                     // Check the quote itself is valid.
                     if !quote.check_is_signed_by_claimed_peer(peer) {
                         warn!("Received invalid quote from {peer_address:?}, {quote:?}");
+                        continue;
+                    }
+
+                    // Check if the returned data type matches the request
+                    if quote.quoting_metrics.data_type != data_type {
+                        warn!("Received invalid quote from {peer_address:?}, {quote:?}. Data type did not match the request.");
                         continue;
                     }
 
@@ -617,7 +624,7 @@ impl Network {
                             continue;
                         };
 
-                        if !pointer.verify() {
+                        if !pointer.verify_signature() {
                             warn!("Rejecting Pointer for {pretty_key} PUT with invalid signature");
                             continue;
                         }
@@ -639,7 +646,7 @@ impl Network {
                             continue;
                         };
 
-                        if !scratchpad.is_valid() {
+                        if !scratchpad.verify_signature() {
                             warn!(
                                 "Rejecting Scratchpad for {pretty_key} PUT with invalid signature"
                             );
@@ -647,7 +654,7 @@ impl Network {
                         }
 
                         if let Some(old) = &valid_scratchpad {
-                            if old.count() >= scratchpad.count() {
+                            if old.counter() >= scratchpad.counter() {
                                 info!("Rejecting Scratchpad for {pretty_key} with lower count than the previous one");
                                 continue;
                             }

@@ -1,12 +1,22 @@
-use crate::client::quote::{DataTypes, StoreQuote};
-use crate::Client;
-use ant_evm::{EncodedPeerId, EvmWallet, EvmWalletError, ProofOfPayment};
+// Copyright 2024 MaidSafe.net limited.
+//
+// This SAFE Network Software is licensed to you under The General Public License (GPL), version 3.
+// Unless required by applicable law or agreed to in writing, the SAFE Network Software distributed
+// under the GPL Licence is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied. Please review the Licences for the specific language governing
+// permissions and limitations relating to use of the SAFE Network Software.
+
+use super::quote::CostError;
+use crate::client::{
+    event::PaymentSummary,
+    quote::{DataTypes, StoreQuote},
+};
+use crate::{Client, ClientEvent};
+use ant_evm::{Amount, EncodedPeerId, EvmWallet, EvmWalletError, ProofOfPayment};
 use std::collections::HashMap;
 use xor_name::XorName;
 
-use super::quote::CostError;
-
-pub use crate::{Amount, AttoTokens};
+pub use crate::AttoTokens;
 
 /// Contains the proof of payments for each XOR address and the amount paid
 pub type Receipt = HashMap<XorName, (ProofOfPayment, AttoTokens)>;
@@ -98,7 +108,7 @@ impl Client {
         }
     }
 
-    /// Pay for the chunks and get the proof of payment.
+    /// Pay for the content addrs and get the proof of payment.
     pub(crate) async fn pay(
         &self,
         data_type: DataTypes,
@@ -121,7 +131,7 @@ impl Client {
 
             // TODO: the error might contain some succeeded quote payments as well. These should be returned on err, so that they can be skipped when retrying.
             // TODO: retry when it fails?
-            // Execute chunk payments
+            // Execute payments
             let _payments = wallet
                 .pay_for_quotes(quotes.payments())
                 .await
@@ -132,15 +142,33 @@ impl Client {
             debug!("Unlocked wallet");
         }
 
-        let skipped_chunks = number_of_content_addrs - quotes.len();
+        let skipped_addrs = number_of_content_addrs - quotes.len();
+        let records_paid = quotes.len();
         trace!(
-            "Chunk payments of {} chunks completed. {} chunks were free / already paid for",
+            "Payments of {} addrs completed. {} addrs were free / already paid for",
             quotes.len(),
-            skipped_chunks
+            skipped_addrs
         );
 
         let receipt = receipt_from_store_quotes(quotes);
 
-        Ok((receipt, skipped_chunks))
+        // Reporting
+        if let Some(channel) = self.client_event_sender.as_ref() {
+            let tokens_spent = receipt
+                .values()
+                .map(|(_proof, price)| price.as_atto())
+                .sum::<Amount>();
+
+            let summary = PaymentSummary {
+                records_paid,
+                records_already_paid: skipped_addrs,
+                tokens_spent,
+            };
+            if let Err(err) = channel.send(ClientEvent::PaymentSucceeded(summary)).await {
+                error!("Failed to send client event: {err:?}");
+            }
+        }
+
+        Ok((receipt, skipped_addrs))
     }
 }

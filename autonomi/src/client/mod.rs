@@ -23,6 +23,7 @@ pub use data_types::scratchpad;
 /// High-level types built on top of the basic Network data types.
 /// Includes data, files and personnal data vaults
 mod high_level;
+use event::ClientEvent;
 pub use high_level::data;
 pub use high_level::files;
 pub use high_level::register;
@@ -30,6 +31,7 @@ pub use high_level::vault;
 
 pub mod address;
 pub mod config;
+pub mod event;
 pub mod key_derivation;
 pub mod payment;
 pub mod quote;
@@ -320,23 +322,23 @@ async fn handle_event_receiver(
                                 protocols,
                                 IDENTIFY_PROTOCOL_STR.read().expect("Failed to obtain read lock for IDENTIFY_PROTOCOL_STR. A call to set_network_id performed. This should not happen").clone(),
                             )))
-                            .expect("receiver should not close");
+                            .expect("Could not send TimedOutWithIncompatibleProtocol, receiver should not close");
                     } else {
                         sender
                             .send(Err(ConnectError::TimedOut))
-                            .expect("receiver should not close");
+                            .expect("Could not send TimedOut, receiver should not close");
                     }
                 }
             }
             event = event_receiver.recv() => {
-                let event = event.expect("receiver should not close");
+                let event = event.expect("Could not receiver Network event, receiver should not close");
                 match event {
                     NetworkEvent::PeerAdded(_peer_id, peers_len) => {
                         tracing::trace!("Peer added: {peers_len} in routing table");
 
                         if peers_len >= CLOSE_GROUP_SIZE {
                             if let Some(sender) = sender.take() {
-                                sender.send(Ok(())).expect("receiver should not close");
+                                sender.send(Ok(())).expect("Could not send OK(()), receiver should not close");
                             }
                         }
                     }
@@ -354,21 +356,4 @@ async fn handle_event_receiver(
     }
 
     // TODO: Handle closing of network events sender
-}
-
-/// Events that can be broadcasted by the client.
-#[derive(Debug, Clone)]
-pub enum ClientEvent {
-    UploadComplete(UploadSummary),
-}
-
-/// Summary of an upload operation.
-#[derive(Debug, Clone)]
-pub struct UploadSummary {
-    /// Records that were uploaded to the network
-    pub records_paid: usize,
-    /// Records that were already paid for so were not re-uploaded
-    pub records_already_paid: usize,
-    /// Total cost of the upload
-    pub tokens_spent: Amount,
 }

@@ -102,6 +102,10 @@ pub use client::{
     data_types::scratchpad::Scratchpad,
     data_types::scratchpad::ScratchpadAddress,
 
+    // Events
+    event::ClientEvent,
+    event::PaymentSummary,
+
     // Client
     Client,
 };

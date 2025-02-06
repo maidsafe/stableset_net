@@ -207,12 +207,12 @@ pub async fn handle_subcommand(opt: Opt) -> Result<()> {
                 file,
                 public,
                 quorum,
-            } => file::upload(&file, public, peers.await?, quorum).await,
+            } => file::upload(&file, public, peers.await?, quorum, opt.json).await,
             FileCmd::Download {
                 addr,
                 dest_file,
                 quorum,
-            } => file::download(&addr, &dest_file, peers.await?, quorum).await,
+            } => file::download(&addr, &dest_file, peers.await?, quorum, opt.json).await,
             FileCmd::List => file::list(),
         },
         Some(SubCmd::Register { command }) => match command {

@@ -295,11 +295,6 @@ impl SwarmDriver {
                             match err {
                                 TransportError::MultiaddrNotSupported(addr) => {
                                     warn!("OutgoingConnectionError: Transport::MultiaddrNotSupported {addr:?}. This can be ignored if the peer has atleast one global address.");
-                                    #[cfg(feature = "loud")]
-                                    {
-                                        warn!("OutgoingConnectionError: Transport::MultiaddrNotSupported {addr:?}. This can be ignored if the peer has atleast one global address.");
-                                        println!("If this was your bootstrap peer, restart your node with a supported multiaddr");
-                                    }
                                 }
                                 TransportError::Other(err) => {
                                     error!("OutgoingConnectionError: Transport::Other {err:?}");

@@ -49,6 +49,14 @@ pub enum PointerError {
 impl Client {
     /// Get a pointer from the network
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
+        let result = self.pointer_get_inner(address).await;
+        self.emit_download_event(*address.xorname(), result.is_ok())
+            .await;
+
+        result
+    }
+
+    async fn pointer_get_inner(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
         let key = NetworkAddress::from_pointer_address(*address).to_record_key();
         debug!("Fetching pointer from network at: {key:?}");
 
@@ -58,6 +66,7 @@ impl Client {
             .get_record_from_network(key.clone(), &get_cfg)
             .await
             .inspect_err(|err| error!("Error fetching pointer: {err:?}"))?;
+
         let header = RecordHeader::from_record(&record).map_err(|err| {
             PointerError::Corrupt(format!(
                 "Failed to parse record header for pointer at {key:?}: {err:?}"
@@ -113,6 +122,18 @@ impl Client {
 
     /// Manually store a pointer on the network
     pub async fn pointer_put(
+        &self,
+        pointer: Pointer,
+        payment_option: PaymentOption,
+    ) -> Result<(AttoTokens, PointerAddress), PointerError> {
+        let xor_name = *pointer.address().xorname();
+        let result = self.pointer_put_inner(pointer, payment_option).await;
+        self.emit_upload_event(xor_name, result.is_ok()).await;
+
+        result
+    }
+
+    async fn pointer_put_inner(
         &self,
         pointer: Pointer,
         payment_option: PaymentOption,
@@ -190,6 +211,21 @@ impl Client {
         target: PointerTarget,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
+        let xor_name = *PointerAddress::from_owner(owner.public_key()).xorname();
+        let result = self
+            .pointer_create_inner(owner, target, payment_option)
+            .await;
+        self.emit_upload_event(xor_name, result.is_ok()).await;
+
+        result
+    }
+
+    async fn pointer_create_inner(
+        &self,
+        owner: &SecretKey,
+        target: PointerTarget,
+        payment_option: PaymentOption,
+    ) -> Result<(AttoTokens, PointerAddress), PointerError> {
         let address = PointerAddress::from_owner(owner.public_key());
         let already_exists = self.pointer_check_existance(&address).await?;
         if already_exists {
@@ -197,7 +233,7 @@ impl Client {
         }
 
         let pointer = Pointer::new(owner, 0, target);
-        self.pointer_put(pointer, payment_option).await
+        self.pointer_put_inner(pointer, payment_option).await
     }
 
     /// Update an existing pointer to point to a new target on the network
@@ -205,6 +241,19 @@ impl Client {
     /// This operation is free as the pointer was already paid for at creation
     /// Only the latest version of the pointer is kept on the Network, previous versions will be overwritten and unrecoverable
     pub async fn pointer_update(
+        &self,
+        owner: &SecretKey,
+        target: PointerTarget,
+    ) -> Result<(), PointerError> {
+        let xor_name = *PointerAddress::from_owner(owner.public_key()).xorname();
+
+        let result = self.pointer_update_inner(owner, target).await;
+        self.emit_upload_event(xor_name, result.is_ok()).await;
+
+        result
+    }
+
+    async fn pointer_update_inner(
         &self,
         owner: &SecretKey,
         target: PointerTarget,

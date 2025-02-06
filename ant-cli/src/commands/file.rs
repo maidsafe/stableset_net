@@ -6,8 +6,10 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use crate::exit_code;
 use crate::network::NetworkPeers;
-use crate::utils::collect_upload_summary;
+use crate::output::collect_task_summary;
+use crate::output::FileUploadOutput;
 use crate::wallet::load_wallet;
 use autonomi::client::address::addr_to_str;
 use autonomi::ClientOperatingStrategy;
@@ -16,6 +18,8 @@ use color_eyre::eyre::Context;
 use color_eyre::eyre::Result;
 use color_eyre::Section;
 use std::path::PathBuf;
+use std::process;
+use std::time::SystemTime;
 
 pub async fn cost(file: &str, peers: NetworkPeers) -> Result<()> {
     let client = crate::actions::connect_to_network(peers).await?;
@@ -38,7 +42,9 @@ pub async fn upload(
     public: bool,
     peers: NetworkPeers,
     optional_verification_quorum: Option<ResponseQuorum>,
+    json: bool,
 ) -> Result<()> {
+    let start = SystemTime::now();
     let mut config = ClientOperatingStrategy::new();
     if let Some(verification_quorum) = optional_verification_quorum {
         config.chunks.verification_quorum = verification_quorum;
@@ -47,9 +53,11 @@ pub async fn upload(
 
     let wallet = load_wallet(client.evm_network())?;
     let event_receiver = client.enable_client_events();
-    let (upload_summary_thread, upload_completed_tx) = collect_upload_summary(event_receiver);
+    let (task_summary_thread, stop_summary_collection) = collect_task_summary(event_receiver, json);
 
-    println!("Uploading data to network...");
+    if !json {
+        println!("Uploading data to network...");
+    }
     info!(
         "Uploading {} file: {file}",
         if public { "public" } else { "private" }
@@ -61,47 +69,58 @@ pub async fn upload(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or(file.to_string());
 
-    // upload dir
-    let local_addr;
-    let archive = if public {
-        let (_cost, xor_name) = client
+    let mut local_addr = String::new();
+    let result = if public {
+        client
             .dir_and_archive_upload_public(dir_path, &wallet)
             .await
-            .wrap_err("Failed to upload file")?;
-        local_addr = addr_to_str(xor_name);
-        local_addr.clone()
+            .map(|(_, xor_name)| {
+                local_addr = addr_to_str(xor_name);
+                local_addr.clone()
+            })
+            .inspect_err(|e| error!("Failed to upload file {file:?} : {e}"))
     } else {
-        let (_cost, private_data_access) = client
+        client
             .dir_and_archive_upload(dir_path, &wallet)
             .await
-            .wrap_err("Failed to upload dir and archive")?;
-
-        local_addr = private_data_access.address();
-        private_data_access.to_hex()
+            .map(|(_, private_data_access)| {
+                local_addr = private_data_access.address();
+                private_data_access.to_hex()
+            })
+            .inspect_err(|e| error!("Failed to upload file {file:?}: {e}"))
     };
 
     // wait for upload to complete
-    if let Err(e) = upload_completed_tx.send(()) {
+    if let Err(e) = stop_summary_collection.send(()) {
         error!("Failed to send upload completed event: {e:?}");
-        eprintln!("Failed to send upload completed event: {e:?}");
     }
 
-    // get summary
-    let summary = upload_summary_thread.await?;
-    if summary.records_paid == 0 {
-        println!("All chunks already exist on the network.");
+    let task_summary = task_summary_thread.await?;
+    let upload_output = FileUploadOutput {
+        exit_code: result
+            .as_ref()
+            .map_or_else(exit_code::upload_exit_code, |_| 0),
+        file: file.to_string(),
+        task_summary,
+        start_time: start,
+        end_time: SystemTime::now(),
+        uploaded_address: Some(local_addr.clone()),
+        public,
+    };
+
+    if json {
+        upload_output.print_json();
     } else {
-        println!("Successfully uploaded: {file}");
-        println!("At address: {local_addr}");
-        info!("Successfully uploaded: {file} at address: {local_addr}");
-        println!("Number of chunks uploaded: {}", summary.records_paid);
-        println!(
-            "Number of chunks already paid/uploaded: {}",
-            summary.records_already_paid
-        );
-        println!("Total cost: {} AttoTokens", summary.tokens_spent);
+        upload_output.print();
     }
-    info!("Summary for upload of file {file} at {local_addr:?}: {summary:?}");
+
+    let archive = match result {
+        Ok(archive) => archive,
+        Err(err) => {
+            let exit_code = exit_code::upload_exit_code(&err);
+            process::exit(exit_code);
+        }
+    };
 
     // save to local user data
     let writer = if public {
@@ -122,13 +141,14 @@ pub async fn download(
     dest_path: &str,
     peers: NetworkPeers,
     quorum: Option<ResponseQuorum>,
+    json: bool,
 ) -> Result<()> {
     let mut config = ClientOperatingStrategy::new();
     if let Some(quorum) = quorum {
         config.chunks.get_quorum = quorum;
     }
-    let client = crate::actions::connect_to_network_with_config(peers, config).await?;
-    crate::actions::download(addr, dest_path, &client).await
+    let mut client = crate::actions::connect_to_network_with_config(peers, config).await?;
+    crate::actions::download(addr, dest_path, &mut client, json).await
 }
 
 pub fn list() -> Result<()> {

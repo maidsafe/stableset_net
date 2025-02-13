@@ -83,13 +83,13 @@ pub enum SubCmd {
         /// and they will need to be explicitly started again.
         #[clap(long, default_value_t = false)]
         auto_restart: bool,
-        /// Auto set NAT flags (--upnp or --home-network) if our NAT status has been obtained by
+        /// Auto set NAT flags (--upnp or --relay) if our NAT status has been obtained by
         /// running the NAT detection command.
         ///
         /// Using the argument will cause an error if the NAT detection command has not already
         /// ran.
         ///
-        /// This will override any --upnp or --home-network options.
+        /// This will override any --upnp or --relay options.
         #[clap(long, default_value_t = false)]
         auto_set_nat_flags: bool,
         /// The number of service instances.
@@ -126,11 +126,9 @@ pub enum SubCmd {
         /// Specify what EVM network to use for payments.
         #[command(subcommand)]
         evm_network: EvmNetworkCommand,
-        /// Set this flag to use the antnode '--home-network' feature.
-        ///
-        /// This enables the use of antnode services from a home network with a router.
+        /// Set this flag if UPnP doesn't work, and you are not able to manually port forward.
         #[clap(long)]
-        home_network: bool,
+        relay: bool,
         /// Provide the path for the log directory for the installed node.
         ///
         /// This path is a prefix. Each installed node will have its own directory underneath it.
@@ -932,7 +930,7 @@ async fn main() -> Result<()> {
             enable_metrics_server,
             env_variables,
             evm_network,
-            home_network,
+            relay,
             log_dir_path,
             log_format,
             max_archived_log_files,
@@ -959,7 +957,7 @@ async fn main() -> Result<()> {
                 enable_metrics_server,
                 env_variables,
                 Some(evm_network.try_into()?),
-                home_network,
+                relay,
                 log_dir_path,
                 log_format,
                 max_archived_log_files,

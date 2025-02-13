@@ -171,20 +171,20 @@ pub async fn add_node(
             match nat_status {
                 NatDetectionStatus::Public => {
                     options.no_upnp = true; // UPnP not needed
-                    options.home_network = false;
+                    options.relay = false;
                 }
                 NatDetectionStatus::UPnP => {
                     options.no_upnp = false;
-                    options.home_network = false;
+                    options.relay = false;
                 }
                 NatDetectionStatus::Private => {
                     options.no_upnp = true;
-                    options.home_network = true;
+                    options.relay = true;
                 }
             }
             debug!(
-                "Auto-setting NAT flags: upnp={}, home_network={}",
-                !options.no_upnp, options.home_network
+                "Auto-setting NAT flags: upnp={}, relay={}",
+                !options.no_upnp, options.relay
             );
         }
 
@@ -193,7 +193,7 @@ pub async fn add_node(
             data_dir_path: service_data_dir_path.clone(),
             env_variables: options.env_variables.clone(),
             evm_network: options.evm_network.clone(),
-            home_network: options.home_network,
+            home_network: options.relay,
             log_dir_path: service_log_dir_path.clone(),
             log_format: options.log_format,
             max_archived_log_files: options.max_archived_log_files,
@@ -229,7 +229,7 @@ pub async fn add_node(
                     connected_peers: None,
                     data_dir_path: service_data_dir_path.clone(),
                     evm_network: options.evm_network.clone(),
-                    home_network: options.home_network,
+                    home_network: options.relay,
                     listen_addr: None,
                     log_dir_path: service_log_dir_path.clone(),
                     log_format: options.log_format,

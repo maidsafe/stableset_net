@@ -35,6 +35,7 @@ hyper = { version = "0.14", features = [
 ], optional = true }
 itertools = "~0.12.1"
 libp2p = { version = "0.55.0", features = [
+    "dcutr",
     "tokio",
     "dns",
     "upnp",

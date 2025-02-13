@@ -114,6 +114,18 @@ impl SwarmDriver {
                     _ => {}
                 }
             }
+            SwarmEvent::Behaviour(NodeEvent::Dcutr(event)) => {
+                #[cfg(feature = "open-metrics")]
+                if let Some(metrics) = &self.metrics_recorder {
+                    metrics.record(&(*event));
+                }
+
+                event_string = "dcutr_event";
+                info!(
+                    "Dcutr with remote peer: {:?} is: {:?}",
+                    event.remote_peer_id, event.result
+                );
+            }
             SwarmEvent::Behaviour(NodeEvent::Identify(event)) => {
                 // Record the Identify event for metrics if the feature is enabled.
                 #[cfg(feature = "open-metrics")]

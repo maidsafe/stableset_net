@@ -47,9 +47,16 @@ pub(super) enum NodeEvent {
     MsgReceived(libp2p::request_response::Event<Request, Response>),
     Kademlia(libp2p::kad::Event),
     Identify(Box<libp2p::identify::Event>),
+    Dcutr(Box<libp2p::dcutr::Event>),
     RelayClient(Box<libp2p::relay::client::Event>),
     RelayServer(Box<libp2p::relay::Event>),
     Void(void::Void),
+}
+
+impl From<libp2p::dcutr::Event> for NodeEvent {
+    fn from(event: libp2p::dcutr::Event) -> Self {
+        NodeEvent::Dcutr(Box::new(event))
+    }
 }
 
 impl From<libp2p::upnp::Event> for NodeEvent {

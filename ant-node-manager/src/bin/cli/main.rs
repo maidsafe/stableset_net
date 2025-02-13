@@ -329,7 +329,7 @@ pub enum SubCmd {
         /// 'connection-timeout' argument.
         ///
         /// Units are milliseconds.
-        #[clap(long, conflicts_with = "connection-timeout")]
+        #[clap(long, conflicts_with = "connection_timeout")]
         interval: Option<u64>,
         /// The peer ID of the service to start.
         ///
@@ -366,7 +366,7 @@ pub enum SubCmd {
         /// An interval applied between stopping each service.
         ///
         /// Units are milliseconds.
-        #[clap(long, conflicts_with = "connection-timeout")]
+        #[clap(long)]
         interval: Option<u64>,
         /// The peer ID of the service to stop.
         ///
@@ -427,7 +427,7 @@ pub enum SubCmd {
         /// 'connection-timeout' argument.
         ///
         /// Units are milliseconds.
-        #[clap(long, conflicts_with = "connection-timeout")]
+        #[clap(long, conflicts_with = "connection_timeout")]
         interval: Option<u64>,
         /// Provide a path for the antnode binary to be used by the service.
         ///

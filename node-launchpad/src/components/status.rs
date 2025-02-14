@@ -16,7 +16,7 @@ use crate::action::OptionsActions;
 use crate::components::popup::port_range::PORT_ALLOCATION;
 use crate::components::utils::open_logs;
 use crate::config::get_launchpad_nodes_data_dir_path;
-use crate::connection_mode::ConnectionMode;
+use crate::connection_mode::{ConnectionMode, NodeConnectionMode};
 use crate::error::ErrorPopup;
 use crate::node_mgmt::{MaintainNodesArgs, NodeManagement, NodeManagementTask, UpgradeNodesArgs};
 use crate::node_mgmt::{PORT_MAX, PORT_MIN};
@@ -65,6 +65,7 @@ const MBPS_WIDTH: usize = 13;
 const RECORDS_WIDTH: usize = 4;
 const PEERS_WIDTH: usize = 5;
 const CONNS_WIDTH: usize = 5;
+const MODE_WIDTH: usize = 7;
 const STATUS_WIDTH: usize = 8;
 const SPINNER_WIDTH: usize = 1;
 
@@ -247,6 +248,7 @@ impl Status<'_> {
                         records: 0,
                         peers: 0,
                         connections: 0,
+                        mode: NodeConnectionMode::from(node_item),
                         status: NodeStatus::Added, // Set initial status as Added
                         spinner: Throbber::default(),
                         spinner_state: ThrobberState::default(),
@@ -281,6 +283,7 @@ impl Status<'_> {
                         records: 0,
                         peers: 0,
                         connections: 0,
+                        mode: NodeConnectionMode::from(node_item),
                         status,
                         spinner: Throbber::default(),
                         spinner_state: ThrobberState::default(),
@@ -968,6 +971,7 @@ impl Component for Status<'_> {
                     Constraint::Min(RECORDS_WIDTH as u16),
                     Constraint::Min(PEERS_WIDTH as u16),
                     Constraint::Min(CONNS_WIDTH as u16),
+                    Constraint::Min(MODE_WIDTH as u16),
                     Constraint::Min(STATUS_WIDTH as u16),
                     Constraint::Max(SPINNER_WIDTH as u16),
                 ];
@@ -985,6 +989,7 @@ impl Component for Status<'_> {
                     Cell::new("Recs").fg(COOL_GREY),
                     Cell::new("Peers").fg(COOL_GREY),
                     Cell::new("Conns").fg(COOL_GREY),
+                    Cell::new("Mode").fg(COOL_GREY),
                     Cell::new("Status").fg(COOL_GREY),
                     Cell::new(" ").fg(COOL_GREY), // Spinner
                 ])
@@ -1218,6 +1223,7 @@ pub struct NodeItem<'a> {
     records: usize,
     peers: usize,
     connections: usize,
+    mode: NodeConnectionMode,
     status: NodeStatus,
     spinner: Throbber<'a>,
     spinner_state: ThrobberState,
@@ -1319,6 +1325,7 @@ impl NodeItem<'_> {
                 " ".repeat(CONNS_WIDTH.saturating_sub(self.connections.to_string().len())),
                 self.connections.to_string()
             ),
+            self.mode.to_string(),
             self.status.to_string(),
         ];
         let throbber_area = Rect::new(area.width - 3, area.y + 2 + index as u16, 1, 1);

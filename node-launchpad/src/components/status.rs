@@ -840,7 +840,7 @@ impl Component for Status<'_> {
                     Span::styled("supported", Style::default().fg(EUCALYPTUS))
                 }
                 UpnpSupport::Unsupported => {
-                    Span::styled("unsupported", Style::default().fg(SIZZLING_RED))
+                    Span::styled("disabled / unsupported", Style::default().fg(SIZZLING_RED))
                 }
                 UpnpSupport::Loading => {
                     Span::styled("loading..", Style::default().fg(LIGHT_PERIWINKLE))

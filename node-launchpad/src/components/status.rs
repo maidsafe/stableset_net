@@ -20,7 +20,7 @@ use crate::connection_mode::ConnectionMode;
 use crate::error::ErrorPopup;
 use crate::node_mgmt::{MaintainNodesArgs, NodeManagement, NodeManagementTask, UpgradeNodesArgs};
 use crate::node_mgmt::{PORT_MAX, PORT_MIN};
-use crate::style::{COOL_GREY, INDIGO};
+use crate::style::{COOL_GREY, INDIGO, SIZZLING_RED};
 use crate::tui::Event;
 use crate::{
     action::{Action, StatusActions},
@@ -102,6 +102,8 @@ pub struct Status<'a> {
     data_dir_path: PathBuf,
     // Connection mode
     connection_mode: ConnectionMode,
+    // UPnP support
+    upnp_supported: bool,
     // Port from
     port_from: Option<u32>,
     // Port to
@@ -121,6 +123,7 @@ pub struct StatusConfig {
     pub allocated_disk_space: usize,
     pub antnode_path: Option<PathBuf>,
     pub connection_mode: ConnectionMode,
+    pub upnp_supported: bool,
     pub data_dir_path: PathBuf,
     pub network_id: Option<u8>,
     pub peers_args: PeersArgs,
@@ -150,6 +153,7 @@ impl Status<'_> {
             antnode_path: config.antnode_path,
             data_dir_path: config.data_dir_path,
             connection_mode: config.connection_mode,
+            upnp_supported: config.upnp_supported,
             port_from: config.port_from,
             port_to: config.port_to,
             error_popup: None,
@@ -798,19 +802,44 @@ impl Component for Status<'_> {
         ]);
 
         let connection_mode_string = match self.connection_mode {
-            ConnectionMode::HomeNetwork => "Home Network",
-            ConnectionMode::UPnP => "UPnP",
-            ConnectionMode::CustomPorts => &format!(
+            ConnectionMode::HomeNetwork => "Home Network".to_string(),
+            ConnectionMode::UPnP => "UPnP".to_string(),
+            ConnectionMode::CustomPorts => format!(
                 "Custom Ports  {}-{}",
                 self.port_from.unwrap_or(PORT_MIN),
                 self.port_to.unwrap_or(PORT_MIN + PORT_ALLOCATION)
             ),
-            ConnectionMode::Automatic => "Automatic",
+            ConnectionMode::Automatic => "Automatic".to_string(),
         };
+
+        let mut connection_mode_line = vec![Span::styled(
+            connection_mode_string,
+            Style::default().fg(GHOST_WHITE),
+        )];
+
+        if matches!(
+            self.connection_mode,
+            ConnectionMode::Automatic | ConnectionMode::UPnP
+        ) {
+            connection_mode_line.push(Span::styled(" (", Style::default().fg(GHOST_WHITE)));
+
+            if self.connection_mode == ConnectionMode::Automatic {
+                connection_mode_line.push(Span::styled("UPnP: ", Style::default().fg(GHOST_WHITE)));
+            }
+
+            let span = match self.upnp_supported {
+                true => Span::styled("supported", Style::default().fg(EUCALYPTUS)),
+                false => Span::styled("unsupported", Style::default().fg(SIZZLING_RED)),
+            };
+
+            connection_mode_line.push(span);
+
+            connection_mode_line.push(Span::styled(")", Style::default().fg(GHOST_WHITE)));
+        }
 
         let connection_mode_row = Row::new(vec![
             Cell::new("Connection".to_string()).fg(GHOST_WHITE),
-            Cell::new(connection_mode_string).fg(LIGHT_PERIWINKLE),
+            Cell::new(Line::from(connection_mode_line)),
         ]);
 
         let stats_rows = vec![storage_allocated_row, memory_use_row, connection_mode_row];

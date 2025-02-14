@@ -8,6 +8,7 @@
 
 use std::path::PathBuf;
 
+use crate::upnp::is_upnp_supported;
 use crate::{
     action::Action,
     components::{
@@ -78,6 +79,9 @@ impl App {
         let connection_mode = app_data
             .connection_mode
             .unwrap_or(ConnectionMode::Automatic);
+
+        let upnp_supported = is_upnp_supported();
+
         let port_from = app_data.port_from.unwrap_or(PORT_MIN);
         let port_to = app_data.port_to.unwrap_or(PORT_MAX);
         let storage_mountpoint = app_data
@@ -98,6 +102,7 @@ impl App {
             antnode_path,
             data_dir_path,
             connection_mode,
+            upnp_supported,
             port_from: Some(port_from),
             port_to: Some(port_to),
         };

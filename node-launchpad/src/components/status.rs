@@ -22,6 +22,7 @@ use crate::node_mgmt::{MaintainNodesArgs, NodeManagement, NodeManagementTask, Up
 use crate::node_mgmt::{PORT_MAX, PORT_MIN};
 use crate::style::{COOL_GREY, INDIGO, SIZZLING_RED};
 use crate::tui::Event;
+use crate::upnp::UpnpSupport;
 use crate::{
     action::{Action, StatusActions},
     config::Config,
@@ -104,7 +105,7 @@ pub struct Status<'a> {
     // Connection mode
     connection_mode: ConnectionMode,
     // UPnP support
-    upnp_supported: bool,
+    upnp_support: UpnpSupport,
     // Port from
     port_from: Option<u32>,
     // Port to
@@ -124,7 +125,7 @@ pub struct StatusConfig {
     pub allocated_disk_space: usize,
     pub antnode_path: Option<PathBuf>,
     pub connection_mode: ConnectionMode,
-    pub upnp_supported: bool,
+    pub upnp_support: UpnpSupport,
     pub data_dir_path: PathBuf,
     pub network_id: Option<u8>,
     pub peers_args: PeersArgs,
@@ -154,7 +155,7 @@ impl Status<'_> {
             antnode_path: config.antnode_path,
             data_dir_path: config.data_dir_path,
             connection_mode: config.connection_mode,
-            upnp_supported: config.upnp_supported,
+            upnp_support: config.upnp_support,
             port_from: config.port_from,
             port_to: config.port_to,
             error_popup: None,
@@ -475,6 +476,10 @@ impl Component for Status<'_> {
                         start_nodes_after_reset: false,
                         action_sender,
                     })?;
+            }
+            Action::SetUpnpSupport(ref upnp_support) => {
+                debug!("Setting UPnP support: {upnp_support:?}");
+                self.upnp_support = upnp_support.clone();
             }
             Action::StatusActions(status_action) => match status_action {
                 StatusActions::NodesStatsObtained(stats) => {
@@ -830,9 +835,19 @@ impl Component for Status<'_> {
                 connection_mode_line.push(Span::styled("UPnP: ", Style::default().fg(GHOST_WHITE)));
             }
 
-            let span = match self.upnp_supported {
-                true => Span::styled("supported", Style::default().fg(EUCALYPTUS)),
-                false => Span::styled("unsupported", Style::default().fg(SIZZLING_RED)),
+            let span = match self.upnp_support {
+                UpnpSupport::Supported => {
+                    Span::styled("supported", Style::default().fg(EUCALYPTUS))
+                }
+                UpnpSupport::Unsupported => {
+                    Span::styled("unsupported", Style::default().fg(SIZZLING_RED))
+                }
+                UpnpSupport::Loading => {
+                    Span::styled("loading..", Style::default().fg(LIGHT_PERIWINKLE))
+                }
+                UpnpSupport::Unknown => {
+                    Span::styled("unknown", Style::default().fg(LIGHT_PERIWINKLE))
+                }
             };
 
             connection_mode_line.push(span);

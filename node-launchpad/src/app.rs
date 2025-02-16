@@ -172,7 +172,7 @@ impl App {
         tokio::spawn(async move {
             let upnp_support = tokio::task::spawn_blocking(get_upnp_support)
                 .await
-                .unwrap_or_else(|_| UpnpSupport::Unknown);
+                .unwrap_or(UpnpSupport::Unknown);
 
             let _ = action_tx_clone.send(Action::SetUpnpSupport(upnp_support));
         });

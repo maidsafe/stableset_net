@@ -8,11 +8,10 @@
 
 use crate::{error::Result, node::Node};
 use ant_evm::ProofOfPayment;
-use ant_networking::{GetRecordCfg, Network, ResponseQuorum};
-use ant_protocol::storage::DataTypes;
+use ant_networking::Network;
 use ant_protocol::{
     messages::{Query, QueryResponse, Request, Response},
-    storage::ValidationType,
+    storage::{DataTypes, ValidationType},
     NetworkAddress, PrettyPrintRecordKey,
 };
 use libp2p::{
@@ -69,22 +68,8 @@ impl Node {
                 let record = if let Some(record_content) = record_opt {
                     Record::new(key, record_content.to_vec())
                 } else {
-                    debug!(
-                        "Can not fetch record {pretty_key:?} from node {holder:?}, fetching from the network"
-                    );
-                    let get_cfg = GetRecordCfg {
-                        get_quorum: ResponseQuorum::One,
-                        retry_strategy: Default::default(),
-                        target_record: None,
-                        expected_holders: Default::default(),
-                    };
-                    match node.network().get_record_from_network(key, &get_cfg).await {
-                        Ok(record) => record,
-                        Err(err) => {
-                            error!("During replication fetch of {pretty_key:?}, failed in re-attempt of get from network {err:?}");
-                            return;
-                        }
-                    }
+                    debug!("Can not fetch record {pretty_key:?} from node {holder:?}");
+                    return;
                 };
 
                 debug!(

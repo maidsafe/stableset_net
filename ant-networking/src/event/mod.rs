@@ -195,7 +195,14 @@ impl Debug for NetworkEvent {
                 write!(f, "NetworkEvent::TerminateNode({reason:?})")
             }
             NetworkEvent::FailedToFetchHolders(bad_nodes) => {
-                write!(f, "NetworkEvent::FailedToFetchHolders({bad_nodes:?})")
+                let pretty_log: Vec<_> = bad_nodes
+                    .iter()
+                    .map(|(peer_id, record_key)| {
+                        let pretty_key = PrettyPrintRecordKey::from(record_key);
+                        (peer_id, pretty_key)
+                    })
+                    .collect();
+                write!(f, "NetworkEvent::FailedToFetchHolders({pretty_log:?})")
             }
             NetworkEvent::QuoteVerification { quotes } => {
                 write!(

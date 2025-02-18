@@ -78,6 +78,7 @@ impl Client {
             ))
         })?;
 
+        info!("Got pointer at address {address:?}: {pointer:?}");
         Self::pointer_verify(&pointer)?;
         Ok(pointer)
     }
@@ -212,6 +213,7 @@ impl Client {
         target: PointerTarget,
     ) -> Result<(), PointerError> {
         let address = PointerAddress::from_owner(owner.public_key());
+        info!("Updating pointer at address {address:?} to {target:?}");
         let current = match self.pointer_get(&address).await {
             Ok(pointer) => Some(pointer),
             Err(PointerError::Network(NetworkError::GetRecordError(
@@ -230,6 +232,7 @@ impl Client {
 
         let pointer = if let Some(p) = current {
             let version = p.counter() + 1;
+            info!("Updating pointer at address {address:?} to version {version}");
             Pointer::new(owner, version, target)
         } else {
             warn!("Pointer at address {address:?} cannot be updated as it does not exist, please create it first or wait for it to be created");
@@ -248,7 +251,7 @@ impl Client {
 
         // store the pointer on the network
         debug!("Updating pointer at address {address:?} to the network");
-        let put_cfg = self.config.pointer.put_cfg(None);
+        let put_cfg = self.config.pointer.put_cfg_specific(None, record.clone());
         self.network
             .put_record(record, &put_cfg)
             .await

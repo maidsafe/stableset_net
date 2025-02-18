@@ -180,6 +180,23 @@ impl Strategy {
         }
     }
 
+    /// Put config for storing a record and making sure it matches the expected record
+    pub(crate) fn put_cfg_specific(
+        &self,
+        put_to: Option<Vec<PeerId>>,
+        expected: Record,
+    ) -> PutRecordCfg {
+        PutRecordCfg {
+            put_quorum: self.put_quorum,
+            retry_strategy: self.put_retry,
+            use_put_record_to: put_to,
+            verification: Some((
+                self.verification_kind.clone(),
+                self.verification_cfg_specific(expected),
+            )),
+        }
+    }
+
     /// Get config for verifying the existance and value of a record
     pub(crate) fn verification_cfg_specific(&self, expected: Record) -> GetRecordCfg {
         GetRecordCfg {

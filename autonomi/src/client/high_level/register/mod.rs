@@ -223,7 +223,7 @@ impl Client {
                 let pointer_key = self.register_head_pointer_sk(&main_key.into());
                 self.pointer_update(&pointer_key, target).await?;
                 return Err(RegisterError::Corrupt(format!(
-                    "Pointer is apparently not at head, attempting to heal the register by updating it to point to the next entry at {address:?}, please retry the operation"
+                    "Pointer doesn't point to the register latest value, attempting to heal the register by updating it to point to the next entry at {address:?}, please retry the operation"
                 )));
             }
             Err(err) => return Err(err.into()),

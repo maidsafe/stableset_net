@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use libp2p::{Multiaddr, PeerId};
 use std::path::PathBuf;
 use tokio::time::Duration;
-
 // const MAX_CONNECTION_RETRY_ATTEMPTS: u8 = 5;
 //const CONNECTION_RETRY_DELAY_SEC: Duration = Duration::from_secs(1);
 
@@ -69,10 +68,9 @@ impl NetworkInfoMetrics {
     }
 }
 
-pub fn read_network_metrics_from_file(root_dir: PathBuf, peer_id: String) -> NetworkInfoMetrics {
-    let network_info_dir_path = root_dir.join("network_info");
-    let connected_peers_path = network_info_dir_path.join(format!("connected_peers_{}", peer_id));
-    let listeners_path = network_info_dir_path.join(format!("listeners_{}", peer_id));
+pub fn read_network_metrics_from_file(root_dir: PathBuf) -> NetworkInfoMetrics {
+    let connected_peers_path = root_dir.join("connected_peers");
+    let listeners_path = root_dir.join("network_info_listeners");
 
     let mut connected_peers = Vec::new();
     if std::path::Path::new(&connected_peers_path).exists() {
@@ -89,6 +87,7 @@ pub fn read_network_metrics_from_file(root_dir: PathBuf, peer_id: String) -> Net
             Err(e) => eprintln!("Failed to read the listeners file: {}", e),
         }
     }
+
     NetworkInfoMetrics::new(connected_peers, listeners)
 }
 
@@ -222,8 +221,7 @@ impl MetricActions for MetricClient {
         let mut node_info = NodeInfoMetrics::default();
         let _ = self.get_node_info_from_metadata_extended(&scrape, &mut node_info);
 
-        let network_info_metrics =
-            read_network_metrics_from_file(node_info.root_dir, node_info.peer_id.to_string());
+        let network_info_metrics = read_network_metrics_from_file(node_info.root_dir);
 
         let connected_peers_ = network_info_metrics
             .connected_peers

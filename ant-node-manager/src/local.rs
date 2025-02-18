@@ -21,7 +21,7 @@ use ant_service_management::{
 use color_eyre::eyre::OptionExt;
 use color_eyre::{eyre::eyre, Result};
 use colored::Colorize;
-use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
+use libp2p::{Multiaddr, PeerId};
 #[cfg(test)]
 use mockall::automock;
 use std::{
@@ -366,11 +366,7 @@ pub async fn run_node(
     let peer_id = node_info.peer_id;
     let network_info = metric_client.network_info().await?;
     let connected_peers = Some(network_info.connected_peers);
-    let listen_addrs = network_info
-        .listeners
-        .into_iter()
-        .map(|addr| addr.with(Protocol::P2p(node_info.peer_id)))
-        .collect();
+    let listen_addrs = network_info.listeners.into_iter().collect();
 
     Ok(NodeServiceData {
         antnode_path: launcher.get_antnode_path(),

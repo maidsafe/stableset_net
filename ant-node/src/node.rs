@@ -478,42 +478,37 @@ impl Node {
             NetworkEvent::PeerWithUnsupportedProtocol { .. } => {
                 event_header = "PeerWithUnsupportedProtocol";
             }
-            NetworkEvent::NewListenAddr(_) => {
+            NetworkEvent::NewListenAddr(listener_addr) => {
                 event_header = "NewListenAddr";
                 let network = self.network().clone();
                 let peers = self.initial_peers().clone();
-                let peer_id = self.network().peer_id();
-                let root_dir_nw_info = self
-                    .get_root_dir()
-                    .clone()
-                    .join("network_info")
-                    .join(format!("listeners_{peer_id}"));
-
-                let path = std::path::Path::new(&root_dir_nw_info);
-
-                if !path.exists() {
-                    info!(
-                        "File {:?} does not exist. Creating it now...",
-                        root_dir_nw_info
-                    );
-                    if let Some(parent) = std::path::Path::new(path).parent() {
-                        match std::fs::create_dir_all(parent) {
-                            Ok(_) => info!("Directory created successfully: {:?}", parent),
-                            Err(e) => eprintln!("Failed to create directory: {e}"),
-                        }
-                    }
-
-                    match std::fs::File::create(&root_dir_nw_info) {
-                        Ok(_) => info!("File created successfully: {:?}", root_dir_nw_info),
-                        Err(e) => eprintln!("Failed to create file: {e}"),
-                    }
-                }
+                let root_dir_nw_info = self.get_root_dir().clone().join("network_info_listeners");
 
                 let _handle = spawn(async move {
-                    for addr in peers {
-                        if !contains_string(&root_dir_nw_info, &addr.to_string()) {
-                            _ = append_to_file(&root_dir_nw_info, &addr.clone().to_string());
+                    let path = std::path::Path::new(&root_dir_nw_info);
+
+                    if !path.exists() {
+                        info!(
+                            "File {:?} does not exist. Creating it now...",
+                            root_dir_nw_info
+                        );
+                        if let Some(parent) = std::path::Path::new(path).parent() {
+                            match std::fs::create_dir_all(parent) {
+                                Ok(_) => info!("Directory created successfully: {:?}", parent),
+                                Err(e) => eprintln!("Failed to create directory: {e}"),
+                            }
                         }
+                        match std::fs::File::create(&root_dir_nw_info) {
+                            Ok(_) => info!("File created successfully: {:?}", root_dir_nw_info),
+                            Err(e) => eprintln!("Failed to create file: {e}"),
+                        }
+                    }
+                    if !contains_string(&root_dir_nw_info, &listener_addr.to_string()) {
+                        _ = append_to_file(&root_dir_nw_info, &listener_addr.to_string());
+                    }
+                });
+                let _handle = spawn(async move {
+                    for addr in peers {
                         if let Err(err) = network.dial(addr.clone()).await {
                             tracing::error!("Failed to dial {addr}: {err:?}");
                         };
@@ -521,12 +516,7 @@ impl Node {
                 });
             }
             NetworkEvent::ClosedListenAddr(address) => {
-                let peer_id = self.network().peer_id();
-                let root_dir_nw_info = self
-                    .get_root_dir()
-                    .clone()
-                    .join("network_info")
-                    .join(format!("listeners_{peer_id}"));
+                let root_dir_nw_info = self.get_root_dir().clone().join("network_info_listeners");
                 let path = std::path::Path::new(&root_dir_nw_info);
 
                 if path.exists() {
